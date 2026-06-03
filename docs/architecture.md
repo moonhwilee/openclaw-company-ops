@@ -10,7 +10,7 @@ platform.
 
 It exists to make this possible:
 
-- Goldbee can define and assign many Work Units.
+- The Operations Lead can define and assign many Work Units.
 - Each team lead OpenClaw agent can execute one Work Unit at a time.
 - Each team lead can directly manage its own subagents.
 - The owner can see company-wide state through a dashboard and event feed.
@@ -20,7 +20,7 @@ It exists to make this possible:
 ## Accountability Chain
 
 ```text
-Owner -> Goldbee -> Team Lead OpenClaw Agent -> Subagents
+Owner -> Operations Lead -> Team Lead OpenClaw Agent -> Subagents
 ```
 
 Work Unit is not an actor. A Work Unit is the task unit owned by one team lead
@@ -30,21 +30,22 @@ session.
 
 ### Owner
 
-The owner supervises Goldbee.
+The owner supervises the Operations Lead.
 
 The owner checks:
 
-- Goldbee's operating judgment.
+- Operations Lead operating judgment.
 - Company direction and priorities.
 - Final result quality.
 - Dashboard and Discord event visibility.
-- Goldbee decision records.
+- Operations Lead decision records.
 
-### Goldbee
+### Operations Lead
 
-Goldbee is the research director and operations lead.
+The Operations Lead is the role responsible for defining, assigning, reviewing,
+and deciding work across team leads.
 
-Goldbee owns:
+The Operations Lead owns:
 
 - Work Unit definition.
 - Assignment Packet creation.
@@ -54,7 +55,7 @@ Goldbee owns:
 - Recovery or reassignment judgment when a team lead is stale, blocked, or
   failed.
 
-Goldbee does not directly operate a team lead's Pilot or subagents.
+The Operations Lead does not directly operate a team lead's Pilot or subagents.
 
 ### Team Lead OpenClaw Agent
 
@@ -66,14 +67,14 @@ The team lead owns:
 - Team Playbook / Pilot Prompt use.
 - Direct subagent orchestration.
 - Evidence collection.
-- Result submission to Goldbee.
+- Result submission to the Operations Lead.
 - Ops Claim Ledger updates for its execution responsibility.
 
 ### Subagents
 
 Subagents are workers under a team lead.
 
-Subagents report to the team lead, not directly to Goldbee.
+Subagents report to the team lead, not directly to the Operations Lead.
 
 ## Operating Elements
 
@@ -95,7 +96,7 @@ It shows:
 - Blocker summary.
 - PR/result link.
 - Evidence link.
-- Goldbee decision link.
+- Operations Lead decision link.
 
 It is not a source of truth.
 
@@ -120,7 +121,8 @@ It is not the detailed handoff.
 
 ### 3. Assignment Packet
 
-Assignment Packet is the detailed handoff from Goldbee to the team lead.
+Assignment Packet is the detailed handoff from the Operations Lead to the team
+lead.
 
 It contains:
 
@@ -182,7 +184,7 @@ It may include:
 - Decision record.
 
 It is not a new database. It is a small bundle of links and artifacts that lets
-Goldbee decide whether the Work Unit is done.
+the Operations Lead decide whether the Work Unit is done.
 
 No evidence means no completion.
 
@@ -215,7 +217,7 @@ Minimum fields:
 
 Claim types:
 
-- `orchestration`: Goldbee responsibility, such as assignment, review,
+- `orchestration`: Operations Lead responsibility, such as assignment, review,
   decision, or recovery judgment.
 - `execution`: team lead responsibility for Work Unit execution.
 
@@ -231,8 +233,8 @@ Expected states:
 `last_claim` is a short status claim that includes timestamp meaning. It is used
 to judge staleness.
 
-`done` is not completion truth. It is an expected responsibility state after
-Goldbee has made the decision.
+`done` is not completion truth. It is an expected responsibility state after the
+Operations Lead has made the decision.
 
 ### 8. Pulse Monitor
 
@@ -265,20 +267,20 @@ Pulse Monitor must not:
 - Modify Pilot state.
 - Mark completion.
 - Infer a fallback source of truth.
-- Make Goldbee decisions.
+- Make Operations Lead decisions.
 
 ## Operating Flow
 
 1. Owner states a goal or priority.
-2. Goldbee defines a Work Unit.
-3. Goldbee writes an Assignment Packet.
-4. Goldbee creates a Work Card.
-5. Goldbee assigns one team lead OpenClaw agent.
-6. Goldbee or the team lead creates the relevant Ops Claim Ledger claim.
+2. Operations Lead defines a Work Unit.
+3. Operations Lead writes an Assignment Packet.
+4. Operations Lead creates a Work Card.
+5. Operations Lead assigns one team lead OpenClaw agent.
+6. Operations Lead or the team lead creates the relevant Ops Claim Ledger claim.
 7. Team lead executes through Team Playbook / Pilot Prompt.
 8. Team lead directly manages subagents.
 9. Team lead submits Evidence & Result Record.
-10. Goldbee reviews evidence and records a final decision.
+10. Operations Lead reviews evidence and records a final decision.
 11. Company Dashboard and Discord Ops reflect the state.
 12. Pulse Monitor emits alerts only if claim expectations and session signals
     diverge.
@@ -322,7 +324,7 @@ GitHub must not replace:
 - Assignment Packet.
 - Ops Claim Ledger.
 - Team Playbook / Pilot Prompt.
-- Goldbee judgment.
+- Operations Lead judgment.
 
 ## No Legacy And No Fallback
 
@@ -337,9 +339,9 @@ Forbidden substitutions:
 - Discord messages cannot replace Assignment Packet.
 - GitHub labels or Project status cannot replace Ops Claim Ledger.
 - PR summaries cannot replace evidence.
-- Pulse Monitor cannot replace Goldbee judgment.
+- Pulse Monitor cannot replace Operations Lead judgment.
 - Pilot cannot create a hidden orchestrator agent.
-- Goldbee cannot directly operate a team lead's subagents.
+- Operations Lead cannot directly operate a team lead's subagents.
 
 If a required layer is missing, the state is `blocked` or `control_gap`.
 
@@ -352,7 +354,7 @@ If a required layer is missing, the state is `blocked` or `control_gap`.
 - Automatic restart, recovery, cancellation, or reassignment.
 - Automatic completion.
 - Hidden orchestrator agent.
-- Goldbee directly manipulating team lead Pilot internals.
+- Operations Lead directly manipulating team lead Pilot internals.
 - Marketplace or multi-user platform features.
 
 ## Implementation Direction

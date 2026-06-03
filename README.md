@@ -6,12 +6,12 @@ multiple OpenClaw agents.
 The core chain is:
 
 ```text
-Owner -> Goldbee -> Team Lead OpenClaw Agent -> Subagents
+Owner -> Operations Lead -> Team Lead OpenClaw Agent -> Subagents
 ```
 
-Goldbee defines work, assigns team leads, reviews evidence, and makes final
-decisions. Each team lead owns one Work Unit and directly manages its own
-subagents.
+The Operations Lead defines work, assigns team leads, reviews evidence, and
+makes final decisions. Each team lead owns one Work Unit and directly manages
+its own subagents.
 
 ## Current Status
 
