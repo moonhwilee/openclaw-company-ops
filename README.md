@@ -1,0 +1,44 @@
+# OpenClaw Company Ops
+
+OpenClaw Company Ops is a company-style operating structure for coordinating
+multiple OpenClaw agents.
+
+The core chain is:
+
+```text
+Owner -> Goldbee -> Team Lead OpenClaw Agent -> Subagents
+```
+
+Goldbee defines work, assigns team leads, reviews evidence, and makes final
+decisions. Each team lead owns one Work Unit and directly manages its own
+subagents.
+
+## Current Status
+
+This project is the new source for OpenClaw Company Ops. Earlier Workbench
+projects are reference material only and are not compatibility targets.
+
+Current internal architecture version: v1.
+
+## Documents
+
+- [Architecture](docs/architecture.md)
+
+## Project Rules
+
+- No legacy operating path.
+- No fallback source of truth.
+- No hidden orchestrator agent.
+- No automatic recovery, restart, reassignment, or completion.
+- No required database for the v1 ledger.
+- No Discord command router in v1.
+
+## Planned Work
+
+- Setup guide for OpenClaw agent identities, workspaces, and session binding.
+- Discord setup guide for event visibility.
+- GitHub setup guide for issues, projects, PRs, and evidence records.
+- Templates for Work Cards, Assignment Packets, Ops Claim Ledger entries, and
+  Pulse Monitor alerts.
+- A small reproducible package or program that helps other users install and
+  operate the structure.
