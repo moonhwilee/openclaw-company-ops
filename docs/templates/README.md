@@ -18,8 +18,10 @@ They are not an automated runtime, database, dashboard, or command router.
   review.
 - [Operations Lead Decision](operations-lead-decision.md): review decision and
   rationale.
-- [Team Playbook / Pilot Prompt](team-playbook-pilot-prompt.md): prompt/checklist
+- [Team Playbook](team-playbook.md): prompt/checklist
   for team lead execution.
+- [Team Lead Protocols](../protocols/README.md): canonical references for
+  `goal`, `verify`, and `conv` Protocol Capsules.
 
 The GitHub Issue form for Work Cards lives in
 `.github/ISSUE_TEMPLATE/work-card.yml`.
@@ -27,6 +29,8 @@ The GitHub Issue form for Work Cards lives in
 ## Rules
 
 - A Work Card cannot replace the Assignment Packet.
+- Protocol files cannot replace the Assignment Packet or active Protocol
+  Capsule.
 - A GitHub label, dashboard field, or Discord message cannot replace the Ops
   Claim Ledger entry.
 - A status claim cannot replace the Evidence & Result Record.

@@ -26,7 +26,7 @@ It sets up:
 - A manual file-backed Ops Claim Ledger.
 - Manual Pulse Monitor checks that can later become alert-only automation.
 - Discord visibility conventions.
-- Team Lead / Pilot execution boundaries.
+- Team Lead Execution boundaries.
 - An end-to-end smoke test.
 
 This guide does not create a finished product runtime. It creates the structure
@@ -544,7 +544,7 @@ The monitor must only alert. It must not:
 - Cancel work.
 - Mark completion.
 - Modify GitHub state.
-- Modify Pilot state.
+- Modify execution state.
 - Infer a fallback source of truth.
 
 Future automation should replace the manual comparison with:
@@ -609,7 +609,7 @@ Future automation should replace manual event posting with:
 openclaw-company-ops discord emit --event RESULT_READY --work-unit <id>
 ```
 
-## Team Lead / Pilot Execution Setup
+## Team Lead Execution Setup
 
 Status: Manual implementation
 
@@ -621,15 +621,15 @@ The Team Lead should:
 1. Read the Assignment Packet.
 2. Confirm scope, constraints, and done criteria.
 3. Create a short execution plan.
-4. Use the Team Playbook / Pilot Prompt if helpful.
+4. Use the Team Playbook if helpful.
 5. Directly spawn or coordinate its own subagents.
 6. Keep claim state fresh.
 7. Produce the Evidence & Result Record.
 
-Pilot, if used, is a support protocol for the owning Team Lead. It must not
+The Team Playbook is a support protocol for the owning Team Lead. It must not
 create or become a hidden orchestrator agent.
 
-Pilot-related artifacts should carry:
+Execution artifacts should carry:
 
 - Work Unit id.
 - Work Card ref.
@@ -642,7 +642,7 @@ Pilot-related artifacts should carry:
 Template:
 
 ```text
-docs/templates/team-playbook-pilot-prompt.md
+docs/templates/team-playbook.md
 ```
 
 ## End-To-End Smoke Test

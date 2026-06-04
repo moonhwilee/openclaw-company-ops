@@ -114,7 +114,7 @@ Discord must not:
 - Reassign Team Leads.
 - Restart or recover agents.
 - Mutate GitHub state.
-- Mutate Pilot state.
+- Mutate execution state.
 - Act as a command router in v1.
 
 If a Discord message says something that is not backed by a source artifact,
@@ -185,6 +185,6 @@ It should not:
 - Infer state from chat text.
 - Reassign work.
 - Recover sessions.
-- Modify GitHub or Pilot state without a separate approved mechanism.
+- Modify GitHub or execution state without a separate approved mechanism.
 
 The bridge is a publisher. It is not an operating authority.

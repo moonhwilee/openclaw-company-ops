@@ -141,7 +141,7 @@ The dashboard must not:
 - Infer completion from a field value.
 - Reassign Team Leads.
 - Restart or recover agents.
-- Mutate Pilot state.
+- Mutate execution state.
 - Act as a command router.
 - Become a hidden database of work truth.
 

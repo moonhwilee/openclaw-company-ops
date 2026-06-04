@@ -55,7 +55,7 @@ The Operations Lead owns:
 - Recovery or reassignment judgment when a team lead is stale, blocked, or
   failed.
 
-The Operations Lead does not directly operate a team lead's Pilot or subagents.
+The Operations Lead does not directly operate a team lead's execution loop or subagents.
 
 ### Team Lead OpenClaw Agent
 
@@ -64,7 +64,7 @@ A team lead is an OpenClaw main session that owns exactly one active Work Unit.
 The team lead owns:
 
 - Work Unit execution.
-- Team Playbook / Pilot Prompt use.
+- Team Playbook use.
 - Direct subagent orchestration.
 - Evidence collection.
 - Result submission to the Operations Lead.
@@ -154,11 +154,41 @@ It contains:
 - Inputs.
 - Done criteria.
 - Verification criteria.
+- Protocol Capsule.
 - Expected outputs.
 - Reporting format.
 
 GitHub issue text, PR summaries, Discord messages, and dashboard notes cannot
 replace the Assignment Packet.
+
+The Protocol Capsule is a compact execution instruction embedded in the
+Assignment Packet. It tells the Team Lead which protocol loop to run, but it
+does not replace the packet itself.
+
+Canonical protocol files live under `docs/protocols/`. They are references for
+the Operations Lead when composing capsules. The Team Lead should execute the
+capsule in the active Assignment Packet instead of searching protocol files and
+interpreting the Work Unit from scratch.
+
+The capsule mode is explicit. There is no default mode that turns every Work
+Unit into `goal`; the Operations Lead selects the mode that matches the
+delegated Work Unit.
+
+```yaml
+protocol_capsule:
+  mode: <goal|verify|conv>
+  support: []
+  loop: <only_if_mode_requires_a_loop>
+  stop_only_on:
+    - done_criteria_passed_with_evidence
+    - explicit_blocker
+    - safety_or_budget_limit
+    - operations_lead_or_user_pause
+  ownership: team_lead_owns_execution
+  subagents: direct_team_lead_control_only
+  result: map_evidence_to_done_and_verification_criteria
+  revision_rule: reject_means_reenter_selected_mode
+```
 
 ### 4. Team Lead Session
 
@@ -169,24 +199,26 @@ The team lead session must directly control its subagents.
 There must be no hidden orchestrator agent between the team lead and its
 subagents.
 
-### 5. Team Playbook / Pilot Prompt
+### 5. Team Playbook
 
-Team Playbook / Pilot Prompt is the operating checklist used by the team lead.
+Team Playbook is the operating checklist used by the team lead.
 
-For v1, this is prompt/checklist first. It does not require a heavy Pilot
-runtime.
+For v1, this is prompt/checklist first. It does not require a separate execution runtime.
 
 The playbook tells the team lead how to:
 
 - Restate the assignment.
-- Split the work.
-- Delegate to subagents.
-- Review subagent output.
-- Verify results.
+- Confirm the Assignment Packet and Protocol Capsule.
+- Run `goal`: plan, act, verify, improve, and reverify until done criteria pass.
+- Run `verify`: map outputs and evidence to done and verification criteria.
+- Run `conv`: recover context after long work, compaction, or subagent result
+  integration.
+- Delegate partial work to subagents while keeping Work Unit ownership.
+- Review subagent output as input, not as completion truth.
 - Produce evidence.
-- Report completion or blockers.
+- Report result-ready or blockers.
 
-Pilot may later become a stronger runtime, but v1 must not depend on that.
+A future runtime may later support this flow, but v1 must not depend on that.
 
 ### 6. Evidence & Result Record
 
@@ -284,7 +316,7 @@ Pulse Monitor must not:
 - Reassign work.
 - Cancel work.
 - Modify GitHub.
-- Modify Pilot state.
+- Modify execution state.
 - Mark completion.
 - Infer a fallback source of truth.
 - Make Operations Lead decisions.
@@ -293,11 +325,11 @@ Pulse Monitor must not:
 
 1. Owner states a goal or priority.
 2. Operations Lead defines a Work Unit.
-3. Operations Lead writes an Assignment Packet.
+3. Operations Lead writes an Assignment Packet with a Protocol Capsule.
 4. Operations Lead creates a Work Card.
 5. Operations Lead assigns one team lead OpenClaw agent.
 6. Operations Lead or the team lead creates the relevant Ops Claim Ledger claim.
-7. Team lead executes through Team Playbook / Pilot Prompt.
+7. Team lead executes packet-first through Team Playbook.
 8. Team lead directly manages subagents.
 9. Team lead submits Evidence & Result Record.
 10. Operations Lead reviews evidence and records a final decision.
@@ -343,12 +375,12 @@ GitHub must not replace:
 
 - Assignment Packet.
 - Ops Claim Ledger.
-- Team Playbook / Pilot Prompt.
+- Team Playbook.
 - Operations Lead judgment.
 
 ## No Legacy And No Fallback
 
-No legacy means older Workbench or Project Cell structures are reference
+No legacy means older experimental structures are reference
 material only. They are not compatibility targets.
 
 No fallback means one layer cannot silently replace another.
@@ -357,10 +389,12 @@ Forbidden substitutions:
 
 - GitHub Issue text cannot replace Assignment Packet.
 - Discord messages cannot replace Assignment Packet.
+- Protocol files cannot replace Assignment Packet or Protocol Capsule.
+- Team Lead execution plans cannot replace Assignment Packet.
 - GitHub labels or Project status cannot replace Ops Claim Ledger.
 - PR summaries cannot replace evidence.
 - Pulse Monitor cannot replace Operations Lead judgment.
-- Pilot cannot create a hidden orchestrator agent.
+- The Team Playbook cannot create a hidden orchestrator agent.
 - Operations Lead cannot directly operate a team lead's subagents.
 
 If a required layer is missing, the state is `blocked` or `control_gap`.
@@ -374,7 +408,9 @@ If a required layer is missing, the state is `blocked` or `control_gap`.
 - Automatic restart, recovery, cancellation, or reassignment.
 - Automatic completion.
 - Hidden orchestrator agent.
-- Operations Lead directly manipulating team lead Pilot internals.
+- Operations Lead directly manipulating team lead execution internals.
+- A protocol runtime, classifier, or daemon that replaces the Assignment Packet
+  and Team Lead prompt loop.
 - Marketplace or multi-user platform features.
 
 ## Implementation Direction
