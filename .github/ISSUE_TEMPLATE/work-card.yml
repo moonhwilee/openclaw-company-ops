@@ -1,0 +1,100 @@
+name: Work Card
+description: Create a Manual Day-0 Work Card for one OpenClaw Company Ops Work Unit.
+title: "[Work Unit] "
+labels: ["work-unit", "assignment-ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A Work Card is the shared task card for one Work Unit.
+
+        It is not the detailed handoff. Link the Assignment Packet instead of copying or replacing it here.
+  - type: input
+    id: work-unit-id
+    attributes:
+      label: Work Unit id
+      description: Stable id for this Work Unit.
+      placeholder: WU-YYYYMMDD-001
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: One clear outcome this Work Unit should produce.
+    validations:
+      required: true
+  - type: input
+    id: team-lead
+    attributes:
+      label: Team Lead OpenClaw Agent
+      description: The team lead session that owns execution, if already assigned.
+      placeholder: agent/session ref
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is inside this Work Unit.
+    validations:
+      required: true
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: What this Work Unit must not do.
+    validations:
+      required: false
+  - type: textarea
+    id: done-criteria
+    attributes:
+      label: Done criteria
+      description: Conditions required before the Operations Lead can accept the result.
+    validations:
+      required: true
+  - type: input
+    id: assignment-packet-ref
+    attributes:
+      label: Assignment Packet reference
+      description: Link or path to the detailed handoff. If missing, this Work Unit is blocked.
+      placeholder: docs/templates/assignment-packet.md or ops/work-units/<id>/assignment.md
+    validations:
+      required: true
+  - type: textarea
+    id: verification-criteria
+    attributes:
+      label: Verification criteria
+      description: Checks, review criteria, or evidence needed to judge the result.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-outputs
+    attributes:
+      label: Expected outputs
+      description: Files, PRs, reports, artifacts, or decisions expected from this Work Unit.
+    validations:
+      required: true
+  - type: input
+    id: evidence-result-ref
+    attributes:
+      label: Evidence & Result Record reference
+      description: Fill this only after a real evidence record exists.
+      placeholder: ops/work-units/<id>/evidence.md
+    validations:
+      required: false
+  - type: input
+    id: decision-ref
+    attributes:
+      label: Operations Lead decision reference
+      description: Fill this only after the Operations Lead records a decision.
+      placeholder: ops/work-units/<id>/decision.md
+    validations:
+      required: false
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers or missing artifacts
+      description: If a required artifact is missing, mark the Work Unit blocked instead of substituting another artifact.
+    validations:
+      required: false
