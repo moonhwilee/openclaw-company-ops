@@ -76,6 +76,20 @@ GitHub is the default shared work surface.
 Use GitHub Issues as Work Cards. A Work Card should be small and link to the
 real handoff packet instead of trying to contain every detail.
 
+For an existing owner environment like this repo, the immediate GitHub setup is
+small:
+
+- Keep one repository for the OpenClaw Company Ops manual, templates, and future
+  package.
+- Keep Issues enabled.
+- Keep the repo public if the goal is public distribution.
+- Keep branch protection and rulesets deferred until the first templates and
+  manual dry run are stable.
+- Leave website/homepage empty until there is a docs site, GitHub Pages site,
+  or released manual.
+- Do not create a GitHub Project yet unless there are enough Work Cards to make
+  a dashboard useful.
+
 Recommended issue labels:
 
 - `work-unit`
@@ -99,6 +113,51 @@ Recommended Work Card fields:
 
 Do not use a GitHub Issue as a fallback Assignment Packet. If the Assignment
 Packet does not exist or cannot be read, the Work Unit is blocked.
+
+## Repository Strategy
+
+Status: Manual Day-0
+
+Use one GitHub repository per real project or product, not one repository per
+Work Unit.
+
+Recommended model:
+
+- `openclaw-company-ops`: the operating model, public docs, templates, and
+  future reusable package.
+- One separate repository for each active product or codebase that needs its
+  own source code, issues, PRs, tests, and releases.
+- Work Units live as Issues inside the repository where the work belongs.
+- Cross-project visibility comes from GitHub Projects or saved issue views, not
+  from a fake umbrella repository.
+
+Do not create a dedicated "dashboard repository" just to hold the Company
+Dashboard. A GitHub Project can exist at the user or organization level and can
+reference issues and pull requests from multiple repositories.
+
+For this repo, the current recommendation is:
+
+- Do not create more GitHub repositories yet.
+- Do not enable GitHub Projects yet.
+- Start with this repo's Issues only when writing templates or running a manual
+  dry run.
+- Create the first Company Dashboard GitHub Project only after there are several
+  active Work Cards or multiple active repos that need one shared view.
+
+When the dashboard is created, make it a visibility layer with fields such as:
+
+- Work Unit id.
+- Repository.
+- Team Lead.
+- State.
+- Priority.
+- Blocker.
+- Assignment Packet reference.
+- Evidence & Result Record reference.
+- Operations Lead decision reference.
+
+The dashboard must point back to source artifacts. It must not become the source
+artifact itself.
 
 ## Discord Setup
 
