@@ -220,6 +220,9 @@ Work Cards or repositories to make cross-work visibility useful. The dashboard
 must remain a visibility layer that points back to Work Cards, Assignment
 Packets, claims, evidence, and decisions.
 
+Detailed timing criteria are documented in
+`docs/company-dashboard-timing.md`.
+
 ## Reference Dry Run
 
 The first manual dry run is:
@@ -236,3 +239,10 @@ The second manual dry run is:
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/6
 - Artifacts: `docs/examples/manual-dry-run/WU-20260604-002/`
 - Output: `docs/discord-event-visibility.md`
+
+The third manual dry run is:
+
+- Work Unit: `WU-20260604-003`
+- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/8
+- Artifacts: `docs/examples/manual-dry-run/WU-20260604-003/`
+- Output: `docs/company-dashboard-timing.md`

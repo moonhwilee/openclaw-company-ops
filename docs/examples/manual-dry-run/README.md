@@ -14,6 +14,8 @@ runtime, dashboard backend, database, command router, or recovery system.
   first operations manual.
 - `WU-20260604-002`: validates the manual loop on a Discord event visibility
   guide.
+- `WU-20260604-003`: validates the manual loop on a Company Dashboard timing
+  guide.
 
 ## Rules
 
