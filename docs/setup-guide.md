@@ -162,6 +162,8 @@ When the dashboard is created, make it a visibility layer with fields such as:
 The dashboard must point back to source artifacts. It must not become the source
 artifact itself.
 
+Dashboard creation timing is documented in `docs/company-dashboard-timing.md`.
+
 ## Discord Setup
 
 Status: Manual Day-0
@@ -389,6 +391,7 @@ The first worked manual example lives in:
 
 - `docs/examples/manual-dry-run/WU-20260604-001/`
 - `docs/examples/manual-dry-run/WU-20260604-002/`
+- `docs/examples/manual-dry-run/WU-20260604-003/`
 
 ## Future Installation Path
 
@@ -446,5 +449,10 @@ The second manual dry run is documented at:
 
 - `docs/examples/manual-dry-run/WU-20260604-002/`
 
+The third manual dry run is documented at:
+
+- `docs/examples/manual-dry-run/WU-20260604-003/`
+
 The next recommended step is to run a Work Unit from a real product request and
-compare the manual flow against the operations manual and Discord event guide.
+compare the manual flow against the operations manual, Discord event guide, and
+dashboard timing guide.
