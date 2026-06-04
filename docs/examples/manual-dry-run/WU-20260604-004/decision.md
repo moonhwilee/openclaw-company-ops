@@ -20,7 +20,7 @@ Status: Manual Day-0
 The Implementation Setup Guide satisfies the Assignment Packet by documenting
 the complete manual implementation path: OpenClaw agent setup, GitHub setup,
 artifact storage, Ops Claim Ledger, Pulse Monitor, Discord visibility, Team
-Lead/Pilot execution, smoke testing, troubleshooting, and future CLI migration.
+Lead execution, smoke testing, troubleshooting, and future CLI migration.
 
 The guide preserves the v1 boundaries: Work Cards do not replace Assignment
 Packets, Discord and dashboards remain visibility only, Pulse Monitor remains

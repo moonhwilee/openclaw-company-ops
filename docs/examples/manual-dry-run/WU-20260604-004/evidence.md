@@ -44,7 +44,7 @@ the OpenClaw Company Ops structure before CLI automation exists.
 - Criterion: guide can be followed as a manual implementation path.
   - Status: met
   - Evidence: setup sections cover prerequisites, OpenClaw agents, GitHub,
-    artifacts, ledger, pulse, Discord, Team Lead/Pilot, smoke test, and
+    artifacts, ledger, pulse, Discord, Team Lead, smoke test, and
     troubleshooting.
 - Criterion: manual steps are replaceable by future CLI automation.
   - Status: met

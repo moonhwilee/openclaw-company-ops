@@ -3,10 +3,12 @@
 Status: Manual Day-0
 
 The Assignment Packet is the detailed handoff from the Operations Lead to one
-Team Lead OpenClaw Agent.
+Team Lead OpenClaw Agent for a delegated Work Unit.
 
-It is required before execution starts. A GitHub Issue, PR summary, dashboard
-note, or Discord message cannot replace it.
+It is required before delegated Work Unit execution starts. Simple direct
+questions or quick lookups do not need an Assignment Packet unless the
+Operations Lead explicitly promotes them into a Work Unit. A GitHub Issue, PR
+summary, dashboard note, or Discord message cannot replace this packet.
 
 ## Identity
 
@@ -63,6 +65,34 @@ Evidence or checks required for review:
 
 -
 
+## Protocol Capsule
+
+Use this compact execution protocol for this Work Unit. Do not replace this
+packet by searching protocol docs or inferring completion criteria from request
+prose.
+
+Select the mode that matches the delegated Work Unit:
+
+- `goal`: produce or change a durable outcome through a plan-act-verify loop.
+- `verify`: review existing output or evidence without starting new goal work.
+- `conv`: recover context, summarize state, or integrate prior results.
+
+```yaml
+protocol_capsule:
+  mode: <goal|verify|conv>
+  support: []
+  loop: <only_if_mode_requires_a_loop>
+  stop_only_on:
+    - done_criteria_passed_with_evidence
+    - explicit_blocker
+    - safety_or_budget_limit
+    - operations_lead_or_user_pause
+  ownership: team_lead_owns_execution
+  subagents: direct_team_lead_control_only
+  result: map_evidence_to_done_and_verification_criteria
+  revision_rule: reject_means_reenter_selected_mode
+```
+
 ## Expected Outputs
 
 - Evidence & Result Record:
@@ -84,3 +114,7 @@ The Team Lead should report:
 If a required input or artifact is missing, report `blocked`. Do not substitute
 this packet with a GitHub comment, Discord message, dashboard note, or PR
 summary.
+
+If this packet lacks done criteria, verification criteria, or a Protocol
+Capsule for delegated multi-step work, report `blocked` before starting a goal
+loop.

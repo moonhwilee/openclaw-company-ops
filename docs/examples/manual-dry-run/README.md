@@ -18,10 +18,14 @@ runtime, dashboard backend, database, command router, or recovery system.
   guide.
 - `WU-20260604-004`: validates the manual loop on a full implementation setup
   guide.
+- `WU-20260605-001`: validates the Team Lead Protocol Capsule convention and
+  packet-first `goal` / `verify` / `conv` loop before CLI work starts.
 
 ## Rules
 
 - A Work Card is the shared task card, not the Assignment Packet.
+- A Protocol Capsule guides Team Lead execution, but cannot replace the
+  Assignment Packet.
 - A claim entry records expected responsibility, not completion truth.
 - Evidence must link to real artifacts or checks.
 - Operations Lead decisions must not be inferred from labels, dashboard fields,

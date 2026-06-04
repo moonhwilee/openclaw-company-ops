@@ -15,7 +15,7 @@ its own subagents.
 
 ## Current Status
 
-This project is the new source for OpenClaw Company Ops. Earlier Workbench
+This project is the new source for OpenClaw Company Ops. Earlier experimental
 projects are reference material only and are not compatibility targets.
 
 Current internal architecture version: v1.
@@ -28,6 +28,7 @@ connection instructions as components are implemented.
 ## Documents
 
 - [Architecture](docs/architecture.md)
+- [Team Lead Protocols](docs/protocols/README.md)
 - [Setup Guide](docs/setup-guide.md)
 - [Implementation Setup Guide](docs/implementation-setup-guide.md)
 - [Manual Day-0 Templates](docs/templates/README.md)
@@ -44,6 +45,7 @@ connection instructions as components are implemented.
 - No automatic recovery, restart, reassignment, or completion.
 - No required database for the v1 ledger.
 - No Discord command router in v1.
+- No protocol runtime, classifier, or hidden runtime in v1.
 
 ## Planned Work
 

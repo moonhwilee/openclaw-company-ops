@@ -1,0 +1,65 @@
+# Team Lead Protocols
+
+Status: Manual Day-0
+
+These protocol files are canonical references for Team Lead execution. They are
+not a runtime, command router, database, or hidden runtime.
+
+The Operations Lead uses these files to compose a short Protocol Capsule inside
+each Assignment Packet. The Team Lead executes the capsule packet-first instead
+of searching protocol files and interpreting the Work Unit from scratch.
+
+These protocols apply only to delegated Work Units. Simple direct questions,
+quick lookups, and conversational requests should not be promoted into Work Unit
+protocol unless the Operations Lead explicitly assigns them that way.
+
+## Protocol Set
+
+- [goal](goal.md): complete the Work Unit through an iterative
+  plan-act-verify-improve loop.
+- [verify](verify.md): compare outputs and evidence against done and
+  verification criteria.
+- [conv](conv.md): recover Work Unit context after long execution, compaction,
+  or subagent result integration.
+
+## Packet-First Rule
+
+If a delegated Work Unit includes an Assignment Packet, the packet is the source
+of truth.
+
+If a delegated Work Unit lacks an Assignment Packet, done criteria, or
+verification criteria, the Team Lead must report `blocked` instead of starting a
+goal loop from request prose.
+
+Simple direct questions do not require Work Unit protocol.
+
+Packet-first does not mean goal-always. The active Protocol Capsule selects
+`goal`, `verify`, or `conv`; the Team Lead must not start goal work when the
+packet asks for verification, context recovery, or a simple direct answer.
+
+## Protocol Capsule
+
+The Protocol Capsule is the compact execution instruction embedded in an
+Assignment Packet. It should be short enough to fit in the active context and
+strict enough to prevent the Team Lead from inventing completion criteria.
+
+Goal-mode example:
+
+```yaml
+protocol_capsule:
+  mode: goal
+  support: [verify, conv]
+  loop: plan -> act -> verify -> improve -> reverify
+  stop_only_on:
+    - done_criteria_passed_with_evidence
+    - explicit_blocker
+    - safety_or_budget_limit
+    - operations_lead_or_user_pause
+  ownership: team_lead_owns_execution
+  subagents: direct_team_lead_control_only
+  result: map_evidence_to_done_and_verification_criteria
+  revision_rule: reject_means_reenter_goal_loop
+```
+
+The capsule cannot replace the Assignment Packet. It only tells the Team Lead
+how to execute the packet.

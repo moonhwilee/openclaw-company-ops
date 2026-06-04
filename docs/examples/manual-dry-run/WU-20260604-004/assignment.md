@@ -22,7 +22,7 @@ The existing setup guide explains the Manual Day-0 operating model, but it is
 not yet sufficient for a new user to install or implement the full structure.
 The missing pieces include OpenClaw agent setup, GitHub setup, artifact storage,
 Ops Claim Ledger setup, Pulse Monitor setup, Discord visibility setup, Team
-Lead / Pilot execution setup, smoke testing, and forbidden fallback rules.
+Lead / execution setup, smoke testing, and forbidden fallback rules.
 
 ## Scope
 
@@ -37,7 +37,7 @@ The Team Lead should:
 - Cover file-backed Ops Claim Ledger setup.
 - Cover alert-only Pulse Monitor setup.
 - Cover Discord visibility setup.
-- Cover Team Lead / Pilot execution setup.
+- Cover Team Lead Execution setup.
 - Cover an end-to-end smoke test and troubleshooting.
 - Link the new guide from the existing docs entry points.
 
@@ -79,7 +79,7 @@ The Work Unit is ready for review when:
 - The guide clearly distinguishes current manual steps from future CLI
   replacement points.
 - OpenClaw agent setup and GitHub setup are covered.
-- Runtime state, claim ledger, pulse, Discord, Team Lead/Pilot, smoke test, and
+- Runtime state, claim ledger, pulse, Discord, Team Lead, smoke test, and
   troubleshooting sections are covered.
 - Existing docs link to the new guide.
 - Evidence and decision artifacts exist for this Work Unit.

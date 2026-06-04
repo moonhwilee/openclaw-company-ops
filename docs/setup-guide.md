@@ -332,7 +332,7 @@ It must not:
 - Reassign work.
 - Cancel work.
 - Modify GitHub.
-- Modify Pilot state.
+- Modify execution state.
 - Mark completion.
 - Infer a fallback source of truth.
 
@@ -382,7 +382,7 @@ The current repo includes Manual Day-0 templates:
 - `docs/templates/ops-claim-ledger-entry.md`
 - `docs/templates/evidence-result-record.md`
 - `docs/templates/operations-lead-decision.md`
-- `docs/templates/team-playbook-pilot-prompt.md`
+- `docs/templates/team-playbook.md`
 
 The GitHub Issue form for Work Cards lives in:
 
