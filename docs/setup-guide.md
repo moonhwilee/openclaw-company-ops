@@ -470,5 +470,6 @@ The fourth manual dry run is documented at:
 The first small Work Unit artifact generator exists as
 `scripts/work_unit_artifacts.py`, and the first repo-local Ops Claim Ledger CLI
 exists as `scripts/ops_claim_ledger.py`. The first repo-local Pulse Monitor
-check exists as `scripts/pulse_monitor.py`. The next recommended step is the
-multi-team operation smoke.
+check exists as `scripts/pulse_monitor.py`. The first bounded multi-team smoke
+exists as `scripts/company_ops_smoke.py`. The next recommended step is Discord
+Ops alert visibility.

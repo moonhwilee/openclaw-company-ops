@@ -22,6 +22,9 @@ runtime, dashboard backend, database, command router, or recovery system.
   packet-first `goal` / `verify` loop before CLI work starts.
 - `WU-20260605-002`: real product Work Unit for the first minimal Work Unit
   artifact generator CLI.
+- `scripts/company_ops_smoke.py multi-team`: bounded repo-local smoke that
+  validates two Team Lead claims, Pulse Monitor no-alert behavior, and one
+  result-ready claim update without mutating external systems.
 
 ## Rules
 

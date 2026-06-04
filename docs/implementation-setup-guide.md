@@ -709,7 +709,23 @@ docs/templates/team-playbook.md
 
 ## End-To-End Smoke Test
 
-Status: Manual implementation
+Status: Repo-local multi-team smoke supported
+
+Run the bounded repo-local smoke first:
+
+```bash
+python3 scripts/company_ops_smoke.py multi-team
+```
+
+This creates temporary artifacts and a temporary claim ledger for two Team Lead
+owners. It checks artifact generation, two independent claims, an alert-only
+Pulse Monitor no-alert pass, and one `result_ready` claim update.
+
+It does not create GitHub issues, post Discord messages, restart agents,
+recover sessions, reassign work, or mark real Work Units complete.
+
+Manual implementation smoke can still be used when exercising GitHub Work Cards
+and real Team Lead handoffs.
 
 Run this smoke test after setup.
 
