@@ -623,7 +623,7 @@ openclaw cron add company-ops-pulse -- <command>
 
 ## Discord Visibility Setup
 
-Status: Manual implementation now, visibility bridge later
+Status: Repo-local alert formatter supported, visibility bridge later
 
 Discord is optional. If used, it is only an event visibility surface.
 
@@ -639,6 +639,22 @@ Verify available OpenClaw messaging commands:
 openclaw message --help
 openclaw channels status
 ```
+
+Format Pulse Monitor alerts before manual posting:
+
+```bash
+python3 scripts/pulse_monitor.py pulse check \
+  --ledger "$LEDGER" \
+  --session-snapshot ./session-snapshot.json \
+  --format json > pulse-alerts.json
+
+python3 scripts/discord_ops.py alerts \
+  --pulse-json pulse-alerts.json \
+  --source-ref "$LEDGER"
+```
+
+The repo-local formatter prints Discord-ready text only. It does not send
+messages or mutate state.
 
 Manual event format:
 
@@ -665,7 +681,7 @@ Recommended event types:
 Every Discord event must link back to the real artifact. Discord must not
 accept commands that mutate Work Units in v1.
 
-Future automation should replace manual event posting with:
+Future automation can add an explicit publisher around the same event shape:
 
 ```bash
 openclaw-company-ops discord emit --event RESULT_READY --work-unit <id>

@@ -1,6 +1,6 @@
 # Discord Event Visibility
 
-Status: Manual Day-0
+Status: Repo-local alert formatter supported
 
 This guide describes how to use Discord as an operational visibility surface for
 OpenClaw Company Ops before an implemented Discord Ops Bridge exists.
@@ -54,8 +54,9 @@ Use these event names consistently:
 - `RESULT_READY`: Team Lead submitted evidence.
 - `DECISION`: Operations Lead recorded accept, revise, hold, or reject.
 
-Manual Day-0 events may be posted by the Operations Lead or Team Lead. Future
-bridge events may be automated, but they must remain visibility events.
+Manual Day-0 events may be posted by the Operations Lead or Team Lead. Pulse
+Monitor alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge
+events may be automated, but they must remain visibility events.
 
 ## Required Event Fields
 
@@ -148,6 +149,22 @@ Allowed alert events:
 
 Alert events are prompts for review, not recovery actions. They must not
 restart, reassign, cancel, or close work.
+
+Format Pulse Monitor alert JSON before posting it manually:
+
+```bash
+python3 scripts/pulse_monitor.py pulse check \
+  --ledger "$LEDGER" \
+  --session-snapshot ./session-snapshot.json \
+  --format json > pulse-alerts.json
+
+python3 scripts/discord_ops.py alerts \
+  --pulse-json pulse-alerts.json \
+  --source-ref "$LEDGER"
+```
+
+The formatter prints messages only. It does not send to Discord or mutate any
+operating state.
 
 ## Decision Events
 

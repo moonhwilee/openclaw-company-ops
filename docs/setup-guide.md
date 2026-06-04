@@ -348,17 +348,18 @@ check`, then optionally schedule it as an alert-only job.
 
 ### Discord Ops Bridge
 
-Status: Planned
+Status: Alert formatter supported, publisher planned
 
 Discord Ops Bridge will publish normalized operating events to Discord.
 
 It is a visibility bridge, not a command router and not a state owner.
 
-Current manual practice: the Operations Lead or Team Lead posts concise
-updates that link back to the relevant source artifact.
+Current practice: the Operations Lead or Team Lead posts concise updates that
+link back to the relevant source artifact. Pulse Monitor alert JSON can be
+formatted with `scripts/discord_ops.py` before manual posting.
 
-Future setup path: connect a bridge that publishes events without deciding,
-recovering, or mutating Work Units.
+Future setup path: connect a publisher that emits the same event shape without
+deciding, recovering, or mutating Work Units.
 
 ### Company Dashboard
 
@@ -471,5 +472,6 @@ The first small Work Unit artifact generator exists as
 `scripts/work_unit_artifacts.py`, and the first repo-local Ops Claim Ledger CLI
 exists as `scripts/ops_claim_ledger.py`. The first repo-local Pulse Monitor
 check exists as `scripts/pulse_monitor.py`. The first bounded multi-team smoke
-exists as `scripts/company_ops_smoke.py`. The next recommended step is Discord
-Ops alert visibility.
+exists as `scripts/company_ops_smoke.py`. The first Discord alert formatter
+exists as `scripts/discord_ops.py`. The next recommended step is Dashboard /
+GitHub Project sync.
