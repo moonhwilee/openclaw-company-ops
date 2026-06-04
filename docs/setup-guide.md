@@ -210,6 +210,8 @@ Use this flow before any dedicated automation exists.
 Completion requires evidence. A status claim, Discord message, or GitHub
 comment is not enough by itself.
 
+The daily operating procedure is documented in `docs/operations-manual.md`.
+
 ## Manual Artifact Convention
 
 Status: Manual Day-0
@@ -220,7 +222,7 @@ note convention for each Work Unit.
 Suggested structure:
 
 ```text
-ops/work-units/<work-unit-id>/
+docs/examples/manual-dry-run/<work-unit-id>/
   assignment.md
   claim.md
   evidence.md
@@ -380,6 +382,10 @@ The GitHub Issue form for Work Cards lives in:
 These templates make the manual loop reproducible. They are not an implemented
 runtime, database, dashboard, command router, or recovery system.
 
+The first worked manual example lives in:
+
+- `docs/examples/manual-dry-run/WU-20260604-001/`
+
 ## Future Installation Path
 
 Status: Concept
@@ -428,5 +434,10 @@ The current setup is ready for a manual dry run when:
 - Any missing claim, evidence, or assignment artifact is treated as blocked,
   not replaced by a fallback.
 
-The next recommended step is to run one small manual Work Unit using the current
-labels and templates.
+The first manual dry run is documented at:
+
+- `docs/examples/manual-dry-run/WU-20260604-001/`
+
+The next recommended step is to run a second Work Unit from a real product or
+documentation request and compare the manual flow against the operations
+manual.
