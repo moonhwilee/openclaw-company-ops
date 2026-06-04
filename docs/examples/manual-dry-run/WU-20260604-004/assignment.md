@@ -98,7 +98,8 @@ Required checks:
 
 - Evidence & Result Record: `evidence.md`
 - PR or artifact: documentation PR for the implementation setup guide
-- Decision-ready summary: included in PR and Work Card comment
+- Decision-ready summary: included in the PR and linked evidence/decision
+  artifacts, not as a routine Work Card comment
 
 ## Reporting Format
 

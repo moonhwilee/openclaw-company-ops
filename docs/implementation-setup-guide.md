@@ -187,6 +187,33 @@ openclaw agents list
 If your OpenClaw install uses generated agent ids instead of custom names,
 record the generated id in the Assignment Packet and claim.
 
+### Choose Standing Or Project-Specific Team Leads
+
+For constrained development servers, prefer one long-lived Operations Lead plus
+small standing Team Lead role agents.
+
+Recommended shape:
+
+- Operations Lead: long-lived, memory-preserving, decision-owning.
+- `build`: shared lightweight build/development role agent.
+- `ops`: shared lightweight operations/integration role agent.
+
+Do not delete standing `build` or `ops` agents on normal project closure. Keep
+their heartbeat and direct message bindings disabled unless explicitly needed,
+keep their workspace minimal, and remove project clones, raw archives, large
+evidence bundles, and temporary cache after substantial work.
+
+Create a project-specific agent only when the Work Unit needs stronger
+isolation than a standing role agent provides. When that project ends, remove
+the project-specific agent with:
+
+```bash
+openclaw agents delete <id>
+```
+
+This keeps standing role agents reusable while allowing temporary project
+agents to be cleaned up with their workspace, state, and session transcripts.
+
 ### Bind Message Routing If Needed
 
 Use bindings only for routing. A binding is not a source of truth.
@@ -403,11 +430,12 @@ Move labels manually as the state changes:
 gh issue edit <issue-number> --remove-label assignment-ready --add-label working
 gh issue edit <issue-number> --remove-label working --add-label result-ready --add-label decision-needed
 gh issue edit <issue-number> --remove-label result-ready --remove-label decision-needed --add-label done
-gh issue close <issue-number> --comment "Closed after evidence and Operations Lead decision were linked."
+gh issue close <issue-number>
 ```
 
 Labels are visibility only. The Work Card closes because evidence and decision
-exist, not because a label says `done`.
+exist, not because a label says `done`. Avoid routine close comments; required
+links belong in the Work Card body, PR, evidence record, or decision record.
 
 ## Ops Claim Ledger Setup
 
