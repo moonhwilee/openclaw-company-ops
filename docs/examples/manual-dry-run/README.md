@@ -20,6 +20,8 @@ runtime, dashboard backend, database, command router, or recovery system.
   guide.
 - `WU-20260605-001`: validates the Team Lead Protocol Capsule convention and
   packet-first `goal` / `verify` / `conv` loop before CLI work starts.
+- `WU-20260605-002`: real product Work Unit for the first minimal Work Unit
+  artifact generator CLI.
 
 ## Rules
 
