@@ -1,6 +1,6 @@
 # Ops Claim Ledger Entry
 
-Status: Assigned
+Status: Done After Operations Lead Review
 
 ## Claim Identity
 
@@ -14,10 +14,11 @@ Status: Assigned
 
 ## Expected Responsibility
 
-- Expected state: `assigned`
+- Expected state: `done`
 - Expected until: `2026-06-06`
-- Last claim: Assignment Packet prepared; waiting for `build-lab` execution.
-- Last seen compaction count: `0`
+- Last claim: `build-lab` submitted result; Operations Lead verified and
+  accepted the branch result.
+- Last seen compaction count: `1`
 
 ## Artifact References
 
@@ -39,3 +40,4 @@ It must not restart, reassign, recover, mutate GitHub, or mark completion.
 ## Notes
 
 - This claim is responsibility tracking only. It is not completion truth.
+- Completion truth is the Operations Lead decision in `decision.md`.
