@@ -462,6 +462,6 @@ The fourth manual dry run is documented at:
 
 - `docs/examples/manual-dry-run/WU-20260604-004/`
 
-The next recommended step is to start implementation with a small Work Unit
-artifact generator and replace the relevant manual setup-guide blocks with CLI
-commands.
+The first small Work Unit artifact generator now exists as
+`scripts/work_unit_artifacts.py`. The next recommended step is to implement the
+Ops Claim Ledger CLI and replace manual claim edits with supported commands.

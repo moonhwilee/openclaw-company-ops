@@ -195,12 +195,14 @@ small standing Team Lead role agents.
 Recommended shape:
 
 - Operations Lead: long-lived, memory-preserving, decision-owning.
-- `build`: shared lightweight build/development role agent.
-- `ops`: shared lightweight operations/integration role agent.
+- `build-pq`: PrimeQuant product development role agent.
+- `build-lab`: new product and automation development role agent.
+- `market`: market research, positioning, and content role agent.
+- `revenue`: revenue operations and customer workflow role agent.
 
-Do not delete standing `build` or `ops` agents on normal project closure. Keep
-their heartbeat and direct message bindings disabled unless explicitly needed,
-keep their workspace minimal, and remove project clones, raw archives, large
+Do not delete standing role agents on normal project closure. Keep their
+heartbeat and direct message bindings disabled unless explicitly needed, keep
+their workspace minimal, and remove project clones, raw archives, large
 evidence bundles, and temporary cache after substantial work.
 
 Create a project-specific agent only when the Work Unit needs stronger

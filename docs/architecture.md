@@ -75,11 +75,11 @@ The team lead owns:
 Team Lead OpenClaw Agents may be standing role agents or project-specific
 agents.
 
-Standing role agents, such as `build` and `ops`, are shared lightweight
-capacity. They are not removed when one project ends. They should keep minimal
-workspace state, avoid default direct chat bindings or heartbeat unless
-explicitly needed, and must not accumulate project clones, raw archives, large
-evidence bundles, or long-term memory.
+Standing role agents, such as `build-pq`, `build-lab`, `market`, and
+`revenue`, are shared lightweight capacity. They are not removed when one
+project ends. They should keep minimal workspace state, avoid default direct
+chat bindings or heartbeat unless explicitly needed, and must not accumulate
+project clones, raw archives, large evidence bundles, or long-term memory.
 
 Project-specific agents are created only when a Work Unit or project needs
 stronger isolation than a standing role agent provides. When that project ends,
