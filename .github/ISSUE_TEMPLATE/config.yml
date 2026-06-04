@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: OpenClaw Company Ops setup guide
+    url: https://github.com/moonhwilee/openclaw-company-ops/blob/main/docs/setup-guide.md
+    about: Read the staged setup guide before creating operational Work Cards.

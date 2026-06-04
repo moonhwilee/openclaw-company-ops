@@ -60,6 +60,8 @@ For the current repo, GitHub is already configured with:
 
 - Public visibility.
 - Issues enabled.
+- Manual Day-0 Work Card labels.
+- GitHub Issue template for Work Cards.
 - Wiki disabled.
 - MIT license.
 - Topics and description for discoverability.
@@ -82,9 +84,10 @@ small:
 - Keep one repository for the OpenClaw Company Ops manual, templates, and future
   package.
 - Keep Issues enabled.
+- Use the current Work Card labels and issue template.
 - Keep the repo public if the goal is public distribution.
-- Keep branch protection and rulesets deferred until the first templates and
-  manual dry run are stable.
+- Keep branch protection and rulesets deferred until the manual dry run is
+  stable.
 - Leave website/homepage empty until there is a docs site, GitHub Pages site,
   or released manual.
 - Do not create a GitHub Project yet unless there are enough Work Cards to make
@@ -211,8 +214,8 @@ comment is not enough by itself.
 
 Status: Manual Day-0
 
-Until templates and tools exist, use a simple file or note convention for each
-Work Unit.
+Until tools exist, use the templates in `docs/templates/` with a simple file or
+note convention for each Work Unit.
 
 Suggested structure:
 
@@ -232,7 +235,7 @@ Suggested meanings:
 - `decision.md`: Operations Lead review decision and rationale.
 
 This structure is a manual convention, not a runtime requirement. It can later
-be replaced by supported templates or a package-managed layout.
+be replaced by a package-managed layout.
 
 ## Assignment Packet
 
@@ -240,6 +243,8 @@ Status: Manual Day-0
 
 The Assignment Packet is the detailed handoff from the Operations Lead to the
 Team Lead OpenClaw Agent.
+
+Template: `docs/templates/assignment-packet.md`
 
 Minimum fields:
 
@@ -263,6 +268,8 @@ without relying on unstated context from the Operations Lead.
 Status: Manual Day-0
 
 The Evidence & Result Record is the proof bundle used for review.
+
+Template: `docs/templates/evidence-result-record.md`
 
 It may include:
 
@@ -355,17 +362,23 @@ points back to Work Cards, Assignment Packets, claims, evidence, and decisions.
 
 ### Templates
 
-Status: Planned
+Status: Manual Day-0
 
-Templates should be added after the first setup guide.
+The current repo includes Manual Day-0 templates:
 
-Expected templates:
+- `docs/templates/work-card.md`
+- `docs/templates/assignment-packet.md`
+- `docs/templates/ops-claim-ledger-entry.md`
+- `docs/templates/evidence-result-record.md`
+- `docs/templates/operations-lead-decision.md`
+- `docs/templates/team-playbook-pilot-prompt.md`
 
-- Work Card / GitHub Issue template.
-- Assignment Packet template.
-- Ops Claim Ledger entry example.
-- Evidence & Result Record template.
-- Operations Lead decision template.
+The GitHub Issue form for Work Cards lives in:
+
+- `.github/ISSUE_TEMPLATE/work-card.yml`
+
+These templates make the manual loop reproducible. They are not an implemented
+runtime, database, dashboard, command router, or recovery system.
 
 ## Future Installation Path
 
@@ -414,3 +427,6 @@ The current setup is ready for a manual dry run when:
 - The Operations Lead can make and record a decision.
 - Any missing claim, evidence, or assignment artifact is treated as blocked,
   not replaced by a fallback.
+
+The next recommended step is to run one small manual Work Unit using the current
+labels and templates.

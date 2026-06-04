@@ -29,6 +29,7 @@ connection instructions as components are implemented.
 
 - [Architecture](docs/architecture.md)
 - [Setup Guide](docs/setup-guide.md)
+- [Manual Day-0 Templates](docs/templates/README.md)
 
 ## Project Rules
 
@@ -41,10 +42,9 @@ connection instructions as components are implemented.
 
 ## Planned Work
 
-- Setup guide for OpenClaw agent identities, workspaces, and session binding.
+- Manual dry run with one Work Unit using the current templates.
+- Operations manual based on the dry run.
 - Discord setup guide for event visibility.
-- GitHub setup guide for issues, projects, PRs, and evidence records.
-- Templates for Work Cards, Assignment Packets, Ops Claim Ledger entries, and
-  Pulse Monitor alerts.
+- GitHub Project setup after enough Work Cards exist to justify a dashboard.
 - A small reproducible package or program that helps other users install and
   operate the structure.
