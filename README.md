@@ -25,6 +25,12 @@ components, or manual Day-0 practices. The setup guide labels each element by
 status so the public docs can later be updated in place into installation and
 connection instructions as components are implemented.
 
+Repo-local tooling is available through:
+
+```bash
+python3 scripts/openclaw_company_ops.py --help
+```
+
 ## Documents
 
 - [Architecture](docs/architecture.md)
@@ -49,5 +55,5 @@ connection instructions as components are implemented.
 
 ## Planned Work
 
-- A small reproducible package or program that helps other users install and
-  operate the structure.
+- Turn the repo-local entrypoint into a small reproducible package for other
+  users when the operating surface stabilizes.

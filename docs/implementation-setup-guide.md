@@ -829,6 +829,15 @@ artifacts.
 
 When CLI automation exists, update this guide in place.
 
+Current repo-local entrypoint:
+
+```bash
+python3 scripts/openclaw_company_ops.py --help
+```
+
+This entrypoint routes to the implemented repo-local scripts. It is not yet a
+published package.
+
 Recommended replacement order:
 
 1. Replace directory/bootstrap commands with `init`.

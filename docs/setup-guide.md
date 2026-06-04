@@ -411,6 +411,12 @@ Status: Concept
 
 As components become real, this guide should be updated in place.
 
+Repo-local entrypoint:
+
+```bash
+python3 scripts/openclaw_company_ops.py --help
+```
+
 The intended transition:
 
 - `Concept` sections become architecture references or are removed.
@@ -477,4 +483,5 @@ exists as `scripts/company_ops_smoke.py`. The first Discord alert formatter
 exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
 `scripts/dashboard_snapshot.py`. The first non-installing Pulse Monitor daemon
 runner exists as `scripts/pulse_daemon.py`. The next recommended step is
-install/distribution packaging.
+turning the repo-local entrypoint into a published package only after the
+operating surface stabilizes.
