@@ -450,7 +450,7 @@ links belong in the Work Card body, PR, evidence record, or decision record.
 
 ## Ops Claim Ledger Setup
 
-Status: Manual implementation
+Status: Repo-local script supported
 
 The Ops Claim Ledger records expected responsibility. It is not a database of
 truth, progress history, event log, dashboard backend, or recovery system.
@@ -480,6 +480,43 @@ Allowed `expected_state` values:
 - `blocked`
 - `result_ready`
 - `done`
+
+Create or update the JSON-backed ledger with the repo-local script:
+
+```bash
+LEDGER=~/.openclaw/state/openclaw-company-ops/claims/ledger.json
+python3 scripts/ops_claim_ledger.py claim create \
+  --ledger "$LEDGER" \
+  --work-unit-id WU-YYYYMMDD-001 \
+  --work-card "<GitHub Issue URL>" \
+  --claim-type execution \
+  --owner-session-ref "agent=team-lead-1" \
+  --expected-state working \
+  --expected-until "2026-06-04T10:00:00+09:00" \
+  --last-claim "Team Lead is implementing the assigned scope." \
+  --assignment-packet ./assignment.md
+```
+
+Refresh an existing claim:
+
+```bash
+python3 scripts/ops_claim_ledger.py claim update \
+  --ledger "$LEDGER" \
+  --claim-ref CLAIM-WU-YYYYMMDD-001-001 \
+  --expected-state result_ready \
+  --last-claim "Evidence has been submitted for Operations Lead review." \
+  --evidence-ref ./evidence.md
+```
+
+Inspect claim state:
+
+```bash
+python3 scripts/ops_claim_ledger.py claim status --ledger "$LEDGER"
+python3 scripts/ops_claim_ledger.py claim status \
+  --ledger "$LEDGER" \
+  --claim-ref CLAIM-WU-YYYYMMDD-001-001 \
+  --format json
+```
 
 Manual claim file example:
 
@@ -513,7 +550,7 @@ Use a simple single-writer rule until automation exists:
   or decision.
 - Do not allow two agents to update the same claim simultaneously.
 
-Future automation should replace manual edits with:
+Future packaging can expose the same behavior as:
 
 ```bash
 openclaw-company-ops claim update ...

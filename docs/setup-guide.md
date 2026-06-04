@@ -303,18 +303,21 @@ as installable software in this repo yet.
 
 ### Ops Claim Ledger
 
-Status: Planned
+Status: Repo-local script supported
 
 Ops Claim Ledger will track expected responsibility claims.
 
 It is not a database of truth, progress history, event log, dashboard backend,
 or recovery system.
 
-Current manual practice: `claim.md` or another explicit responsibility record
-linked from the Work Card.
+Current practice: use `scripts/ops_claim_ledger.py` to maintain a small
+JSON-backed responsibility ledger. Manual `claim.md` files may still be used as
+public-safe examples or evidence artifacts, but the JSON ledger is the supported
+repo-local source for active claim state.
 
-Future setup path: replace the manual claim record with a supported file-backed
-or package-managed claim ledger.
+Future setup path: package the same behavior as `openclaw-company-ops claim
+create`, `openclaw-company-ops claim update`, and `openclaw-company-ops claim
+status`.
 
 ### Pulse Monitor
 
@@ -462,6 +465,7 @@ The fourth manual dry run is documented at:
 
 - `docs/examples/manual-dry-run/WU-20260604-004/`
 
-The first small Work Unit artifact generator now exists as
-`scripts/work_unit_artifacts.py`. The next recommended step is to implement the
-Ops Claim Ledger CLI and replace manual claim edits with supported commands.
+The first small Work Unit artifact generator exists as
+`scripts/work_unit_artifacts.py`, and the first repo-local Ops Claim Ledger CLI
+exists as `scripts/ops_claim_ledger.py`. The next recommended step is the manual
+Pulse Monitor check.
