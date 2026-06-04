@@ -354,7 +354,7 @@ make cross-work visibility useful. Dashboard timing is defined in
 
 ## Artifact Storage Setup
 
-Status: Manual implementation
+Status: Repo-local script supported
 
 Every Work Unit needs four artifact classes:
 
@@ -383,22 +383,31 @@ For real private work, use:
   decision.md
 ```
 
-Create a new Work Unit artifact directory:
+Create a new Work Unit artifact directory with the repo-local script:
 
 ```bash
 WU_ID=WU-YYYYMMDD-001
-mkdir -p ~/.openclaw/state/openclaw-company-ops/work-units/$WU_ID
-cp docs/templates/assignment-packet.md ~/.openclaw/state/openclaw-company-ops/work-units/$WU_ID/assignment.md
-cp docs/templates/ops-claim-ledger-entry.md ~/.openclaw/state/openclaw-company-ops/work-units/$WU_ID/claim.md
-cp docs/templates/evidence-result-record.md ~/.openclaw/state/openclaw-company-ops/work-units/$WU_ID/evidence.md
-cp docs/templates/operations-lead-decision.md ~/.openclaw/state/openclaw-company-ops/work-units/$WU_ID/decision.md
+python3 scripts/work_unit_artifacts.py work-unit create \
+  --work-unit-id "$WU_ID" \
+  --title "<short Work Unit title>" \
+  --work-card "<GitHub issue URL or manual smoke artifact>" \
+  --operations-lead "main" \
+  --team-lead "<team-lead-agent-id>" \
+  --output-root ~/.openclaw/state/openclaw-company-ops/work-units
 ```
 
-Future automation should replace this with:
+The script validates required inputs, creates exactly these four files by
+default, and refuses an existing output directory unless `--force` is provided:
 
-```bash
-openclaw-company-ops work-unit create ...
+```text
+assignment.md
+claim.md
+evidence.md
+decision.md
 ```
+
+Future packaging can expose the same behavior as
+`openclaw-company-ops work-unit create`.
 
 ## Work Unit Creation Flow
 
