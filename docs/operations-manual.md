@@ -80,6 +80,13 @@ It should include:
 It should not include every execution detail. If the Assignment Packet is
 missing or unreadable, the Work Unit is blocked.
 
+GitHub comments are not the routine progress log. Do not use comments for
+`ASSIGNED`, `STARTED`, heartbeat, stale-claim, result-ready, or closure updates.
+Use the Work Card body, labels, Assignment Packet, Ops Claim Ledger entry,
+Evidence & Result Record, and Operations Lead Decision instead. Reserve comments
+for human review notes or external collaborator context that cannot live in
+those artifacts.
+
 ## Label Meanings
 
 GitHub labels are visibility signals only.

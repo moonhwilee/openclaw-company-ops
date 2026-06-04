@@ -70,6 +70,26 @@ The team lead owns:
 - Result submission to the Operations Lead.
 - Ops Claim Ledger updates for its execution responsibility.
 
+### Standing Role Agents And Project-Specific Agents
+
+Team Lead OpenClaw Agents may be standing role agents or project-specific
+agents.
+
+Standing role agents, such as `build` and `ops`, are shared lightweight
+capacity. They are not removed when one project ends. They should keep minimal
+workspace state, avoid default direct chat bindings or heartbeat unless
+explicitly needed, and must not accumulate project clones, raw archives, large
+evidence bundles, or long-term memory.
+
+Project-specific agents are created only when a Work Unit or project needs
+stronger isolation than a standing role agent provides. When that project ends,
+remove the project-specific agent with the normal OpenClaw deletion flow, such
+as `openclaw agents delete <id>`, so its workspace, agent state, and session
+transcripts move to Trash.
+
+The Operations Lead is the long-lived memory-preserving role. Standing role
+agents are reusable. Project-specific agents are disposable by default.
+
 ### Subagents
 
 Subagents are workers under a team lead.
