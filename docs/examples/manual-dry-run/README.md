@@ -12,6 +12,8 @@ runtime, dashboard backend, database, command router, or recovery system.
 
 - `WU-20260604-001`: validates the current Day-0 templates and produces the
   first operations manual.
+- `WU-20260604-002`: validates the manual loop on a Discord event visibility
+  guide.
 
 ## Rules
 

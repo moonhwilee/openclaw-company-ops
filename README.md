@@ -31,6 +31,7 @@ connection instructions as components are implemented.
 - [Setup Guide](docs/setup-guide.md)
 - [Manual Day-0 Templates](docs/templates/README.md)
 - [Operations Manual](docs/operations-manual.md)
+- [Discord Event Visibility](docs/discord-event-visibility.md)
 - [Manual Dry Run Examples](docs/examples/manual-dry-run/README.md)
 
 ## Project Rules
@@ -44,7 +45,6 @@ connection instructions as components are implemented.
 
 ## Planned Work
 
-- Discord setup guide for event visibility.
 - GitHub Project setup after enough Work Cards exist to justify a dashboard.
 - A small reproducible package or program that helps other users install and
   operate the structure.
