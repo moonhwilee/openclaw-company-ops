@@ -363,7 +363,7 @@ deciding, recovering, or mutating Work Units.
 
 ### Company Dashboard
 
-Status: Planned
+Status: Repo-local snapshot supported, Project creation deferred
 
 Company Dashboard will show company-wide Work Unit state.
 
@@ -372,10 +372,11 @@ the project has enough real Work Cards to make the dashboard useful.
 
 It is a visibility layer, not a source of truth.
 
-Current manual practice: review the GitHub Issues list and linked artifacts.
+Current practice: review the GitHub Issues list and linked artifacts, or render
+a local visibility snapshot with `scripts/dashboard_snapshot.py`.
 
-Future setup path: configure GitHub Projects or another dashboard surface that
-points back to Work Cards, Assignment Packets, claims, evidence, and decisions.
+Future setup path: configure GitHub Projects or another dashboard surface only
+when the threshold in `docs/company-dashboard-timing.md` is met.
 
 ### Templates
 
@@ -473,5 +474,6 @@ The first small Work Unit artifact generator exists as
 exists as `scripts/ops_claim_ledger.py`. The first repo-local Pulse Monitor
 check exists as `scripts/pulse_monitor.py`. The first bounded multi-team smoke
 exists as `scripts/company_ops_smoke.py`. The first Discord alert formatter
-exists as `scripts/discord_ops.py`. The next recommended step is Dashboard /
-GitHub Project sync.
+exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
+`scripts/dashboard_snapshot.py`. The next recommended step is the optional Pulse
+Monitor daemon.

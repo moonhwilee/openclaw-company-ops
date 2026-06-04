@@ -784,6 +784,15 @@ Pass criteria:
 - Discord and dashboard references, if any, are visibility only.
 - No hidden orchestrator or automatic recovery path is introduced.
 
+For a local visibility snapshot of current claim state:
+
+```bash
+python3 scripts/dashboard_snapshot.py dashboard snapshot --ledger "$LEDGER"
+```
+
+Use this as a review aid only. It must not replace Work Cards, Assignment
+Packets, claims, evidence, or Operations Lead decisions.
+
 ## Troubleshooting
 
 If a Team Lead cannot find the Assignment Packet, mark the Work Unit blocked.

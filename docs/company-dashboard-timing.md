@@ -1,6 +1,6 @@
 # Company Dashboard Timing
 
-Status: Manual Day-0
+Status: Repo-local snapshot supported, Project creation deferred
 
 This guide explains when to create a Company Dashboard for OpenClaw Company Ops.
 
@@ -18,6 +18,15 @@ Do not enable a Company Dashboard yet.
 
 Use GitHub Issues and linked manual artifacts until the work naturally grows
 beyond a single repo issue list.
+
+Use the repo-local visibility snapshot when a quick review table is useful:
+
+```bash
+python3 scripts/dashboard_snapshot.py dashboard snapshot --ledger "$LEDGER"
+```
+
+The snapshot reads the Ops Claim Ledger and renders dashboard-ready rows. It
+does not create or mutate a GitHub Project.
 
 Create the first dashboard only when at least one of these is true:
 
