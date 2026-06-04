@@ -321,7 +321,7 @@ status`.
 
 ### Pulse Monitor
 
-Status: Planned
+Status: Repo-local script supported
 
 Pulse Monitor will compare Ops Claim Ledger expectations with available
 OpenClaw session and compaction signals.
@@ -339,10 +339,12 @@ It must not:
 - Mark completion.
 - Infer a fallback source of truth.
 
-Current manual practice: the Operations Lead periodically checks claim age,
-session state, blocker status, and evidence freshness.
+Current practice: use `scripts/pulse_monitor.py` to run an alert-only check
+against the JSON claim ledger. Optional session snapshots can supply active
+owner session refs and compaction counts.
 
-Future setup path: replace the manual check with an alert-only monitor.
+Future setup path: package the same behavior as `openclaw-company-ops pulse
+check`, then optionally schedule it as an alert-only job.
 
 ### Discord Ops Bridge
 
@@ -467,5 +469,6 @@ The fourth manual dry run is documented at:
 
 The first small Work Unit artifact generator exists as
 `scripts/work_unit_artifacts.py`, and the first repo-local Ops Claim Ledger CLI
-exists as `scripts/ops_claim_ledger.py`. The next recommended step is the manual
-Pulse Monitor check.
+exists as `scripts/ops_claim_ledger.py`. The first repo-local Pulse Monitor
+check exists as `scripts/pulse_monitor.py`. The next recommended step is the
+multi-team operation smoke.

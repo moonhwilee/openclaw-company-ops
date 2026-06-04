@@ -558,25 +558,39 @@ openclaw-company-ops claim update ...
 
 ## Pulse Monitor Setup
 
-Status: Manual implementation now, alert-only automation later
+Status: Repo-local script supported, alert-only
 
 The Pulse Monitor compares the expected responsibility claim with available
 OpenClaw/session signals.
 
-Manual Day-0 check:
+Run the repo-local alert-only check against the JSON ledger:
 
 ```bash
-openclaw sessions --agent <agent-id> --json
-openclaw status --json
+python3 scripts/pulse_monitor.py pulse check --ledger "$LEDGER"
 ```
 
-Compare:
+Optionally provide observed session signals as a JSON snapshot:
+
+```json
+{
+  "active_owner_session_refs": ["agent=team-lead-1"],
+  "compaction_counts": {
+    "agent=team-lead-1": 2
+  }
+}
+```
+
+```bash
+python3 scripts/pulse_monitor.py pulse check \
+  --ledger "$LEDGER" \
+  --session-snapshot ./session-snapshot.json
+```
+
+The check compares:
 
 - Does the owner session still appear active?
 - Is the claim older than `expected_until`?
 - Did compaction appear to occur without a refreshed claim?
-- Does the GitHub label disagree with the claim?
-- Did the Team Lead report completion without evidence?
 
 Allowed alert statuses:
 
@@ -595,10 +609,10 @@ The monitor must only alert. It must not:
 - Modify execution state.
 - Infer a fallback source of truth.
 
-Future automation should replace the manual comparison with:
+Future packaging can expose the same behavior as:
 
 ```bash
-openclaw-company-ops pulse check --claim <claim-ref>
+openclaw-company-ops pulse check --claim-ref <claim-ref>
 ```
 
 or a scheduled alert-only job:
