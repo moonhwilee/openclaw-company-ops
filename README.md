@@ -20,9 +20,15 @@ projects are reference material only and are not compatibility targets.
 
 Current internal architecture version: v1.
 
+Most operating elements are currently documented as concepts, planned
+components, or manual Day-0 practices. The setup guide labels each element by
+status so the public docs can later be updated in place into installation and
+connection instructions as components are implemented.
+
 ## Documents
 
 - [Architecture](docs/architecture.md)
+- [Setup Guide](docs/setup-guide.md)
 
 ## Project Rules
 
