@@ -15,12 +15,15 @@ protocol unless the Operations Lead explicitly assigns them that way.
 
 ## Protocol Set
 
-- [goal](goal.md): complete the Work Unit through an iterative
-  plan-act-verify-improve loop.
+- [goal](goal.md): complete the Work Unit through an initial plan followed by
+  repeated act-or-improve and verify cycles until a valid stop condition is met.
 - [verify](verify.md): compare outputs and evidence against done and
   verification criteria.
-- [conv](conv.md): recover Work Unit context after long execution, compaction,
-  or subagent result integration.
+
+Context recovery is a support procedure, not a separate mode. After long
+execution, compaction, resumed sessions, or subagent result integration, recover
+the packet, evidence, gaps, and next action, then continue `goal` or `verify`.
+See [context recovery](context-recovery.md).
 
 ## Packet-First Rule
 
@@ -34,8 +37,8 @@ goal loop from request prose.
 Simple direct questions do not require Work Unit protocol.
 
 Packet-first does not mean goal-always. The active Protocol Capsule selects
-`goal`, `verify`, or `conv`; the Team Lead must not start goal work when the
-packet asks for verification, context recovery, or a simple direct answer.
+`goal` or `verify`; the Team Lead must not start goal work when the packet asks
+only for verification or a simple direct answer.
 
 ## Protocol Capsule
 
@@ -48,8 +51,8 @@ Goal-mode example:
 ```yaml
 protocol_capsule:
   mode: goal
-  support: [verify, conv]
-  loop: plan -> act -> verify -> improve -> reverify
+  support: [verify]
+  loop: plan -> repeat(act_or_improve -> verify) until stop_only_on
   stop_only_on:
     - done_criteria_passed_with_evidence
     - explicit_blocker
@@ -63,3 +66,7 @@ protocol_capsule:
 
 The capsule cannot replace the Assignment Packet. It only tells the Team Lead
 how to execute the packet.
+
+`goal` mode must not stop after a single failed verification. The Team Lead
+plans once, then repeats implementation or improvement and verification until
+one `stop_only_on` condition is true.

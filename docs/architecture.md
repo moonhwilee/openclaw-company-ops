@@ -176,9 +176,9 @@ delegated Work Unit.
 
 ```yaml
 protocol_capsule:
-  mode: <goal|verify|conv>
+  mode: <goal|verify>
   support: []
-  loop: <only_if_mode_requires_a_loop>
+  loop: <plan -> repeat(act_or_improve -> verify) until stop_only_on, only for goal>
   stop_only_on:
     - done_criteria_passed_with_evidence
     - explicit_blocker
@@ -209,10 +209,11 @@ The playbook tells the team lead how to:
 
 - Restate the assignment.
 - Confirm the Assignment Packet and Protocol Capsule.
-- Run `goal`: plan, act, verify, improve, and reverify until done criteria pass.
+- Run `goal`: plan once, then repeat act-or-improve and verify until done
+  criteria pass.
 - Run `verify`: map outputs and evidence to done and verification criteria.
-- Run `conv`: recover context after long work, compaction, or subagent result
-  integration.
+- Recover context after long work, compaction, or subagent result integration,
+  then continue the selected mode.
 - Delegate partial work to subagents while keeping Work Unit ownership.
 - Review subagent output as input, not as completion truth.
 - Produce evidence.

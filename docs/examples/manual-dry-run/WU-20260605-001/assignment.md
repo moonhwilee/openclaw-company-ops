@@ -14,8 +14,8 @@ Status: Day-0 Smoke Artifact + Live Build-Lab Read-Only Run
 ## Goal
 
 Validate that Team Lead Protocol Capsule documentation and templates make the
-Team Lead run delegated Work Units packet-first through `goal`, `verify`, and
-`conv`, without introducing a separate execution runtime.
+Team Lead run delegated Work Units packet-first through `goal` and `verify`,
+without introducing a separate execution runtime.
 
 ## Background
 
@@ -27,7 +27,7 @@ request prose.
 
 ## Scope
 
-- Add canonical protocol references for `goal`, `verify`, and `conv`.
+- Add canonical protocol references for `goal` and `verify`.
 - Add Protocol Capsule guidance to the Assignment Packet template.
 - Add packet-first execution guidance to the Team Playbook.
 - Update architecture and index documents.
@@ -67,8 +67,8 @@ The Work Unit can be considered ready for review when:
 
 - Canonical protocol files exist under `docs/protocols/`.
 - The Assignment Packet template includes a Protocol Capsule section.
-- The Team Playbook includes packet-first, `goal`, `verify`, and
-  `conv` execution guidance.
+- The Team Playbook includes packet-first `goal` and `verify` execution
+  guidance.
 - Architecture and index docs reference Team Lead Protocols and Protocol
   Capsules.
 - A manual smoke example exists for `WU-20260605-001`.
@@ -94,8 +94,8 @@ Evidence or checks required for review:
 ```yaml
 protocol_capsule:
   mode: goal
-  support: [verify, conv]
-  loop: plan -> act -> verify -> improve -> reverify
+  support: [verify]
+  loop: plan -> repeat(act_or_improve -> verify) until stop_only_on
   stop_only_on:
     - done_criteria_passed_with_evidence
     - explicit_blocker

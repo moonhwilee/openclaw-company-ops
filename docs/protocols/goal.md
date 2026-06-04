@@ -17,15 +17,21 @@ follows when the Assignment Packet includes a goal-mode Protocol Capsule.
 
 ## Loop
 
+This is a convergence loop, not a one-pass checklist. The Team Lead plans once,
+then repeats implementation or improvement and verification until one stop
+condition is met.
+
 1. Restate the Work Unit goal, scope, non-goals, done criteria, and verification
    criteria from the Assignment Packet.
 2. Create an Execution Plan. The Team Lead may plan work but must not rewrite
-   the Assignment Packet.
+   the Assignment Packet. The plan should be proportional to the Work Unit: a
+   small task may need only a few bullets, while risky or multi-step work needs
+   a fuller plan.
 3. Act on the plan. Use subagents only under direct Team Lead control.
 4. Run `verify` against the outputs and evidence.
 5. If verification fails or is unknown, identify the concrete gap and improve
    the work.
-6. Reverify after each improvement.
+6. Repeat `verify` after each improvement.
 7. Submit an Evidence & Result Record only when done criteria pass with
    evidence, or report a true blocker.
 

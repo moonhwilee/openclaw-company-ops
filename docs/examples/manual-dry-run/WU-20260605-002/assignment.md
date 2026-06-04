@@ -105,8 +105,8 @@ Evidence or checks required for review:
 ```yaml
 protocol_capsule:
   mode: goal
-  support: [verify, conv]
-  loop: plan -> act -> verify -> improve -> reverify
+  support: [verify]
+  loop: plan -> repeat(act_or_improve -> verify) until stop_only_on
   stop_only_on:
     - done_criteria_passed_with_evidence
     - explicit_blocker

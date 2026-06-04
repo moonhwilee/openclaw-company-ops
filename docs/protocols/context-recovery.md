@@ -1,8 +1,8 @@
-# conv Protocol
+# Context Recovery Procedure
 
 Status: Manual Day-0
 
-`conv` is the Team Lead protocol for context recovery and continuity.
+Context recovery is the Team Lead support procedure for preserving continuity.
 
 It is used after long execution, compaction, resumed sessions, or subagent
 result integration. It prevents the Team Lead from losing the Work Unit goal and

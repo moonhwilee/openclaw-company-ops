@@ -71,12 +71,16 @@ Use `goal` when the active packet asks the Team Lead to produce or change a
 durable outcome. Run the Work Unit as an iterative loop:
 
 ```text
-plan -> act -> verify -> improve -> reverify
+plan -> repeat(act_or_improve -> verify) until stop_only_on
 ```
 
 Stop only when done criteria pass with evidence, an explicit blocker exists, a
 safety or budget limit is reached, or the Operations Lead/user pauses the Work
 Unit.
+
+The plan is required, but its weight is proportional to the work. For a small
+Work Unit, a concise 1-3 bullet plan is enough. Use a fuller plan only when the
+scope, risk, or coordination cost justifies it.
 
 ### verify
 
@@ -88,10 +92,10 @@ instead of starting goal work. If `verify` supports an active `goal` Work Unit
 and any criterion is `fail` or `unknown`, return to the `goal` improvement loop
 unless the Work Unit is blocked.
 
-### conv
+### context recovery
 
 After long execution, compaction, resumed sessions, or subagent result
-integration, recover:
+integration, recover context before continuing the selected mode:
 
 - Work Unit id.
 - Goal, scope, non-goals, and constraints.
@@ -106,11 +110,11 @@ Then resume the mode selected by the active packet.
 1. Restate the goal and constraints.
 2. Identify scope, non-goals, and done criteria.
 3. Confirm the Protocol Capsule.
-4. Select the capsule mode: `goal`, `verify`, or `conv`.
+4. Select the capsule mode: `goal` or `verify`.
 5. Plan only the work required by that mode.
 6. Use subagents only when they remain under direct Team Lead control.
 7. Verify outputs against the Assignment Packet.
-8. Improve and reverify only when the active mode requires a goal loop.
+8. Improve and verify again only when the active mode requires a goal loop.
 9. Produce an Evidence & Result Record.
 10. Report result, evidence, risks, and blockers to the Operations Lead.
 

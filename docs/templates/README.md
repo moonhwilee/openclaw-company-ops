@@ -21,7 +21,7 @@ They are not an automated runtime, database, dashboard, or command router.
 - [Team Playbook](team-playbook.md): prompt/checklist
   for team lead execution.
 - [Team Lead Protocols](../protocols/README.md): canonical references for
-  `goal`, `verify`, and `conv` Protocol Capsules.
+  `goal` and `verify` Protocol Capsules.
 
 The GitHub Issue form for Work Cards lives in
 `.github/ISSUE_TEMPLATE/work-card.yml`.

@@ -73,15 +73,20 @@ prose.
 
 Select the mode that matches the delegated Work Unit:
 
-- `goal`: produce or change a durable outcome through a plan-act-verify loop.
+- `goal`: produce or change a durable outcome through an initial plan followed
+  by repeated act-or-improve and verify cycles until a valid stop condition is
+  met.
 - `verify`: review existing output or evidence without starting new goal work.
-- `conv`: recover context, summarize state, or integrate prior results.
+
+Context recovery is not a separate mode. If the Team Lead resumes after long
+work, compaction, or subagent result integration, recover the packet, evidence,
+gaps, and next action, then continue the selected mode.
 
 ```yaml
 protocol_capsule:
-  mode: <goal|verify|conv>
+  mode: <goal|verify>
   support: []
-  loop: <only_if_mode_requires_a_loop>
+  loop: <plan -> repeat(act_or_improve -> verify) until stop_only_on, only for goal>
   stop_only_on:
     - done_criteria_passed_with_evidence
     - explicit_blocker
@@ -92,6 +97,14 @@ protocol_capsule:
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: reject_means_reenter_selected_mode
 ```
+
+For `goal` mode, do not stop after one failed verification. Plan once, then
+repeat implementation or improvement and verification until a `stop_only_on`
+condition is true.
+
+Planning is required for `goal`, but it should be proportional. Small Work
+Units can use a concise 1-3 bullet plan; risky or multi-step Work Units need a
+fuller plan.
 
 ## Expected Outputs
 

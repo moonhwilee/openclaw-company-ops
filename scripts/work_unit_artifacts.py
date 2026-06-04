@@ -151,9 +151,9 @@ prose.
 
 ```yaml
 protocol_capsule:
-  mode: <goal|verify|conv>
+  mode: <goal|verify>
   support: []
-  loop: <only_if_mode_requires_a_loop>
+  loop: <plan -> repeat(act_or_improve -> verify) until stop_only_on, only for goal>
   stop_only_on:
     - done_criteria_passed_with_evidence
     - explicit_blocker
@@ -164,6 +164,14 @@ protocol_capsule:
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: reject_means_reenter_selected_mode
 ```
+
+For `goal` mode, do not stop after one failed verification. Plan once, then
+repeat implementation or improvement and verification until a `stop_only_on`
+condition is true.
+
+Planning is required for `goal`, but it should be proportional. Small Work
+Units can use a concise 1-3 bullet plan; risky or multi-step Work Units need a
+fuller plan.
 
 ## Expected Outputs
 

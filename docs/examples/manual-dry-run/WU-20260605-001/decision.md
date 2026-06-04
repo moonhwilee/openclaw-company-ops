@@ -2,6 +2,10 @@
 
 Status: Day-0 Smoke Artifact + Live Build-Lab Read-Only Run
 
+Supersession note: this decision records an earlier smoke pass that treated
+context recovery as a third Protocol Capsule mode. Current active docs use only
+`goal` and `verify`; context recovery is now a support procedure.
+
 ## Identity
 
 - Decision ref: `DECISION-WU-20260605-001`
@@ -17,27 +21,29 @@ Status: Day-0 Smoke Artifact + Live Build-Lab Read-Only Run
 
 ## Rationale
 
-The documentation smoke Work Unit satisfies the Assignment Packet. It adds
-canonical `goal`, `verify`, and `conv` protocol references, embeds the Protocol
-Capsule convention in the Assignment Packet template, updates the Team Playbook
-with packet-first execution rules, records a manual smoke artifact, and passed a
-live read-only `build-lab` smoke run.
+The documentation smoke Work Unit satisfied the Assignment Packet at that time.
+It added canonical `goal`, `verify`, and a superseded third context-recovery
+mode reference, embedded the Protocol Capsule convention in the Assignment
+Packet template, updated the Team Playbook with packet-first execution rules,
+recorded a manual smoke artifact, and passed a live read-only `build-lab` smoke
+run.
 
 The live smoke produced the expected two-step behavior:
 
 - Initial relative-path packet handoff failed and `build-lab` reported
   `blocked` instead of inventing a goal loop.
 - Revised absolute-path packet handoff passed; `build-lab` restated the packet,
-  executed `goal` with `verify` and `conv` support, mapped criteria to evidence,
-  and recommended `accept`.
+  executed `goal` with verify and context-recovery support, mapped criteria to
+  evidence, and recommended `accept`.
 
-After the Assignment Packet template was changed from a default `mode: goal` to
-`mode: <goal|verify|conv>`, follow-up smoke turns confirmed the intended path:
+After the Assignment Packet template was changed away from a default
+`mode: goal`, follow-up smoke turns confirmed the intended path:
 
 - A direct non-Work-Unit question returned `mode=direct`.
 - A verify-only packet returned `mode=verify` and `goal_work_started=no`.
 - A goal packet returned `mode=goal` and `goal_work_started=yes`.
-- A conv packet returned `mode=conv` and `goal_work_started=no`.
+- A superseded context-recovery-mode packet returned the recovery mode and
+  `goal_work_started=no`.
 
 ## Required Follow-up
 

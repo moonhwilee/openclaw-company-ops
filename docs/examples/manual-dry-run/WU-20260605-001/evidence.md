@@ -2,6 +2,10 @@
 
 Status: Day-0 Smoke Artifact + Live Build-Lab Read-Only Run
 
+Supersession note: this evidence records an earlier smoke pass that treated
+context recovery as a third Protocol Capsule mode. Current active docs use only
+`goal` and `verify`; context recovery is now a support procedure.
+
 ## Identity
 
 - Work Unit id: `WU-20260605-001`
@@ -12,10 +16,10 @@ Status: Day-0 Smoke Artifact + Live Build-Lab Read-Only Run
 
 ## Result Summary
 
-The repository now documents Team Lead Protocol Capsules as a packet-first
-execution contract. Canonical protocol references exist for `goal`, `verify`,
-and `conv`, and the Assignment Packet / Team Playbook templates describe how the
-Team Lead should execute a delegated Work Unit without a separate execution runtime.
+The repository documented Team Lead Protocol Capsules as a packet-first
+execution contract. This historical smoke used `goal`, `verify`, and a
+superseded third context-recovery mode. Current active docs use only `goal` and
+`verify`.
 
 ## Evidence
 
@@ -23,7 +27,8 @@ Team Lead should execute a delegated Work Unit without a separate execution runt
   - `docs/protocols/README.md`
   - `docs/protocols/goal.md`
   - `docs/protocols/verify.md`
-  - `docs/protocols/conv.md`
+  - superseded context-recovery mode reference, now replaced by
+    `docs/protocols/context-recovery.md`
 - Updated templates:
   - `docs/templates/assignment-packet.md`
   - `docs/templates/team-playbook.md`
@@ -55,20 +60,21 @@ Team Lead should execute a delegated Work Unit without a separate execution runt
     rejected the false claim `2 + 2 = 5`.
   - Goal packet returned `mode=goal`, `goal_work_started=yes`, and accepted the
     requested one-sentence output.
-  - Conv packet returned `mode=conv`, `goal_work_started=no`, recovered state,
-    and named the next action.
+  - Superseded context-recovery-mode packet returned the recovery mode,
+    `goal_work_started=no`, recovered state, and named the next action.
 - `git status --short`
 
 ## Done Criteria Mapping
 
 - Criterion: Canonical protocol files exist under `docs/protocols/`.
   - Status: `pass`
-  - Evidence: `docs/protocols/README.md`, `goal.md`, `verify.md`, `conv.md`
+  - Evidence: `docs/protocols/README.md`, `goal.md`, `verify.md`, and the
+    superseded context-recovery mode reference.
 - Criterion: Assignment Packet template includes a Protocol Capsule section.
   - Status: `pass`
   - Evidence: `docs/templates/assignment-packet.md`
-- Criterion: Team Playbook includes packet-first, `goal`, `verify`, and `conv`
-  execution guidance.
+- Criterion: Team Playbook includes packet-first `goal`, `verify`, and
+  superseded context-recovery-mode guidance.
   - Status: `pass`
   - Evidence: `docs/templates/team-playbook.md`
 - Criterion: Architecture and index docs reference Team Lead Protocols and
@@ -84,13 +90,14 @@ Team Lead should execute a delegated Work Unit without a separate execution runt
   - Evidence: first `build-lab` run blocked on missing packet; second run read
     the repo source-of-truth packet at
     `docs/examples/manual-dry-run/WU-20260605-001/assignment.md`, executed
-    `goal` with `verify` and `conv` support, mapped criteria to evidence, and
-    recommended `accept`.
+    `goal` with verify and context-recovery support, mapped criteria to
+    evidence, and recommended `accept`.
 - Criterion: Protocol Capsule mode selection does not force all requests into
   `goal`.
   - Status: `pass`
-  - Evidence: direct, verify-only, goal, and conv smoke turns returned the
-    requested modes; verify-only and conv both reported `goal_work_started=no`.
+  - Evidence: direct, verify-only, goal, and superseded context-recovery smoke
+    turns returned the requested modes; verify-only and context recovery both
+    reported `goal_work_started=no`.
 - Criterion: Static validation checks pass.
   - Status: `pass`
   - Evidence: validation commands listed above.
@@ -116,7 +123,7 @@ Rationale:
 
 The documentation and templates now encode the Protocol Capsule convention and
 static checks confirm the required files and phrases exist. The live read-only
-`build-lab` smoke also demonstrated the intended behavior: block when the packet
-is unavailable, execute the explicit packet when provided, answer direct
-non-Work-Unit requests normally, and select `goal`, `verify`, or `conv` from the
-active Protocol Capsule instead of defaulting every request to `goal`.
+`build-lab` smoke also demonstrated the intended behavior at that time: block
+when the packet is unavailable, execute the explicit packet when provided,
+answer direct non-Work-Unit requests normally, and avoid defaulting every
+request to `goal`.
