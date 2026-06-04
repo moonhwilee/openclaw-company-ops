@@ -475,5 +475,6 @@ exists as `scripts/ops_claim_ledger.py`. The first repo-local Pulse Monitor
 check exists as `scripts/pulse_monitor.py`. The first bounded multi-team smoke
 exists as `scripts/company_ops_smoke.py`. The first Discord alert formatter
 exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
-`scripts/dashboard_snapshot.py`. The next recommended step is the optional Pulse
-Monitor daemon.
+`scripts/dashboard_snapshot.py`. The first non-installing Pulse Monitor daemon
+runner exists as `scripts/pulse_daemon.py`. The next recommended step is
+install/distribution packaging.

@@ -621,6 +621,18 @@ or a scheduled alert-only job:
 openclaw cron add company-ops-pulse -- <command>
 ```
 
+Run the non-installing daemon runner in the foreground:
+
+```bash
+python3 scripts/pulse_daemon.py daemon run \
+  --ledger "$LEDGER" \
+  --session-snapshot ./session-snapshot.json \
+  --output-jsonl ~/.openclaw/state/openclaw-company-ops/pulse/events.jsonl
+```
+
+Use `--max-runs 1` for a bounded smoke. This runner does not install cron,
+launchd, or any background job by itself.
+
 ## Discord Visibility Setup
 
 Status: Repo-local alert formatter supported, visibility bridge later

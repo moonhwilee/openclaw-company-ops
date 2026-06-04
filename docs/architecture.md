@@ -424,7 +424,7 @@ Build in this order:
 4. Discord event dry run.
 5. File-backed Ops Claim Ledger.
 6. Manual Pulse Monitor check.
-7. Optional Pulse Monitor daemon.
+7. Optional Pulse Monitor daemon runner.
 8. Optional Discord Ops formatter/publisher.
 9. Reproducible package for other users.
 
