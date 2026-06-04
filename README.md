@@ -29,6 +29,7 @@ connection instructions as components are implemented.
 
 - [Architecture](docs/architecture.md)
 - [Setup Guide](docs/setup-guide.md)
+- [Implementation Setup Guide](docs/implementation-setup-guide.md)
 - [Manual Day-0 Templates](docs/templates/README.md)
 - [Operations Manual](docs/operations-manual.md)
 - [Discord Event Visibility](docs/discord-event-visibility.md)

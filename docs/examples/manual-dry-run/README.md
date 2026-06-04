@@ -16,6 +16,8 @@ runtime, dashboard backend, database, command router, or recovery system.
   guide.
 - `WU-20260604-003`: validates the manual loop on a Company Dashboard timing
   guide.
+- `WU-20260604-004`: validates the manual loop on a full implementation setup
+  guide.
 
 ## Rules
 

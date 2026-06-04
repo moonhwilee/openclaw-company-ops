@@ -6,7 +6,8 @@ This manual explains how to run OpenClaw Company Ops day to day before the
 planned automation exists.
 
 It is an operating manual, not an installation guide. For setup status and
-planned components, see `docs/setup-guide.md`.
+planned components, see `docs/setup-guide.md`. For a follow-along manual
+implementation path, see `docs/implementation-setup-guide.md`.
 
 ## Operating Chain
 
@@ -246,3 +247,10 @@ The third manual dry run is:
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/8
 - Artifacts: `docs/examples/manual-dry-run/WU-20260604-003/`
 - Output: `docs/company-dashboard-timing.md`
+
+The fourth manual dry run is:
+
+- Work Unit: `WU-20260604-004`
+- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/10
+- Artifacts: `docs/examples/manual-dry-run/WU-20260604-004/`
+- Output: `docs/implementation-setup-guide.md`
