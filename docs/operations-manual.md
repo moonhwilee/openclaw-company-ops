@@ -39,6 +39,9 @@ Visibility surfaces such as GitHub labels, GitHub Projects, saved issue views,
 or Discord messages must point back to these artifacts. They are not source
 artifacts.
 
+For Discord-specific event conventions, see
+`docs/discord-event-visibility.md`.
+
 ## Standard Manual Loop
 
 1. Owner states a goal or problem.
@@ -226,3 +229,10 @@ The first manual dry run is:
 - Artifacts: `docs/examples/manual-dry-run/WU-20260604-001/`
 
 Use it as a worked example of the manual loop, not as a runtime implementation.
+
+The second manual dry run is:
+
+- Work Unit: `WU-20260604-002`
+- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/6
+- Artifacts: `docs/examples/manual-dry-run/WU-20260604-002/`
+- Output: `docs/discord-event-visibility.md`

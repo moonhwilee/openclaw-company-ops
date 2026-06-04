@@ -190,6 +190,9 @@ Discord messages are not a source of truth. They must point back to the Work
 Card, Assignment Packet, Ops Claim Ledger entry, Evidence & Result Record, or
 Operations Lead decision.
 
+Detailed Discord event conventions are documented in
+`docs/discord-event-visibility.md`.
+
 ## Manual Day-0 Operating Flow
 
 Status: Manual Day-0
@@ -385,6 +388,7 @@ runtime, database, dashboard, command router, or recovery system.
 The first worked manual example lives in:
 
 - `docs/examples/manual-dry-run/WU-20260604-001/`
+- `docs/examples/manual-dry-run/WU-20260604-002/`
 
 ## Future Installation Path
 
@@ -438,6 +442,9 @@ The first manual dry run is documented at:
 
 - `docs/examples/manual-dry-run/WU-20260604-001/`
 
-The next recommended step is to run a second Work Unit from a real product or
-documentation request and compare the manual flow against the operations
-manual.
+The second manual dry run is documented at:
+
+- `docs/examples/manual-dry-run/WU-20260604-002/`
+
+The next recommended step is to run a Work Unit from a real product request and
+compare the manual flow against the operations manual and Discord event guide.
