@@ -8,6 +8,10 @@ component boundaries. As components are implemented, this same guide should be
 updated in place from concept and manual setup notes into installation,
 connection, and usage instructions.
 
+For a detailed follow-along guide that a user can use to manually implement
+the full structure before CLI automation exists, see
+`docs/implementation-setup-guide.md`.
+
 ## Document Status
 
 Use these labels when reading this guide:
@@ -392,6 +396,7 @@ The first worked manual example lives in:
 - `docs/examples/manual-dry-run/WU-20260604-001/`
 - `docs/examples/manual-dry-run/WU-20260604-002/`
 - `docs/examples/manual-dry-run/WU-20260604-003/`
+- `docs/examples/manual-dry-run/WU-20260604-004/`
 
 ## Future Installation Path
 
@@ -453,6 +458,10 @@ The third manual dry run is documented at:
 
 - `docs/examples/manual-dry-run/WU-20260604-003/`
 
-The next recommended step is to run a Work Unit from a real product request and
-compare the manual flow against the operations manual, Discord event guide, and
-dashboard timing guide.
+The fourth manual dry run is documented at:
+
+- `docs/examples/manual-dry-run/WU-20260604-004/`
+
+The next recommended step is to start implementation with a small Work Unit
+artifact generator and replace the relevant manual setup-guide blocks with CLI
+commands.
