@@ -1,6 +1,6 @@
 # Ops Claim Ledger Entry
 
-Status: Draft
+Status: Done
 
 The Ops Claim Ledger records expected responsibility. It is not runtime truth,
 progress history, evidence storage, a dashboard database, or a recovery system.
@@ -18,10 +18,12 @@ progress history, evidence storage, a dashboard database, or a recovery system.
 
 ## Expected Responsibility
 
-- Expected state: `assigned`
+- Expected state: `done`
 - Expected until: `2026-06-05`
-- Last claim: Phase 1 pre-dogfood visibility Work Unit prepared; waiting for
-  Discord channel/setup and routing execution.
+- Last claim: Phase 1 pre-dogfood Discord visibility accepted. Discord
+  connector, channel map, route bindings, harmless `#ops-feed` event, and
+  owner-authored `#team-build-pq` Q&A smoke are recorded in evidence and
+  accepted by Operations Lead decision.
 - Last seen compaction count: `unknown`
 
 Allowed expected states:
@@ -52,7 +54,10 @@ must not restart, reassign, recover, mutate GitHub, or mark completion.
 
 ## Notes
 
-- Discord is not configured in local OpenClaw at assignment creation time.
-- Current OpenClaw agent routing bindings are zero at assignment creation time.
-- If Discord credentials or channel ids are missing, report `blocked` instead
-  of substituting Telegram summaries for Discord visibility.
+- Discord was not configured at assignment creation time; Phase 1 configured
+  and verified it.
+- Initial Team Lead Q&A failed because `build-pq` lacked Company Ops
+  source-of-truth context, then failed once more because the Discord channel
+  session reused stale context. The stale session was archived and the fresh
+  session passed.
+- Discord remains visibility and direct Q&A only, not source-of-truth mutation.
