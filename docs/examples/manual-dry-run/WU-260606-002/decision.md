@@ -1,6 +1,6 @@
 # Operations Lead Decision
 
-Status: Pending
+Status: Accepted
 
 The Operations Lead decision records whether the submitted result satisfies the
 Assignment Packet and evidence requirements.
@@ -19,20 +19,36 @@ Assignment Packet and evidence requirements.
 
 ## Decision
 
-Choose one:
-
 - `accept`
-- `revise`
-- `hold`
-- `reject`
 
 ## Rationale
 
-Explain the decision using the Assignment Packet and Evidence & Result Record.
+The evidence satisfies the Assignment Packet.
+
+The patch removes the Phase 2 ambiguity by:
+
+- adding a repo-local Work Unit lifecycle event formatter for `ASSIGNED`,
+  `STARTED`, `BLOCKED`, `RESULT_READY`, and `DECISION`;
+- routing the formatter through
+  `python3 scripts/openclaw_company_ops.py discord event ...`;
+- documenting `cli-direct` versus `discord-bound` execution visibility;
+- stating that CLI-direct execution does not create team-channel records and
+  must be made visible through source-artifact-backed `#ops-feed` events;
+- preserving Discord as visibility-only and mutation-free.
+
+Verification passed for formatter help, text output, JSON output, unsupported
+event rejection, Python compilation, existing multi-team smokes, Work Unit
+status summary, and diff checks.
 
 ## Required Follow-up
 
--
+- Phase 3.5 hook or publisher automation is not required immediately for this
+  patch. Keep the formatter print-only until the activation decision gate or
+  until repeated manual lifecycle posting becomes the next observed friction.
+- Carry forward one friction observation: direct Team Lead CLI still may not
+  return final terminal text even after file/commit output is produced. This is
+  not a blocker for this Work Unit because source artifacts and checks were
+  audited directly, but it remains relevant before larger delegation.
 
 ## Closure Instruction
 

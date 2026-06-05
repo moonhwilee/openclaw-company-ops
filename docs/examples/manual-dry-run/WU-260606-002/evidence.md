@@ -52,8 +52,10 @@ Link only real artifacts or checks that exist.
   - `python3 scripts/openclaw_company_ops.py smoke multi-team`: passed.
   - `git diff --check`: passed.
 - Reports:
-  - No Discord messages sent.
-  - No GitHub issues closed or mutated.
+  - `#ops-feed` lifecycle visibility was posted manually for `ASSIGNED`,
+    `STARTED`, and `RESULT_READY`.
+  - The formatter itself sent no Discord messages and performed no mutation.
+  - GitHub issue closure remained pending until Operations Lead decision.
 - Sources:
   - `scripts/discord_ops.py`
   - `docs/discord-event-visibility.md`
@@ -64,6 +66,10 @@ Link only real artifacts or checks that exist.
 - Review notes: Phase 3.5 publisher/hook automation is justified only if
   lifecycle events need automatic posting later. This patch intentionally keeps
   the formatter print-only and mutation-free.
+- Review notes: `build-lab` again did not return a final CLI text response to
+  the Operations Lead terminal, but it created a commit and source artifacts.
+  The Operations Lead reviewed the actual diff and verification output before
+  making a decision.
 
 ## Verification Performed
 

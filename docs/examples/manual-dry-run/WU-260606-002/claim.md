@@ -1,6 +1,6 @@
 # Ops Claim Ledger Entry
 
-Status: Working
+Status: Done
 
 The Ops Claim Ledger records expected responsibility. It is not runtime truth,
 progress history, evidence storage, a dashboard database, or a recovery system.
@@ -18,10 +18,10 @@ progress history, evidence storage, a dashboard database, or a recovery system.
 
 ## Expected Responsibility
 
-- Expected state: `working`
+- Expected state: `done`
 - Expected until: `2026-06-06T03:00:00+09:00`
-- Last claim: `build-lab` is implementing a narrow Phase 3 routing and
-  visibility friction patch.
+- Last claim: Operations Lead accepted the Phase 3 routing and visibility
+  friction patch.
 - Last seen compaction count: `unknown`
 
 Allowed expected states:
