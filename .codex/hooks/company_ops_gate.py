@@ -20,7 +20,7 @@ from typing import Any
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = SCRIPT_PATH.parents[2]
 DEFAULT_WORK_UNIT_ROOT = REPO_ROOT / "docs" / "examples" / "manual-dry-run"
-WORK_UNIT_RE = re.compile(r"\bWU-(?:\d{6,8})-\d{3,}\b")
+WORK_UNIT_RE = re.compile(r"\bWU-[A-Z0-9]+(?:-[A-Z0-9]+)+\b")
 
 
 @dataclass(frozen=True)

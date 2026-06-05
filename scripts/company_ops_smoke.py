@@ -993,6 +993,24 @@ def run_hook_guard_smoke() -> None:
         if not any(finding.get("code") == "missing-work-unit-artifact" for finding in parsed_missing["findings"]):
             raise RuntimeError("hook guard did not identify missing Work Unit artifact")
 
+        suffix_dir = work_root / "WU-260606-LIVE-P0"
+        suffix_dir.mkdir()
+        (suffix_dir / "assignment.md").write_text("# Assignment\n\nReal suffix assignment text for smoke.\n", encoding="utf-8")
+        (suffix_dir / "claim.md").write_text("# Claim\n\nReal suffix claim text for smoke.\n", encoding="utf-8")
+        suffix_payload = {
+            "hook_event_name": "Stop",
+            "final_response": "Task WU-260606-LIVE-P0 complete and accepted.",
+        }
+        parsed_suffix = require_hook_status(
+            suffix_payload,
+            "stop",
+            "block",
+            "--work-unit-root",
+            str(work_root),
+        )
+        if not any(finding.get("code") == "missing-work-unit-artifact" for finding in parsed_suffix["findings"]):
+            raise RuntimeError("hook guard did not identify suffix Work Unit missing artifact")
+
         valid_dir = work_root / "WU-260606-902"
         valid_dir.mkdir()
         (valid_dir / "assignment.md").write_text(

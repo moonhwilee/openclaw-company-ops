@@ -464,7 +464,8 @@ Decision record:
   - dangerous-command fixtures are blocked;
   - normal repo inspection and existing smoke commands are allowed;
   - simple non-Work-Unit completion no-ops;
-  - seeded missing-evidence completion is caught;
+  - seeded missing-evidence completion is caught for numeric and suffix Work
+    Unit ids;
   - seeded blocked/hold evidence is allowed.
 - Boundary:
   - no `checkpoint-needed` user-facing feature;
