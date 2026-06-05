@@ -358,11 +358,12 @@ purpose-specific card output.
 
 Default team icons:
 
-- `📈 build-pq`
+- `🧱 build-pq`
 - `🧪 build-lab`
-- `🔎 market`
-- `💰 revenue`
-- `👥 <team>` fallback
+- `📣 market`
+- `💼 revenue`
+- `👥 <team>` defensive fallback for an unmapped team; normal operations should
+  use one of the canonical mapped team icons.
 
 Default status icons:
 

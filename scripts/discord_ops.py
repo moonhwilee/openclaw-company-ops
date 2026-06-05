@@ -58,10 +58,10 @@ TEAM_DETAIL_STATUS_ICONS = {
 }
 
 TEAM_ICONS = {
-    "build-pq": "📈",
+    "build-pq": "🧱",
     "build-lab": "🧪",
-    "market": "🔎",
-    "revenue": "💰",
+    "market": "📣",
+    "revenue": "💼",
 }
 
 DEFAULT_TEAM_ICON = "👥"

@@ -327,6 +327,83 @@ def run_discord_card_smoke() -> None:
     if "Goal:" not in assigned_detail.stdout or "Report:" not in assigned_detail.stdout:
         raise RuntimeError("team assignment card missing expected detail fields")
 
+    build_pq_started = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "STARTED",
+            "--work-unit-id",
+            "WU-260605-903",
+            "--team",
+            "build-pq",
+            "--status",
+            "PrimeQuant platform smoke started.",
+            "--next",
+            "Team Lead returns RESULT_READY.",
+        ]
+    )
+    require_success(build_pq_started, "discord build-pq started card")
+    if "▶️ [STARTED] WU-260605-903 · 🧱 build-pq" not in build_pq_started.stdout:
+        raise RuntimeError("build-pq card did not include canonical team icon")
+
+    market_blocked = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            "BLOCKED",
+            "--work-unit-id",
+            "WU-260605-904",
+            "--team",
+            "market",
+            "--problem",
+            "Market positioning input is missing.",
+            "--cause",
+            "No source brief was provided.",
+            "--needed",
+            "Owner or Operations Lead must provide the brief.",
+            "--team-final-review-kind",
+            "BLOCKED_DETAIL",
+            "--next",
+            "Wait for source brief.",
+        ]
+    )
+    require_success(market_blocked, "discord market blocker card")
+    if "⛔ [막힘] WU-260605-904 · 📣 market" not in market_blocked.stdout:
+        raise RuntimeError("market card did not include canonical team icon")
+
+    revenue_revise = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "REVISE",
+            "--work-unit-id",
+            "WU-260605-905",
+            "--team",
+            "revenue",
+            "--decision",
+            "REVISE",
+            "--reason",
+            "Pricing assumption needs one more check.",
+            "--next",
+            "Revenue Lead revises the result.",
+        ]
+    )
+    require_success(revenue_revise, "discord revenue revise card")
+    if "🔁 [REVISE] WU-260605-905 · 💼 revenue" not in revenue_revise.stdout:
+        raise RuntimeError("revenue card did not include canonical team icon")
+
     result_ready = run_command(
         [
             sys.executable,

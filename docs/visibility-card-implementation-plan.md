@@ -44,11 +44,13 @@ Header shape:
 
 Default team icons:
 
-- `📈 build-pq`: quant platform / production build work.
+- `🧱 build-pq`: PrimeQuant platform engineering.
 - `🧪 build-lab`: experiments, product/tooling, and smoke/prototype work.
-- `🔎 market`: market research and external signal work.
-- `💰 revenue`: monetization, pricing, and revenue model work.
-- `👥 <team>`: fallback for an unmapped team.
+- `📣 market`: market research, positioning, and content.
+- `💼 revenue`: customer, proposal, payment, and delivery.
+- `👥 <team>`: defensive fallback for an unmapped team. This is not a
+  canonical role icon; if it appears in normal operations, add an explicit team
+  mapping or fix the team name.
 
 Default status icons:
 
