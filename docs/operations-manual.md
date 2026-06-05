@@ -47,6 +47,26 @@ For the active post-setup sequence, see `docs/post-setup-plan.md`. In that
 sequence, Discord visibility is checked before the first real dogfood Work Unit
 is accepted, so the owner can observe orchestration transitions directly.
 
+## Direct Owner Questions To Team Leads
+
+The owner may ask Team Lead OpenClaw Agents direct questions in the relevant
+team Discord channel.
+
+This is allowed for:
+
+- Status checks.
+- Evidence or artifact location questions.
+- Clarifying technical, market, or revenue judgment.
+- Exploring whether something should become a Work Unit.
+
+Direct Team Lead answers do not bypass the Operations Lead decision path. A
+direct Discord message may explain state or link evidence, but it must not
+automatically create, close, approve, reassign, recover, or mutate a Work Unit.
+
+If a direct question becomes official delegated work, convert it into the
+normal operating trail: Work Card, Assignment Packet, Ops Claim Ledger entry,
+Evidence & Result Record, and Operations Lead Decision.
+
 ## Standard Manual Loop
 
 1. Owner states a goal or problem.

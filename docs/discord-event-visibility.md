@@ -43,7 +43,57 @@ Use two channels for Manual Day-0 operation:
 - `#ops-alerts`: claim stale, session mismatch, and suspected compaction
   recovery alerts.
 
-Do not create extra channels until the event volume proves they are needed.
+Use team channels when the owner needs to ask a Team Lead directly:
+
+- `#team-build-pq`: PrimeQuant platform engineering.
+- `#team-build-lab`: new product and tooling.
+- `#team-market`: market, positioning, and content.
+- `#team-revenue`: customer, proposal, payment, and delivery.
+
+Bind these channels deliberately. The matching Team Lead should answer by
+default. If no agent is bound to a channel, a response should not be assumed. If
+multiple agents answer the same team channel by default, fix routing before
+dogfood because the channel is no longer auditable.
+
+Do not create extra channels until the event or direct-question volume proves
+they are needed.
+
+## Direct Team Lead Questions
+
+The owner may ask a Team Lead direct questions in the relevant team channel.
+This is allowed and expected.
+
+Allowed examples:
+
+- Asking for current status.
+- Asking where evidence lives.
+- Asking for clarification on a technical, market, or revenue point.
+- Asking a Team Lead to draft a possible approach before a Work Unit exists.
+
+These messages are not a Discord command router because they do not mutate
+operating state by themselves.
+
+If a direct question becomes official work, promote it through the normal
+artifacts:
+
+1. Create or update the Work Card.
+2. Create or update the Assignment Packet.
+3. Create or update the Ops Claim Ledger entry.
+4. Require Evidence & Result and an Operations Lead Decision before closure.
+
+Forbidden direct-message behavior:
+
+- A chat message automatically creates, closes, approves, or reassigns a Work
+  Unit.
+- A Team Lead treats a direct question as delegated execution when no Assignment
+  Packet exists.
+- A Team Lead marks work complete from chat text without Evidence & Result and
+  an Operations Lead Decision.
+- Multiple Team Leads answer one team channel by default without an explicit
+  routing reason.
+
+Direct answers can be useful context, but source artifacts remain the operating
+record.
 
 ## Event Types
 

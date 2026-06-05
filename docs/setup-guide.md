@@ -188,6 +188,26 @@ Recommended channels:
 - `#ops-feed`: high-level assignment, blocker, result, and decision events.
 - `#ops-alerts`: stale claim, suspected session mismatch, and suspected
   compaction recovery alerts.
+- `#team-build-pq`: direct questions for the PrimeQuant platform team lead.
+- `#team-build-lab`: direct questions for the new product/tooling team lead.
+- `#team-market`: direct questions for the market/content team lead.
+- `#team-revenue`: direct questions for the revenue/customer team lead.
+
+Direct team channels are allowed. The owner can ask a Team Lead for status,
+clarification, evidence location, or early thinking in the relevant channel.
+That is not a Discord command router as long as chat text does not automatically
+create, close, approve, reassign, recover, or mutate Work Units.
+
+Routing rules:
+
+- Bind one default Team Lead per team channel.
+- Keep `#ops-feed` event-focused.
+- Do not assume OpenClaw will answer unless an agent is explicitly bound to the
+  channel.
+- If multiple agents answer the same team channel by default, fix routing before
+  dogfood.
+- Promote any official new work request into a Work Card, Assignment Packet,
+  claim, evidence, and decision trail.
 
 Recommended event types:
 
@@ -209,7 +229,9 @@ Detailed Discord event conventions are documented in
 
 The first post-setup phase is a pre-dogfood visibility setup. It verifies that
 at least one harmless event can be seen in the chosen channel and traced back to
-the source artifact. This is not a Discord command router and not a state owner.
+the source artifact. It also verifies that a harmless direct Team Lead question
+can be answered in the correct team channel without mutating official operating
+state. This is not a Discord command router and not a state owner.
 
 ## Manual Day-0 Operating Flow
 
@@ -391,7 +413,9 @@ Current practice: review the GitHub Issues list and linked artifacts, or render
 a local visibility snapshot with `scripts/dashboard_snapshot.py`.
 
 Future setup path: configure GitHub Projects or another dashboard surface only
-when the threshold in `docs/company-dashboard-timing.md` is met.
+when the threshold in `docs/company-dashboard-timing.md` is met. Final Company
+Ops completion requires GitHub Project or equivalent dashboard visibility unless
+the owner explicitly records a no-go decision with rationale.
 
 ### Templates
 

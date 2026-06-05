@@ -14,6 +14,8 @@ It exists to make this possible:
 - Each team lead OpenClaw agent can execute one Work Unit at a time.
 - Each team lead can directly manage its own subagents.
 - The owner can see company-wide state through a dashboard and event feed.
+- The owner can ask Team Leads direct questions in team channels without turning
+  those channels into an operating-state command router.
 - Stalled work can be detected without automatic recovery or hidden
   orchestration.
 
@@ -38,6 +40,7 @@ The owner checks:
 - Company direction and priorities.
 - Final result quality.
 - Dashboard and Discord event visibility.
+- Direct Team Lead answers when a question is better asked in the team channel.
 - Operations Lead decision records.
 
 ### Operations Lead
@@ -69,6 +72,11 @@ The team lead owns:
 - Evidence collection.
 - Result submission to the Operations Lead.
 - Ops Claim Ledger updates for its execution responsibility.
+
+Team Leads may answer direct owner questions in their team channel. Those
+answers can clarify status, evidence location, or possible approaches. They do
+not become delegated Work Unit execution unless the normal Work Card,
+Assignment Packet, claim, evidence, and decision trail exists.
 
 ### Standing Role Agents And Project-Specific Agents
 
@@ -198,6 +206,11 @@ The team lead session must directly control its subagents.
 
 There must be no hidden orchestrator agent between the team lead and its
 subagents.
+
+There may be a direct team Discord channel for each standing role agent. That
+channel is a human/agent communication path, not a state mutation path. A direct
+question can produce an answer or a draft recommendation, but it must not create
+or close official work without source artifacts.
 
 ### 5. Team Playbook
 

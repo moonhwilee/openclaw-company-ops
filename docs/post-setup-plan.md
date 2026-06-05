@@ -12,6 +12,9 @@ The target behavior remains:
 - Work Cards, Assignment Packets, Ops Claim Ledger entries, Evidence & Result
   Records, and Operations Lead Decisions are the source artifacts.
 - Discord and dashboards are visibility layers only.
+- The owner may ask Team Lead agents direct questions in the appropriate team
+  channel. Those answers are advisory, status, or clarification messages unless
+  they are backed by source artifacts.
 - Pulse Monitor is alert-only.
 - Team Lead OpenClaw Agents own execution for one Work Unit at a time.
 - The Operations Lead reviews evidence and records decisions.
@@ -32,11 +35,24 @@ Scope:
     events.
   - `#ops-alerts` for stale claim, session mismatch, and suspected compaction
     recovery alerts.
+- Select or create the direct team channels:
+  - `#team-build-pq` for PrimeQuant platform engineering questions.
+  - `#team-build-lab` for new product and tooling questions.
+  - `#team-market` for market, positioning, and content questions.
+  - `#team-revenue` for customer, proposal, payment, and delivery questions.
+- Bind direct team channels deliberately:
+  - only the matching Team Lead should answer by default;
+  - `#ops-feed` should remain event-focused, not a general discussion channel;
+  - if no agent is bound to a channel, no response should be assumed;
+  - if multiple agents are bound to one channel, the routing is invalid until
+    the noisy overlap is removed.
 - Decide the first send mechanism:
   - manual posting from formatter output, or
   - a one-off approved send using an existing messaging surface.
 - Emit and verify at least one harmless test event that links to a real source
   artifact.
+- Ask at least one harmless direct question in a team channel and verify that
+  the matching Team Lead can answer without mutating official operating state.
 - Confirm that no Discord message can mutate GitHub, mutate the claim ledger,
   close work, approve completion, reassign work, or recover agents.
 
@@ -44,9 +60,14 @@ Acceptance gate:
 
 - Owner can open the Discord channel and see an event with Work Unit id, source
   artifact link, owner/next-action owner, and next action.
+- Owner can directly ask a Team Lead a status or clarification question in the
+  correct team channel and receive an answer from that Team Lead.
 - The same event is traceable back to the Work Card, Assignment Packet, claim,
   evidence, or decision artifact.
-- Discord remains visibility-only.
+- Direct Team Lead answers can link or explain source artifacts, but they do
+  not create, close, reassign, approve, or mutate Work Units by themselves.
+- Discord remains visibility-only plus direct human/agent Q&A. It is not an
+  operating-state authority.
 
 ## Phase 2: Real Dogfood Work Unit
 
@@ -132,6 +153,9 @@ Evaluate each gate independently:
 Acceptance gate:
 
 - Each activation has an explicit yes/no decision with rationale.
+- Final Company Ops completion requires GitHub Project or equivalent dashboard
+  visibility unless the owner explicitly records a no-go decision with
+  rationale.
 - No activation introduces command routing, hidden truth, automatic recovery,
   automatic reassignment, or automatic completion.
 - Any external send or scheduled job has explicit owner approval before it is
@@ -193,6 +217,7 @@ Current assessment after reordering:
   credentials must be verified before Phase 1 can be called complete.
 
 If all phases pass, the desired behavior is achievable: a Work Unit can be
-assigned to a Team Lead, observed in Discord, tracked through a claim ledger,
-verified through evidence, decided by the Operations Lead, and later surfaced in
-a dashboard or package without creating hidden automation or fallback truth.
+assigned to a Team Lead, observed in Discord, discussed directly with the
+appropriate Team Lead, tracked through a claim ledger, verified through
+evidence, decided by the Operations Lead, and surfaced in a GitHub Project or
+equivalent dashboard without creating hidden automation or fallback truth.

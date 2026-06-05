@@ -25,6 +25,11 @@ repo-local support scripts. The remaining work is to prove the operating loop
 with owner-visible dogfood, decide which visibility/automation gates to
 activate, and package only the stable surface.
 
+Owner-visible dogfood includes two visibility paths: Discord event feed
+visibility and direct owner questions to the relevant Team Lead channel. Direct
+Team Lead answers are allowed, but they do not mutate official Work Unit state
+unless the normal source artifacts exist.
+
 Repo-local tooling is available through:
 
 ```bash
@@ -57,8 +62,12 @@ python3 scripts/openclaw_company_ops.py --help
 ## Planned Work
 
 - Follow the post-setup realization plan: first make orchestration observable
-  with visibility-only Discord events, then run a real dogfood Work Unit,
-  patch friction, delegate to a real Team Lead, decide activation gates, package
-  the stable surface, and only then adopt it across product repos.
+  with visibility-only Discord events and direct Team Lead Q&A, then run a real
+  dogfood Work Unit, patch friction, delegate to a real Team Lead, decide
+  activation gates, package the stable surface, and only then adopt it across
+  product repos.
+- Treat GitHub Project or equivalent dashboard visibility as part of final
+  completion unless the owner explicitly records a no-go decision with
+  rationale.
 - Turn the repo-local entrypoint into a small reproducible package only after
   dogfood, delegation, and activation gates pass.

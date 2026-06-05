@@ -647,6 +647,23 @@ Recommended channels:
 - `#ops-feed`: assignments, starts, blockers, results, and decisions.
 - `#ops-alerts`: stale claims, suspected session mismatch, and suspected
   compaction recovery.
+- `#team-build-pq`: direct questions for the PrimeQuant platform team lead.
+- `#team-build-lab`: direct questions for the new product/tooling team lead.
+- `#team-market`: direct questions for the market/content team lead.
+- `#team-revenue`: direct questions for the revenue/customer team lead.
+
+The owner may ask Team Leads direct questions in these team channels. This is
+allowed for status checks, evidence locations, clarification, and early
+thinking. It is not a Discord command router unless chat text automatically
+mutates Work Cards, claims, assignments, decisions, GitHub state, or execution
+state.
+
+Bind routing deliberately:
+
+- one default Team Lead per team channel;
+- no general discussion in `#ops-feed`;
+- no assumption that OpenClaw answers unless an agent is bound to the channel;
+- no multiple-agent pileup in one team channel.
 
 Verify available OpenClaw messaging commands:
 
@@ -695,6 +712,10 @@ Recommended event types:
 
 Every Discord event must link back to the real artifact. Discord must not
 accept commands that mutate Work Units in v1.
+
+Every official Work Unit still needs the normal artifact trail. A direct team
+question becomes official work only after a Work Card, Assignment Packet, claim,
+Evidence & Result Record, and Operations Lead Decision are created or updated.
 
 Future automation can add an explicit publisher around the same event shape
 only after the activation decision gate:
@@ -850,6 +871,9 @@ After the base setup and repo-local scripts exist, continue with
 
 This ordering keeps the original architecture intact while making the owner
 able to observe orchestration before dogfood results are accepted.
+
+Final completion requires GitHub Project or equivalent dashboard visibility
+unless the owner explicitly records a no-go decision with rationale.
 
 ## Future CLI Migration
 
