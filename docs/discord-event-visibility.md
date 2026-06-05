@@ -217,17 +217,23 @@ Next: Operations Lead decision.
 For owner-visible Operations Lead to Team Lead communication, prefer one
 Discord thread per active Work Unit inside the relevant team channel.
 
-The thread is a conversation container only. It is not source of truth, a
-blocker record, an execution database, or a command router. Normal operation
-only requires creating a thread, replying in it, and reading it back. Do not add
-routine thread deletion, lock, archive, or rename operations to the operating
-loop.
+This does not add an OpenClaw thread-management layer. OpenClaw uses Discord
+threads only as a visibility and conversation grouping feature. The operating
+record remains the GitHub Work Card, Assignment Packet, Ops Claim Ledger entry,
+Evidence & Result Record, and Operations Lead Decision.
 
-If the Discord bot has thread management permission, treat it as an admin
-recovery safety net for mistakes such as demo cleanup, duplicate threads, or a
-bad thread name. It should not become another operating control plane.
+The Discord thread is a conversation container only. It is not source of truth,
+a blocker record, an execution database, a workflow state machine, a recovery
+mechanism, or a command router. Normal operation only requires creating a
+Discord thread, replying in it, and reading it back for owner visibility.
 
-Recommended role headers for a single-bot Discord setup:
+Do not add routine thread deletion, lock, archive, rename, or management
+operations to the Company Ops operating loop. If the Discord bot has thread
+management permission, treat it as an admin recovery safety net for mistakes
+such as demo cleanup, duplicate threads, or a bad thread name. It should not
+become another operating control plane.
+
+Use these canonical role headers for the single-bot Discord setup:
 
 - `🎯 [OPS-LEAD] [ASSIGNED] WU-260606-001`
 - `🧱 [BUILD-PQ] [ACK] WU-260606-001`
@@ -236,16 +242,6 @@ Recommended role headers for a single-bot Discord setup:
 - `💼 [REVENUE] [RESULT_READY] WU-260606-001`
 - `🚦 [OPS-FEED] [DECISION] WU-260606-001`
 - `🚨 [OPS-ALERTS] [CLAIM_STALE] WU-260606-001`
-
-Role icon alternatives:
-
-- `OPS-LEAD`: `🎯`, `🏛`, `🗂`, `📍`, `🧩`, `⚙️`
-- `BUILD-PQ`: `🧱`, `🖥`, `🏗`, `⚙️`, `💻`, `🛠`
-- `BUILD-LAB`: `🧪`, `🧬`, `🔬`, `🧫`, `💡`, `🛠`
-- `MARKET`: `📣`, `📊`, `📡`, `🧭`, `📰`, `🎙`
-- `REVENUE`: `💼`, `💰`, `🤝`, `💳`, `📈`, `🧾`
-- `OPS-FEED`: `🚦`, `🔔`, `📍`, `📌`, `🧾`, `📡`
-- `OPS-ALERTS`: `🚨`, `⚠️`, `🔴`, `⛔`, `📣`, `🔔`
 
 ## Forbidden Actions
 
