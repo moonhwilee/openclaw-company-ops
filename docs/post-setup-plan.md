@@ -293,7 +293,7 @@ Observed Phase 4 result:
   eleven minutes.
 - The revised default keeps the useful visibility outcome and removes the
   strict-route ceremony. Compared with the CLI-first baseline, only
-  deterministic visibility formatting and manual posting are incremental.
+  deterministic visibility card composition and manual posting are incremental.
   Expected added cost is roughly thirty to ninety seconds while posting remains
   manual.
 - Rerun owner-authored route validation only when diagnosing a new channel,

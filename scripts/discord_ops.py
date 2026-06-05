@@ -343,27 +343,6 @@ def format_text_event(event: dict[str, str]) -> str:
     return compact_discord_text("\n".join(lines))
 
 
-def format_text_visibility(event: dict[str, str]) -> str:
-    lines = [
-        f"[{event['kind']}] {event['work_unit_id']}",
-        f"Surface: {event['surface']}",
-        f"Summary: {event['summary']}",
-        f"Owner: {event['owner']}",
-        f"Source: {event['source']}",
-    ]
-    why = event.get("why")
-    if why:
-        lines.append(f"Why: {why}")
-    verification = event.get("verification")
-    if verification:
-        lines.append(f"Verification: {verification}")
-    public_summary = event.get("public_summary")
-    if public_summary:
-        lines.append(f"Public summary: {public_summary}")
-    lines.append(f"Next: {event['next']}")
-    return compact_discord_text("\n".join(lines))
-
-
 def require_fields(card: dict[str, str], fields: tuple[str, ...], context: str) -> None:
     missing = [field for field in fields if not card.get(field)]
     if missing:
@@ -685,6 +664,13 @@ def validate_card_sequence(cards: list[dict[str, str]]) -> dict[str, str]:
     if events.index(("team-detail", "ASSIGNED_DETAIL")) < ops_assigned_index:
         raise ValueError("team-detail ASSIGNED_DETAIL must not precede ops-feed ASSIGNED")
 
+    if ("team-detail", "RESULT_READY") in events:
+        result_ready_index = events.index(("team-detail", "RESULT_READY"))
+        if ("team-detail", "STARTED") not in events:
+            raise ValueError("team-detail RESULT_READY requires prior team-detail STARTED")
+        if events.index(("team-detail", "STARTED")) > result_ready_index:
+            raise ValueError("team-detail STARTED must precede team-detail RESULT_READY")
+
     checkpoint_indexes = [
         index for index, event in enumerate(events) if event == ("team-detail", "CHECKPOINT")
     ]
@@ -759,26 +745,6 @@ def validate_card_pair(ops_card: dict[str, str], team_card: dict[str, str]) -> d
     }
 
 
-def visibility_from_args(args: argparse.Namespace) -> dict[str, str]:
-    if args.surface not in VISIBILITY_SURFACES:
-        raise ValueError(f"unsupported visibility surface: {args.surface}")
-    allowed = OPS_FEED_EVENTS if args.surface == "ops-feed" else TEAM_DETAIL_EVENTS
-    if args.kind not in allowed:
-        raise ValueError(f"unsupported {args.surface} visibility kind: {args.kind}")
-    return {
-        "kind": args.kind,
-        "surface": args.surface,
-        "work_unit_id": args.work_unit_id,
-        "owner": args.owner,
-        "source": args.source,
-        "summary": args.summary,
-        "why": args.why,
-        "verification": args.verification,
-        "public_summary": args.public_summary,
-        "next": args.next,
-    }
-
-
 def cmd_alerts(args: argparse.Namespace) -> int:
     try:
         data = read_json(args.pulse_json)
@@ -795,21 +761,6 @@ def cmd_alerts(args: argparse.Namespace) -> int:
         print("No Discord alert events.")
         return 0
     print("\n\n".join(format_text_event(event) for event in events))
-    return 0
-
-
-def cmd_visibility(args: argparse.Namespace) -> int:
-    try:
-        event = visibility_from_args(args)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-    if args.format == "json":
-        print(json.dumps({"visibility": event}, indent=2, sort_keys=True, ensure_ascii=False))
-        return 0
-
-    print(format_text_visibility(event))
     return 0
 
 
@@ -1186,38 +1137,6 @@ def build_parser() -> argparse.ArgumentParser:
     alerts.add_argument("--source-ref", required=True, help="Ledger or claim source ref to include")
     alerts.add_argument("--format", choices=("text", "json"), default="text")
     alerts.set_defaults(func=cmd_alerts)
-
-    visibility = subparsers.add_parser(
-        "visibility", help="Format owner-summary or team-detail visibility text"
-    )
-    visibility.add_argument(
-        "--surface",
-        required=True,
-        choices=tuple(sorted(VISIBILITY_SURFACES)),
-        help="Visibility surface: ops-feed or team-detail",
-    )
-    visibility.add_argument(
-        "--kind",
-        required=True,
-        help=(
-            "Visibility kind. ops-feed: ASSIGNED, COMPLETED, BLOCKED. "
-            "team-detail: ASSIGNED_DETAIL, STARTED, CHECKPOINT, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
-        ),
-    )
-    visibility.add_argument("--work-unit-id", required=True, help="Work Unit id or task id")
-    visibility.add_argument("--owner", required=True, help="Assigned Team Lead or result owner")
-    visibility.add_argument("--source", default="cli-direct", help="CLI assignment, repo path, or URL")
-    visibility.add_argument("--summary", required=True, help="Short human-readable summary")
-    visibility.add_argument("--why", default="", help="Short reason for assignment or decision")
-    visibility.add_argument("--verification", default="", help="Short verification summary for result events")
-    visibility.add_argument(
-        "--public-summary",
-        default="",
-        help="Optional English one-liner for public/package reuse",
-    )
-    visibility.add_argument("--next", default="none", help="Expected next action")
-    visibility.add_argument("--format", choices=("text", "json"), default="text")
-    visibility.set_defaults(func=cmd_visibility)
 
     card = subparsers.add_parser(
         "card",

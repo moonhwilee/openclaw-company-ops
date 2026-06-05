@@ -171,94 +171,6 @@ def load_claims(ledger: Path) -> list[dict[str, Any]]:
     return parsed
 
 
-def run_discord_visibility_smoke() -> None:
-    text_result = run_command(
-        [
-            sys.executable,
-            str(DISCORD),
-            "visibility",
-            "--surface",
-            "ops-feed",
-            "--kind",
-            "ASSIGNED",
-            "--work-unit-id",
-            "WU-260605-901",
-            "--owner",
-            "build-lab",
-            "--source",
-            "cli-direct",
-            "--summary",
-            "build-lab가 이 제한된 smoke slice를 맡았습니다.",
-            "--why",
-            "visibility formatter smoke입니다.",
-            "--next",
-            "Team Lead가 간단한 결과 요약을 반환합니다.",
-        ]
-    )
-    require_success(text_result, "discord ops-feed visibility")
-    if "[ASSIGNED] WU-260605-901" not in text_result.stdout:
-        raise RuntimeError("discord ops-feed visibility did not include expected header")
-
-    json_result = run_command(
-        [
-            sys.executable,
-            str(DISCORD),
-            "visibility",
-            "--surface",
-            "team-detail",
-            "--kind",
-            "RESULT_READY",
-            "--work-unit-id",
-            "WU-260605-901",
-            "--owner",
-            "build-lab",
-            "--source",
-            "local-smoke://WU-260605-901",
-            "--summary",
-            "Smoke 결과 상세가 Operations Lead 검토 대기 상태입니다.",
-            "--verification",
-            "visibility formatter JSON 파싱이 통과했습니다.",
-            "--next",
-            "Operations Lead가 최종 판정을 남깁니다.",
-            "--format",
-            "json",
-        ]
-    )
-    require_success(json_result, "discord team-detail visibility json")
-    parsed = json.loads(json_result.stdout)
-    if parsed.get("visibility", {}).get("kind") != "RESULT_READY":
-        raise RuntimeError("discord visibility JSON did not include RESULT_READY kind")
-
-    accepted_result = run_command(
-        [
-            sys.executable,
-            str(DISCORD),
-            "visibility",
-            "--surface",
-            "team-detail",
-            "--kind",
-            "ACCEPTED",
-            "--work-unit-id",
-            "WU-260605-901",
-            "--owner",
-            "Operations Lead",
-            "--source",
-            "local-smoke://WU-260605-901/final-review",
-            "--summary",
-            "Operations Lead 검토 결과, smoke 결과를 수락합니다.",
-            "--verification",
-            "RESULT_READY 이후 ACCEPTED까지 team detail trail이 닫혔습니다.",
-            "--public-summary",
-            "Operations Lead accepted the bounded visibility smoke result.",
-            "--next",
-            "ops-feed completion summary.",
-        ]
-    )
-    require_success(accepted_result, "discord team-detail accepted visibility")
-    if "[ACCEPTED] WU-260605-901" not in accepted_result.stdout:
-        raise RuntimeError("discord accepted visibility did not include expected header")
-
-
 def require_absent(text: str, forbidden: tuple[str, ...], label: str) -> None:
     leaked = [item for item in forbidden if item in text]
     if leaked:
@@ -783,6 +695,26 @@ def run_discord_card_smoke() -> None:
         if missing_request_result.returncode == 0:
             raise RuntimeError("card sequence passed without an ops-feed request card")
 
+        missing_started_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card-sequence",
+                "--card-json",
+                str(request_card_json),
+                "--card-json",
+                str(assigned_card_json),
+                "--card-json",
+                str(result_card_json),
+                "--card-json",
+                str(team_card_json),
+                "--card-json",
+                str(ops_card_json),
+            ]
+        )
+        if missing_started_result.returncode == 0:
+            raise RuntimeError("card sequence passed RESULT_READY without STARTED")
+
         late_checkpoint_result = run_command(
             [
                 sys.executable,
@@ -983,7 +915,6 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
             },
         )
         run_pulse_ok(args, ledger, snapshot)
-        run_discord_visibility_smoke()
         run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         claims = load_claims(ledger)
@@ -1002,7 +933,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
-        "discord visibility formatting, purpose-specific visibility card/checkpoint composition, "
+        "purpose-specific Discord card/checkpoint composition, "
         "live proof validation with burst replay rejection, "
         "and one result_ready update"
     )

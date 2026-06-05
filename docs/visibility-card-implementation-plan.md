@@ -133,11 +133,13 @@ Supported local card families:
   output that did not come from `discord card`.
 - Team Lead and Operations Lead prompt/template output should stay within a
   1,600-character Discord generation budget before formatter guard runs. This is
-  the first defense; the formatter guard remains the fallback.
+  the first defense; the formatter guard is only a deterministic size check, not
+  an alternate visibility path.
 
-The legacy `discord visibility` command remains available as the generic
-backward-compatible formatter. New owner-facing and team-detail visibility
-should prefer `discord card`.
+The active visibility surface is intentionally narrow: compose with
+`discord card`, publish one prepared card with `discord publish-card`, and
+validate final live proof with `discord proof-validate`. Do not keep a generic
+compatibility formatter as a legacy operating path.
 
 Implemented validation:
 
@@ -148,8 +150,8 @@ Implemented validation:
 - Required fields are enforced by card kind.
 - Paired-card validation checks Work Unit id, team, compatible event kinds, and
   non-conflicting decisions.
-- Generated card text, legacy visibility text, alert text, and arbitrary
-  manually guarded text are compacted to stay within a single Discord message.
+- Generated card text, alert text, and arbitrary manually guarded text are
+  compacted to stay within a single Discord message.
   The header and next action are preserved, and long body content is marked as
   partially omitted. This is deterministic compaction, not semantic LLM
   summarization. Detailed evidence belongs in the source artifact, not inside a

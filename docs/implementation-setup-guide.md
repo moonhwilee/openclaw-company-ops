@@ -44,7 +44,7 @@ Use this map when turning manual setup into CLI commands later.
 | Update claim files | `openclaw-company-ops claim update` |
 | Run stale/session checks manually | `openclaw-company-ops pulse check` |
 | Format Discord alert messages | `openclaw-company-ops discord alerts` |
-| Publish Discord visibility messages | `openclaw-company-ops discord visibility` after activation |
+| Publish Discord visibility messages | `openclaw-company-ops discord card` + foreground `discord publish-card` after activation |
 | Run smoke test manually | `openclaw-company-ops smoke` |
 
 When a command exists, remove or collapse the corresponding manual section.
@@ -938,8 +938,9 @@ Recommended replacement order:
 3. Replace artifact scaffolding with `work-unit create`.
 4. Replace manual claim edits with `claim update`.
 5. Replace manual pulse comparison with `pulse check`.
-6. Replace manual Discord posting with `discord visibility`, followed by an
-   explicitly approved publisher only if manual posting stays repetitive.
+6. Replace manual Discord posting with `discord card` plus foreground
+   `discord publish-card`; keep publisher proof explicit and do not add a hidden
+   bridge.
 7. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the

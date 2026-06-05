@@ -496,10 +496,9 @@ Use `--format json` when another publisher needs structured output. The card
 composer prints only; it does not send to Discord, mutate GitHub, update claims,
 or change execution state.
 
-Compatibility note: `discord visibility` remains available as a generic
-formatter and still exposes fields such as `Surface`, `Owner`, `Source`, and
-optional `Public summary`. Normal owner-facing and team-detail visibility should
-prefer `discord card`.
+The active visibility surface is `discord card` plus, when live Discord proof is
+required, foreground `discord publish-card`. Do not use a generic compatibility
+formatter as an alternate path.
 
 Repo-local team-detail text uses the same command with `--surface team-detail`:
 
