@@ -130,7 +130,7 @@ or create a separate LLM summarization call just for visibility.
 
 Discord generation budget:
 
-- Keep the Discord-facing result text within 1,500 characters.
+- Keep the Discord-facing result text within 1,600 characters.
 - Put detailed logs, diffs, and long findings in the Evidence & Result Record or
   another source artifact.
 - If the result needs more room, report the artifact path plus a short decision

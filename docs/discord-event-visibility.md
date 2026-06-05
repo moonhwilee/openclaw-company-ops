@@ -87,7 +87,7 @@ three layers so normal visibility stays readable without adding another LLM
 call:
 
 1. Generation budget: ask Team Lead and Operations Lead outputs that will be
-   pasted or transformed into Discord to stay within 1,500 characters.
+   pasted or transformed into Discord to stay within 1,600 characters.
 2. Formatter target: keep generated Discord cards under 1,800 characters so
    headers, Korean text, links, and emoji have margin below Discord's hard
    limit.

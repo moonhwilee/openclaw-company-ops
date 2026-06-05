@@ -741,8 +741,8 @@ def run_discord_card_smoke() -> None:
         guard_json = json.loads(guard_result.stdout)
         if not guard_json.get("compacted"):
             raise RuntimeError("discord arbitrary message guard did not compact long text")
-        if guard_json.get("generation_target_chars") != 1500:
-            raise RuntimeError("discord generation target is not 1500")
+        if guard_json.get("generation_target_chars") != 1600:
+            raise RuntimeError("discord generation target is not 1600")
         if guard_json.get("output_content_units", 9999) > 1800:
             raise RuntimeError("discord arbitrary message guard exceeded output budget")
 
