@@ -233,6 +233,16 @@ management permission, treat it as an admin recovery safety net for mistakes
 such as demo cleanup, duplicate threads, or a bad thread name. It should not
 become another operating control plane.
 
+Set the Discord parent channel's default thread auto-archive duration to `3
+days` for team handoff channels. This is a Discord visibility default, not a
+source-of-truth field. It gives weekend work enough time to remain visible
+without keeping old Work Unit conversations active indefinitely.
+
+When creating threads from OpenClaw, prefer inheriting the Discord channel
+default. Do not routinely pass `--auto-archive-min`; use that option only for
+explicit one-off overrides such as short-lived demos. The durable operating
+record remains the GitHub-based ledger, not the Discord archive setting.
+
 Use these canonical role headers for the single-bot Discord setup:
 
 - `🎯 [OPS-LEAD] [ASSIGNED] WU-260606-001`
