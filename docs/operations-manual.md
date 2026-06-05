@@ -84,6 +84,40 @@ conversation.
 For both routes, Discord is visibility-only and publisher-only. It must not
 create, mutate, approve, close, reassign, recover, or complete Work Units.
 
+## Manual Cost Budget
+
+Use this budget when deciding whether owner-visible delegation is worth the
+extra ceremony.
+
+One-time or reset-time route validation:
+
+- Owner-authored inbound validation adds one short Team Lead LLM response. It
+  is required when proving a channel, thread, or binding for the first time, and
+  should be repeated after material routing changes, Gateway/session drift, or
+  suspicious compaction/recovery behavior.
+- CLI channel-session delivery smoke can also add one short Team Lead LLM call
+  if used. It proves delivery and structured status, but it does not replace
+  owner-authored Discord-bound validation.
+
+Normal `discord-bound` Work Unit cost after the route is already validated:
+
+- Do not add a second Team Lead execution call just for visibility. The Team
+  Lead execution is still the main LLM call.
+- Expect Day-0 manual overhead of roughly four to eight minutes per small Work
+  Unit for lifecycle event posting, team-channel readback, route recording,
+  evidence/decision review, GitHub issue hygiene, and final status checks.
+- Team-channel readback, `#ops-feed` event formatting, source-artifact checks,
+  and Work Unit status commands are operational/tool time, not separate Team
+  Lead LLM calls.
+- Operations Lead review still consumes judgment time and main-session context.
+  This is intentional: acceptance remains a human-auditable decision, not a
+  Team Lead self-certification.
+
+Use `discord-bound` when the owner should be able to inspect Team Lead
+communication in Discord. Use `cli-direct` only for low-risk internal work where
+team-channel conversation visibility is not required, and record that route
+truthfully.
+
 ## Direct Owner Questions To Team Leads
 
 The owner may ask Team Lead OpenClaw Agents direct questions in the relevant

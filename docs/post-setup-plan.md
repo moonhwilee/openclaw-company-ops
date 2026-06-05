@@ -253,9 +253,46 @@ Acceptance gate:
 - Team Lead-specific hooks are either explicitly deferred or proposed with
   evidence from this delegation.
 
+Observed Phase 4 result:
+
+- `WU-260606-003` proved the stricter route gate: owner-authored inbound in
+  `#team-build-lab`, Team Lead response in the same channel, Operations Lead
+  assignment/result handoff visible there, lifecycle events in `#ops-feed`, and
+  `execution_route: discord-bound` in the source artifact.
+- The one-time route validation added one short Team Lead LLM response when the
+  owner-authored Discord inbound was tested. Rerun that validation only when the
+  team channel, thread, binding, agent, or Gateway/session state changes enough
+  to make routing suspect.
+- For normal future `discord-bound` Work Units, the route discipline should not
+  add another Team Lead LLM call beyond the Team Lead execution itself. The
+  added cost is mainly manual Operations Lead time: lifecycle event posting,
+  team-channel readback, route recording, evidence/decision review, and final
+  status checks.
+- In the Phase 4 slice, the build-lab execution itself took about four minutes,
+  while route validation plus manual visibility/evidence/decision handling took
+  the overall slice to roughly eleven minutes. Treat this as a Day-0 operating
+  benchmark, not a target.
+
 ## Phase 5: Activation Decision Gates
 
 Purpose: decide which optional automation is ready to activate.
+
+Phase 4 changed the priority from "enable more automation" to "remove the
+manual visibility bottleneck only where it has now been proven." Evaluate in
+this order:
+
+1. Discord publisher: first activation candidate. Manual lifecycle posting and
+   readback are now the main repeated overhead, and a publisher can reduce that
+   overhead without becoming source of truth if it only sends formatted events.
+2. GitHub Project sync: defer unless Work Card volume or cross-repo tracking
+   makes issue labels plus source artifacts too slow to scan.
+3. Scheduled Pulse Monitor: defer until stale-claim risk appears in repeated
+   real Work Units. Even alert-only scheduling can add operational noise and
+   false positives.
+4. Hook expansion: enable only for a concrete skipped-evidence, unsafe-command,
+   or compaction-handoff risk observed in real runs.
+5. Packaging/public v1: keep behind the activation gates. A reproducible public
+   surface is useful only after the internal owner-visible loop is stable.
 
 Evaluate each gate independently:
 

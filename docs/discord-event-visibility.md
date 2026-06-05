@@ -94,6 +94,37 @@ semantics treat reply-channel and reply-to as delivery overrides, separate from
 session routing. They can prove delivery into Discord, but not that the Team
 Lead conversation is running from the bound Discord channel or thread.
 
+## Cost And Activation Guidance
+
+`discord-bound` is the owner-visible delegation route, so it carries more
+operating cost than `cli-direct`.
+
+- Proving a new Discord route can add one short Team Lead LLM response for
+  owner-authored inbound validation. Repeat it only for new channels, threads,
+  agents, bindings, or suspected routing/session drift.
+- Once the route is proven, normal Work Units should not need an extra Team
+  Lead LLM call just to be visible. The repeated cost is mostly manual
+  lifecycle posting, team-channel readback, source-artifact checks, and
+  Operations Lead decision review.
+- Day-0 manual `discord-bound` operation is expected to add roughly four to
+  eight minutes to a small Work Unit compared with an artifact-only
+  `cli-direct` run. Larger Work Units dilute this overhead; tiny tasks may not
+  justify it.
+- `cli-delivered` is useful for delivery smoke and structured `deliveryStatus`,
+  but it remains weaker evidence than owner-authored inbound plus channel
+  readback.
+
+Activation priority after Phase 4:
+
+1. Prefer a Discord publisher first, because lifecycle event posting is now the
+   most obvious repeated manual cost and can be automated without changing
+   source-of-truth rules.
+2. Defer GitHub Project sync until issue volume makes the existing Work
+   Card/artifact/status trail hard to scan.
+3. Defer scheduled daemon or Pulse Monitor activation until real stale-claim
+   risk outweighs alert noise and false positives.
+4. Keep packaging/public v1 behind the internal loop proving stable.
+
 ## Recommended Channels
 
 Use seven channels for Phase 1 operation.
