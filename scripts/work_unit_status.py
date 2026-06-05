@@ -18,6 +18,11 @@ REQUIRED_ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
 STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 WORK_UNIT_RE = re.compile(r"^WU-(?:\d{6}|\d{8})-\d{3}$")
+EXECUTION_ROUTE_FIELDS = {
+    "execution route",
+    "execution route for this work unit",
+}
+VALID_EXECUTION_ROUTES = {"cli-direct", "cli-delivered", "discord-bound"}
 
 
 def clean_value(value: str) -> str:
@@ -79,6 +84,42 @@ def choose_first(*values: str) -> str:
         if value:
             return value
     return ""
+
+
+def clean_route_value(value: str) -> str:
+    cleaned = clean_value(value).strip().rstrip(".")
+    if len(cleaned) >= 2 and cleaned[0] == "`" and cleaned[-1] == "`":
+        cleaned = cleaned[1:-1]
+    return cleaned.strip().lower()
+
+
+def derive_execution_route(artifacts: dict[str, dict[str, Any]]) -> dict[str, str]:
+    for filename in REQUIRED_ARTIFACTS:
+        artifact = artifacts[filename]
+        if not artifact["exists"]:
+            continue
+        for field_name, raw_value in artifact["fields"].items():
+            if field_name not in EXECUTION_ROUTE_FIELDS:
+                continue
+            value = clean_route_value(raw_value)
+            if value in VALID_EXECUTION_ROUTES:
+                return {
+                    "value": value,
+                    "source": filename,
+                    "field": field_name,
+                }
+            return {
+                "value": "unknown",
+                "source": filename,
+                "field": field_name,
+                "note": f"unsupported execution route value: {raw_value}",
+            }
+    return {
+        "value": "unknown",
+        "source": "missing",
+        "field": "",
+        "note": "no execution route field found",
+    }
 
 
 def derive_next_action(
@@ -148,6 +189,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     decision_status = artifacts["decision.md"]["status"]
     next_action = derive_next_action(missing, claim_state, evidence_status, decision_status)
     next_review = derive_next_review(claim_fields, next_action)
+    execution_route = derive_execution_route(artifacts)
 
     audit_problems = []
     for filename in missing:
@@ -215,6 +257,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "status": decision_status,
             "exists": artifacts["decision.md"]["exists"],
         },
+        "execution_route": execution_route,
         "current_state": claim_state or "unknown",
         "missing_artifacts": missing,
         "audit_problems": audit_problems,
@@ -254,6 +297,13 @@ def print_text(summary: dict[str, Any]) -> None:
         "Decision: "
         f"{summary['decision']['ref'] or 'missing'} "
         f"status={summary['decision']['status'] or 'missing'}"
+    )
+    route = summary["execution_route"]
+    print(
+        "Execution route: "
+        f"{route['value']} "
+        f"source={route['source']}"
+        f"{' field=' + route['field'] if route['field'] else ''}"
     )
     print(f"Next review: {summary['next_review'] or 'unknown'}")
     print(f"Next action: {summary['next_action']}")
