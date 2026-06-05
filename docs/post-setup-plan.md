@@ -42,10 +42,19 @@ Scope:
   - `#team-revenue` for customer, proposal, payment, and delivery questions.
 - Bind direct team channels deliberately:
   - only the matching Team Lead should answer by default;
+  - the matching Team Lead may answer owner-authored messages in that team
+    channel;
+  - non-owner chatter should require an explicit mention or address before an
+    agent answers;
   - `#ops-feed` should remain event-focused, not a general discussion channel;
   - if no agent is bound to a channel, no response should be assumed;
   - if multiple agents are bound to one channel, the routing is invalid until
     the noisy overlap is removed.
+- Use the Phase 1 response trigger policy:
+  - start with one Team Lead binding per team channel;
+  - switch any noisy or overlapping channel to mention-required mode;
+  - reserve future slash or application commands for read-only lookup such as
+    `/status`, `/evidence`, or `/claim`, not state mutation.
 - Decide the first send mechanism:
   - manual posting from formatter output, or
   - a one-off approved send using an existing messaging surface.
@@ -62,6 +71,9 @@ Acceptance gate:
   artifact link, owner/next-action owner, and next action.
 - Owner can directly ask a Team Lead a status or clarification question in the
   correct team channel and receive an answer from that Team Lead.
+- Team channel response behavior is proven: the matching Team Lead answers the
+  owner, non-owner chatter does not create default agent responses, and noisy
+  channels can be moved to mention-required mode.
 - The same event is traceable back to the Work Card, Assignment Packet, claim,
   evidence, or decision artifact.
 - Direct Team Lead answers can link or explain source artifacts, but they do

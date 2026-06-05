@@ -58,6 +58,28 @@ dogfood because the channel is no longer auditable.
 Do not create extra channels until the event or direct-question volume proves
 they are needed.
 
+## Response Trigger Policy
+
+Use explicit routing instead of broad "answer every message" behavior.
+
+Phase 1 default:
+
+- Each team channel has exactly one default Team Lead binding.
+- The matching Team Lead may answer owner-authored messages in that team
+  channel by default.
+- Non-owner chatter should not trigger agent responses unless the agent is
+  mentioned or explicitly addressed.
+- `#ops-feed` and `#ops-alerts` should not have default conversational agent
+  responders.
+- If noise, overlap, or multi-agent replies appear, switch that channel to
+  mention-required mode before dogfood.
+- Do not grant broad message-content scanning just to make every Discord
+  channel act as an input stream.
+
+Future slash or application commands may be added for read-only lookup, such
+as `/status`, `/evidence`, or `/claim`. State-changing commands such as
+`/done`, `/assign`, `/reassign`, or `/recover` remain out of bounds for v1.
+
 ## Direct Team Lead Questions
 
 The owner may ask a Team Lead direct questions in the relevant team channel.

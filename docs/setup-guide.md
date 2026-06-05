@@ -201,13 +201,26 @@ create, close, approve, reassign, recover, or mutate Work Units.
 Routing rules:
 
 - Bind one default Team Lead per team channel.
+- Let the matching Team Lead answer owner-authored messages in that team
+  channel by default.
+- Require an explicit mention or address before an agent answers non-owner
+  chatter.
 - Keep `#ops-feed` event-focused.
+- Keep `#ops-alerts` alert-focused.
+- Do not bind default conversational responders to `#ops-feed` or
+  `#ops-alerts`.
 - Do not assume OpenClaw will answer unless an agent is explicitly bound to the
   channel.
 - If multiple agents answer the same team channel by default, fix routing before
   dogfood.
+- If a team channel becomes noisy, switch it to mention-required mode before
+  dogfood.
 - Promote any official new work request into a Work Card, Assignment Packet,
   claim, evidence, and decision trail.
+
+Slash or application commands may be introduced later for read-only lookup,
+such as `/status`, `/evidence`, or `/claim`. Do not add v1 commands that mutate
+state, such as `/done`, `/assign`, `/reassign`, or `/recover`.
 
 Recommended event types:
 
