@@ -371,6 +371,17 @@ Default status icons:
 - `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / `📦 [RESULT_READY]`
 - `✅ [ACCEPTED]` / `🔁 [REVISE]` / `⛔ [BLOCKED_DETAIL]`
 
+Discord is the limiting surface. Visibility card output must fit into one
+Discord message by default. If the body is too long, compact it before sending:
+preserve the header and next action, mark the body as summarized, and keep the
+full detail in the Work Unit evidence, Team Lead result, or source artifact.
+Do not rely on Discord's automatic message splitting for normal operations.
+For manual posts that do not come from `discord card`, run the same guard first:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord guard --message-file team-result.txt
+```
+
 Manual Day-0 visibility may be posted by the Operations Lead. Pulse Monitor
 alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge events
 may be automated, but they must remain visibility events.
@@ -389,6 +400,22 @@ python3 scripts/openclaw_company_ops.py discord card \
   --evidence "docs/examples/manual-dry-run/WU-260606-002/assignment.md" \
   --next "Team Lead가 실행 후 결과 요약을 보고합니다."
 ```
+
+For live Work Unit proof or manual posting, validate the sequence before calling
+the flow complete:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord card-sequence \
+  --card-json ops-request.json \
+  --card-json team-assigned.json \
+  --card-json team-result.json \
+  --card-json team-review.json \
+  --card-json ops-completion.json
+```
+
+The sequence must start with the owner-visible `#ops-feed` request. A
+team-detail handoff without the matching `#ops-feed` request is an incomplete
+visibility flow, even if the Team Lead actually did the work.
 
 Use `--format json` when another publisher needs structured output. The card
 composer prints only; it does not send to Discord, mutate GitHub, update claims,

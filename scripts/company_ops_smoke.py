@@ -539,8 +539,96 @@ def run_discord_card_smoke() -> None:
 
     with tempfile.TemporaryDirectory(prefix="openclaw-company-ops-card-pair.") as pair_dir_raw:
         pair_dir = Path(pair_dir_raw)
+        request_card_json = pair_dir / "request-card.json"
+        assigned_card_json = pair_dir / "assigned-card.json"
+        result_card_json = pair_dir / "result-card.json"
         ops_card_json = pair_dir / "ops-card.json"
         team_card_json = pair_dir / "team-card.json"
+        request_json = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card",
+                "--surface",
+                "ops-feed",
+                "--kind",
+                "ASSIGNED",
+                "--work-unit-id",
+                "WU-260605-901",
+                "--team",
+                "build-lab",
+                "--problem",
+                "요청-완료 visibility 흐름이 사용자 관점에서 읽히는지 확인이 필요합니다.",
+                "--request",
+                "build-lab에 card composer smoke를 맡깁니다.",
+                "--criteria",
+                "ops-feed에는 내부 필드 없이 문제, 요청, 기준, 다음 액션이 보여야 합니다.",
+                "--caution",
+                "외부 Discord 전송 없이 로컬 formatter만 검증합니다.",
+                "--next",
+                "Team Lead가 실행 후 결과 요약을 보고합니다.",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(request_json, "discord ops-feed request card JSON")
+        assigned_json = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card",
+                "--surface",
+                "team-detail",
+                "--kind",
+                "ASSIGNED_DETAIL",
+                "--work-unit-id",
+                "WU-260605-901",
+                "--team",
+                "build-lab",
+                "--goal",
+                "Validate card composer output for a bounded smoke slice.",
+                "--scope",
+                "Local formatter only; no Discord mutation.",
+                "--criteria",
+                "Return concise result, evidence, verification, and risks.",
+                "--report",
+                "RESULT_READY with evidence and verification.",
+                "--next",
+                "Team Lead returns RESULT_READY.",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(assigned_json, "discord team assigned detail card JSON")
+        result_json = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card",
+                "--surface",
+                "team-detail",
+                "--kind",
+                "RESULT_READY",
+                "--work-unit-id",
+                "WU-260605-901",
+                "--team",
+                "build-lab",
+                "--result",
+                "Card composer produced separate ops-feed and team-detail messages.",
+                "--evidence",
+                "local smoke command output",
+                "--verification",
+                "request card did not expose internal labels.",
+                "--next",
+                "Operations Lead review.",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(result_json, "discord team result ready card JSON")
+        request_card_json.write_text(request_json.stdout, encoding="utf-8")
+        assigned_card_json.write_text(assigned_json.stdout, encoding="utf-8")
+        result_card_json.write_text(result_json.stdout, encoding="utf-8")
         ops_card_json.write_text(completion.stdout, encoding="utf-8")
         team_card_json.write_text(accepted.stdout, encoding="utf-8")
         pair_result = run_command(
@@ -557,6 +645,104 @@ def run_discord_card_smoke() -> None:
         require_success(pair_result, "discord card pair validation")
         if "OK paired visibility cards: WU-260605-901 · build-lab COMPLETED + ACCEPTED" not in pair_result.stdout:
             raise RuntimeError("card pair validation did not include expected result")
+
+        sequence_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card-sequence",
+                "--card-json",
+                str(request_card_json),
+                "--card-json",
+                str(assigned_card_json),
+                "--card-json",
+                str(result_card_json),
+                "--card-json",
+                str(team_card_json),
+                "--card-json",
+                str(ops_card_json),
+            ]
+        )
+        require_success(sequence_result, "discord card sequence validation")
+        if "OK visibility card sequence: WU-260605-901 · build-lab · 5 cards" not in sequence_result.stdout:
+            raise RuntimeError("card sequence validation did not include expected result")
+
+        missing_request_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card-sequence",
+                "--card-json",
+                str(assigned_card_json),
+                "--card-json",
+                str(result_card_json),
+                "--card-json",
+                str(team_card_json),
+                "--card-json",
+                str(ops_card_json),
+            ]
+        )
+        if missing_request_result.returncode == 0:
+            raise RuntimeError("card sequence passed without an ops-feed request card")
+
+    long_result = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "RESULT_READY",
+            "--work-unit-id",
+            "WU-260605-906",
+            "--team",
+            "build-lab",
+            "--result",
+            "A" * 1300,
+            "--evidence",
+            "B" * 900,
+            "--verification",
+            "C" * 900,
+            "--risks",
+            "D" * 400,
+            "--next",
+            "Operations Lead review.",
+        ]
+    )
+    require_success(long_result, "discord long card compaction")
+    if len(long_result.stdout) > 1850:
+        raise RuntimeError("long Discord card exceeded target one-message length")
+    if "요약됨" not in long_result.stdout:
+        raise RuntimeError("long Discord card did not include compaction notice")
+    if "📦 [RESULT_READY] WU-260605-906 · 🧪 build-lab" not in long_result.stdout:
+        raise RuntimeError("long Discord card lost its header during compaction")
+
+    with tempfile.TemporaryDirectory(prefix="openclaw-company-ops-discord-guard.") as guard_dir_raw:
+        guard_path = Path(guard_dir_raw) / "message.txt"
+        guard_path.write_text(
+            "📦 [RESULT_READY] WU-260605-907 · 🧪 build-lab\n"
+            + ("long team lead detail " * 220)
+            + "\nNext: Operations Lead review.",
+            encoding="utf-8",
+        )
+        guard_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "guard",
+                "--message-file",
+                str(guard_path),
+                "--format",
+                "json",
+            ]
+        )
+        require_success(guard_result, "discord arbitrary message guard")
+        guard_json = json.loads(guard_result.stdout)
+        if not guard_json.get("compacted"):
+            raise RuntimeError("discord arbitrary message guard did not compact long text")
+        if guard_json.get("output_chars", 9999) > 1800:
+            raise RuntimeError("discord arbitrary message guard exceeded output budget")
 
 
 def cmd_multi_team(args: argparse.Namespace) -> int:

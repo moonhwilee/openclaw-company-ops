@@ -88,6 +88,9 @@ The validator should reject or flag:
 - `#ops-feed` completion before a matching team final review event.
 - Mismatched Work Unit id, team, decision, or next action between paired
   messages.
+- A sequence that starts with `#team-*` before the owner-visible `#ops-feed`
+  request card.
+- Any Discord-bound text that would exceed the single-message guard budget.
 - Completion cards that do not state criteria result and verification.
 - Request cards that do not state the problem, request, criteria, and next
   action.
@@ -122,6 +125,12 @@ Supported local card families:
 - `--surface team-detail --kind ASSIGNED_DETAIL|STARTED|RESULT_READY|ACCEPTED|REVISE|BLOCKED_DETAIL`
 - `discord card-pair --ops-card-json <path> --team-card-json <path>` validates
   one ops-feed card against one team-detail card.
+- `discord card-sequence --card-json <path> ...` validates the actual posting
+  order for one Work Unit and prevents a team handoff from preceding the
+  `#ops-feed` request card.
+- `discord guard --message-file <path>` compacts arbitrary Discord-bound text
+  to the same single-message budget. Use it before manually posting Team Lead
+  output that did not come from `discord card`.
 
 The legacy `discord visibility` command remains available as the generic
 backward-compatible formatter. New owner-facing and team-detail visibility
@@ -136,6 +145,14 @@ Implemented validation:
 - Required fields are enforced by card kind.
 - Paired-card validation checks Work Unit id, team, compatible event kinds, and
   non-conflicting decisions.
+- Generated card text, legacy visibility text, alert text, and arbitrary
+  manually guarded text are compacted to stay within a single Discord message.
+  The header and next action are preserved, and long body content is marked as
+  summarized. Detailed evidence belongs in the source artifact, not inside a
+  long Discord post.
+- Sequence validation requires `#ops-feed [요청]` before `#team-*`
+  `ASSIGNED_DETAIL`, and requires `RESULT_READY` plus the final Operations Lead
+  review before owner-facing completion/blocker cards.
 
 ## Implementation Notes
 

@@ -79,6 +79,10 @@ TEAM_FINAL_REVIEW_EVENTS = {
     "BLOCKED_DETAIL",
 }
 
+DISCORD_MESSAGE_LIMIT = 2000
+DISCORD_MESSAGE_TARGET_CHARS = 1800
+DISCORD_COMPACTION_SUFFIX = "… (요약됨; 상세 내용은 source artifact 또는 team result 원문을 확인하세요.)"
+
 
 def read_json(path: str) -> dict[str, Any]:
     if path == "-":
@@ -95,6 +99,12 @@ def read_json(path: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"input root must be a JSON object: {source}")
     return data
+
+
+def read_text(path: str) -> str:
+    if path == "-":
+        return sys.stdin.read()
+    return Path(path).expanduser().read_text(encoding="utf-8")
 
 
 def read_card_json(path: str) -> dict[str, str]:
@@ -160,7 +170,7 @@ def format_text_event(event: dict[str, str]) -> str:
             f"Next: {event['next']}",
         ]
     )
-    return "\n".join(lines)
+    return compact_discord_text("\n".join(lines))
 
 
 def format_text_visibility(event: dict[str, str]) -> str:
@@ -181,7 +191,7 @@ def format_text_visibility(event: dict[str, str]) -> str:
     if public_summary:
         lines.append(f"Public summary: {public_summary}")
     lines.append(f"Next: {event['next']}")
-    return "\n".join(lines)
+    return compact_discord_text("\n".join(lines))
 
 
 def require_fields(card: dict[str, str], fields: tuple[str, ...], context: str) -> None:
@@ -197,6 +207,59 @@ def append_line(lines: list[str], label: str, value: str | None) -> None:
 
 def team_display(team: str) -> str:
     return f"{TEAM_ICONS.get(team, DEFAULT_TEAM_ICON)} {team}"
+
+
+def compact_discord_text(text: str, limit: int = DISCORD_MESSAGE_TARGET_CHARS) -> str:
+    """Keep Discord visibility text inside one message while preserving the header."""
+    if limit > DISCORD_MESSAGE_LIMIT:
+        raise ValueError(f"Discord guard limit must be <= {DISCORD_MESSAGE_LIMIT}")
+    if len(text) <= limit:
+        return text
+
+    lines = text.splitlines()
+    if not lines:
+        return text
+
+    header = lines[0]
+    tail = ""
+    body_lines = lines[1:]
+    if body_lines and (
+        body_lines[-1].startswith("Next:")
+        or body_lines[-1].startswith("다음:")
+    ):
+        tail = body_lines[-1]
+        body_lines = body_lines[:-1]
+
+    fixed_parts = [header, DISCORD_COMPACTION_SUFFIX]
+    if tail:
+        fixed_parts.append(tail)
+    fixed_len = sum(len(part) for part in fixed_parts) + max(0, len(fixed_parts) - 1)
+    body_budget = limit - fixed_len
+    if body_budget < 80:
+        raise ValueError("Discord guard limit leaves no room for message body")
+
+    body = "\n".join(body_lines)
+    compacted_body = body[:body_budget].rstrip()
+    compacted_lines = [header]
+    if compacted_body:
+        compacted_lines.append(compacted_body)
+    compacted_lines.append(DISCORD_COMPACTION_SUFFIX)
+    if tail:
+        compacted_lines.append(tail)
+    compacted = "\n".join(compacted_lines)
+    overflow = len(compacted) - limit
+    if overflow > 0 and compacted_body:
+        compacted_body = compacted_body[: max(0, len(compacted_body) - overflow)].rstrip()
+        compacted_lines = [header]
+        if compacted_body:
+            compacted_lines.append(compacted_body)
+        compacted_lines.append(DISCORD_COMPACTION_SUFFIX)
+        if tail:
+            compacted_lines.append(tail)
+        compacted = "\n".join(compacted_lines)
+    if len(compacted) > limit:
+        raise ValueError("Discord message guard failed to compact text under limit")
+    return compacted
 
 
 def validate_ops_feed_text(text: str) -> None:
@@ -329,7 +392,7 @@ def format_ops_feed_card(card: dict[str, str]) -> str:
     lines.append(f"다음: {card['next']}")
     text = "\n".join(lines)
     validate_ops_feed_text(text)
-    return text
+    return compact_discord_text(text)
 
 
 def format_team_detail_card(card: dict[str, str]) -> str:
@@ -376,13 +439,68 @@ def format_team_detail_card(card: dict[str, str]) -> str:
         append_line(lines, "Evidence", card.get("evidence"))
 
     lines.append(f"Next: {card['next']}")
-    return "\n".join(lines)
+    return compact_discord_text("\n".join(lines))
 
 
 def format_text_card(card: dict[str, str]) -> str:
     if card["surface"] == "ops-feed":
         return format_ops_feed_card(card)
     return format_team_detail_card(card)
+
+
+def validate_card_sequence(cards: list[dict[str, str]]) -> dict[str, str]:
+    if not cards:
+        raise ValueError("card sequence requires at least one card")
+
+    work_unit_ids = {card.get("work_unit_id") for card in cards}
+    teams = {card.get("team") for card in cards}
+    if len(work_unit_ids) != 1:
+        raise ValueError("card sequence must use one Work Unit id")
+    if len(teams) != 1:
+        raise ValueError("card sequence must use one team")
+
+    events = [(card["surface"], card["kind"]) for card in cards]
+    try:
+        ops_assigned_index = events.index(("ops-feed", "ASSIGNED"))
+    except ValueError as exc:
+        raise ValueError("card sequence must start with ops-feed ASSIGNED before team handoff") from exc
+
+    if ops_assigned_index != 0:
+        raise ValueError("ops-feed ASSIGNED must be the first visibility card in the sequence")
+
+    if ("team-detail", "ASSIGNED_DETAIL") not in events:
+        raise ValueError("card sequence requires team-detail ASSIGNED_DETAIL")
+    if events.index(("team-detail", "ASSIGNED_DETAIL")) < ops_assigned_index:
+        raise ValueError("team-detail ASSIGNED_DETAIL must not precede ops-feed ASSIGNED")
+
+    if ("ops-feed", "COMPLETED") in events:
+        completed_index = events.index(("ops-feed", "COMPLETED"))
+        if ("team-detail", "RESULT_READY") not in events:
+            raise ValueError("ops-feed COMPLETED requires prior team-detail RESULT_READY")
+        if events.index(("team-detail", "RESULT_READY")) > completed_index:
+            raise ValueError("team-detail RESULT_READY must precede ops-feed COMPLETED")
+        if ("team-detail", "ACCEPTED") not in events:
+            raise ValueError("ops-feed COMPLETED requires prior team-detail ACCEPTED")
+        if events.index(("team-detail", "ACCEPTED")) > completed_index:
+            raise ValueError("team-detail ACCEPTED must precede ops-feed COMPLETED")
+
+    if ("ops-feed", "BLOCKED") in events:
+        blocked_index = events.index(("ops-feed", "BLOCKED"))
+        if ("team-detail", "RESULT_READY") not in events:
+            raise ValueError("ops-feed BLOCKED requires prior team-detail RESULT_READY")
+        if events.index(("team-detail", "RESULT_READY")) > blocked_index:
+            raise ValueError("team-detail RESULT_READY must precede ops-feed BLOCKED")
+        if ("team-detail", "BLOCKED_DETAIL") not in events:
+            raise ValueError("ops-feed BLOCKED requires prior team-detail BLOCKED_DETAIL")
+        if events.index(("team-detail", "BLOCKED_DETAIL")) > blocked_index:
+            raise ValueError("team-detail BLOCKED_DETAIL must precede ops-feed BLOCKED")
+
+    return {
+        "work_unit_id": next(iter(work_unit_ids)) or "",
+        "team": next(iter(teams)) or "",
+        "cards": str(len(cards)),
+        "status": "ok",
+    }
 
 
 def validate_card_pair(ops_card: dict[str, str], team_card: dict[str, str]) -> dict[str, str]:
@@ -510,6 +628,53 @@ def cmd_card_pair(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_card_sequence(args: argparse.Namespace) -> int:
+    try:
+        result = validate_card_sequence([read_card_json(path) for path in args.card_json])
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(json.dumps({"sequence": result}, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+
+    print(
+        "OK visibility card sequence: "
+        f"{result['work_unit_id']} · {result['team']} · {result['cards']} cards"
+    )
+    return 0
+
+
+def cmd_guard(args: argparse.Namespace) -> int:
+    try:
+        original = read_text(args.message_file)
+        text = compact_discord_text(original, args.limit)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(
+            json.dumps(
+                {
+                    "text": text,
+                    "original_chars": len(original),
+                    "output_chars": len(text),
+                    "compacted": text != original,
+                    "limit": args.limit,
+                },
+                indent=2,
+                sort_keys=True,
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    print(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Format Company Ops Discord visibility events without sending them."
@@ -610,6 +775,33 @@ def build_parser() -> argparse.ArgumentParser:
     card_pair.add_argument("--team-card-json", required=True, help="team-detail card JSON path")
     card_pair.add_argument("--format", choices=("text", "json"), default="text")
     card_pair.set_defaults(func=cmd_card_pair)
+
+    card_sequence = subparsers.add_parser(
+        "card-sequence",
+        help="Validate ordered ops-feed and team-detail cards for one Work Unit",
+    )
+    card_sequence.add_argument(
+        "--card-json",
+        required=True,
+        action="append",
+        help="Card JSON path in the actual planned Discord posting order",
+    )
+    card_sequence.add_argument("--format", choices=("text", "json"), default="text")
+    card_sequence.set_defaults(func=cmd_card_sequence)
+
+    guard = subparsers.add_parser(
+        "guard",
+        help="Compact arbitrary Discord-bound text to a single-message budget",
+    )
+    guard.add_argument("--message-file", default="-", help="Message text path, or '-' for stdin")
+    guard.add_argument(
+        "--limit",
+        type=int,
+        default=DISCORD_MESSAGE_TARGET_CHARS,
+        help=f"Maximum output chars, <= {DISCORD_MESSAGE_LIMIT}",
+    )
+    guard.add_argument("--format", choices=("text", "json"), default="text")
+    guard.set_defaults(func=cmd_guard)
 
     return parser
 
