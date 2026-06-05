@@ -171,12 +171,31 @@ Use one source artifact link per event when possible:
 - `RESULT_READY`: Evidence & Result Record.
 - `DECISION`: Operations Lead Decision.
 
+## Work Unit Id Format
+
+Use this Work Unit id format for newly created Work Units:
+
+```text
+WU-YYMMDD-NNN
+```
+
+Example:
+
+```text
+WU-260606-001
+```
+
+The date segment uses the last two digits of the year, then month and day. The
+final segment is a three-digit sequence for that day. Existing completed
+examples may keep the older `WU-YYYYMMDD-NNN` form as historical records, but
+new Work Units should use `WU-YYMMDD-NNN`.
+
 ## Message Shape
 
 Recommended manual format:
 
 ```text
-[EVENT_TYPE] WU-YYYYMMDD-NNN
+[EVENT_TYPE] WU-YYMMDD-NNN
 Summary: one short sentence.
 Owner: Operations Lead or Team Lead OpenClaw Agent.
 Source: link to the relevant artifact.
@@ -186,12 +205,47 @@ Next: expected next action or "none".
 Example:
 
 ```text
-[RESULT_READY] WU-20260604-002
-Summary: Discord event visibility guide is ready for review.
+[RESULT_READY] WU-260606-001
+Summary: Demo thread handoff evidence is ready for review.
 Owner: Operations Lead
-Source: docs/examples/manual-dry-run/WU-20260604-002/evidence.md
+Source: docs/examples/manual-dry-run/WU-260606-001/evidence.md
 Next: Operations Lead decision.
 ```
+
+## Threaded Handoff
+
+For owner-visible Operations Lead to Team Lead communication, prefer one
+Discord thread per active Work Unit inside the relevant team channel.
+
+The thread is a conversation container only. It is not source of truth, a
+blocker record, an execution database, or a command router. Normal operation
+only requires creating a thread, replying in it, and reading it back. Do not add
+routine thread deletion, lock, archive, or rename operations to the operating
+loop.
+
+If the Discord bot has thread management permission, treat it as an admin
+recovery safety net for mistakes such as demo cleanup, duplicate threads, or a
+bad thread name. It should not become another operating control plane.
+
+Recommended role headers for a single-bot Discord setup:
+
+- `🎯 [OPS-LEAD] [ASSIGNED] WU-260606-001`
+- `🧱 [BUILD-PQ] [ACK] WU-260606-001`
+- `🧪 [BUILD-LAB] [STARTED] WU-260606-001`
+- `📣 [MARKET] [BLOCKED] WU-260606-001`
+- `💼 [REVENUE] [RESULT_READY] WU-260606-001`
+- `🚦 [OPS-FEED] [DECISION] WU-260606-001`
+- `🚨 [OPS-ALERTS] [CLAIM_STALE] WU-260606-001`
+
+Role icon alternatives:
+
+- `OPS-LEAD`: `🎯`, `🏛`, `🗂`, `📍`, `🧩`, `⚙️`
+- `BUILD-PQ`: `🧱`, `🖥`, `🏗`, `⚙️`, `💻`, `🛠`
+- `BUILD-LAB`: `🧪`, `🧬`, `🔬`, `🧫`, `💡`, `🛠`
+- `MARKET`: `📣`, `📊`, `📡`, `🧭`, `📰`, `🎙`
+- `REVENUE`: `💼`, `💰`, `🤝`, `💳`, `📈`, `🧾`
+- `OPS-FEED`: `🚦`, `🔔`, `📍`, `📌`, `🧾`, `📡`
+- `OPS-ALERTS`: `🚨`, `⚠️`, `🔴`, `⛔`, `📣`, `🔔`
 
 ## Forbidden Actions
 

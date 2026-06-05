@@ -14,7 +14,7 @@ from typing import Any
 
 DEFAULT_LEDGER = Path("~/.openclaw/state/openclaw-company-ops/claims/ledger.json")
 LEDGER_VERSION = 1
-WORK_UNIT_RE = re.compile(r"^WU-\d{8}-\d{3}$")
+WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 CLAIM_RE = re.compile(r"^CLAIM-.+")
 CLAIM_TYPES = ("orchestration", "execution")
 EXPECTED_STATES = ("assigned", "working", "waiting", "blocked", "result_ready", "done")
@@ -41,7 +41,7 @@ def required(value: str) -> str:
 def work_unit_id(value: str) -> str:
     cleaned = required(value)
     if not WORK_UNIT_RE.match(cleaned):
-        raise argparse.ArgumentTypeError("expected format WU-YYYYMMDD-NNN")
+        raise argparse.ArgumentTypeError("expected format WU-YYMMDD-NNN")
     return cleaned
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
-WORK_UNIT_RE = re.compile(r"^WU-\d{8}-\d{3}$")
+WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 
 
 def required(value: str) -> str:
@@ -24,7 +24,7 @@ def required(value: str) -> str:
 def work_unit_id(value: str) -> str:
     cleaned = required(value)
     if not WORK_UNIT_RE.match(cleaned):
-        raise argparse.ArgumentTypeError("expected format WU-YYYYMMDD-NNN")
+        raise argparse.ArgumentTypeError("expected format WU-YYMMDD-NNN")
     return cleaned
 
 

@@ -389,7 +389,7 @@ For real private work, use:
 Create a new Work Unit artifact directory with the repo-local script:
 
 ```bash
-WU_ID=WU-YYYYMMDD-001
+WU_ID=WU-YYMMDD-001
 python3 scripts/work_unit_artifacts.py work-unit create \
   --work-unit-id "$WU_ID" \
   --title "<short Work Unit title>" \
@@ -488,7 +488,7 @@ Create or update the JSON-backed ledger with the repo-local script:
 LEDGER=~/.openclaw/state/openclaw-company-ops/claims/ledger.json
 python3 scripts/ops_claim_ledger.py claim create \
   --ledger "$LEDGER" \
-  --work-unit-id WU-YYYYMMDD-001 \
+  --work-unit-id WU-YYMMDD-001 \
   --work-card "<GitHub Issue URL>" \
   --claim-type execution \
   --owner-session-ref "agent=team-lead-1" \
@@ -503,7 +503,7 @@ Refresh an existing claim:
 ```bash
 python3 scripts/ops_claim_ledger.py claim update \
   --ledger "$LEDGER" \
-  --claim-ref CLAIM-WU-YYYYMMDD-001-001 \
+  --claim-ref CLAIM-WU-YYMMDD-001-001 \
   --expected-state result_ready \
   --last-claim "Evidence has been submitted for Operations Lead review." \
   --evidence-ref ./evidence.md
@@ -515,15 +515,15 @@ Inspect claim state:
 python3 scripts/ops_claim_ledger.py claim status --ledger "$LEDGER"
 python3 scripts/ops_claim_ledger.py claim status \
   --ledger "$LEDGER" \
-  --claim-ref CLAIM-WU-YYYYMMDD-001-001 \
+  --claim-ref CLAIM-WU-YYMMDD-001-001 \
   --format json
 ```
 
 Manual claim file example:
 
 ```text
-Claim ref: CLAIM-WU-YYYYMMDD-001-001
-Work Unit id: WU-YYYYMMDD-001
+Claim ref: CLAIM-WU-YYMMDD-001-001
+Work Unit id: WU-YYMMDD-001
 Claim type: execution
 Owner session ref: agent=team-lead-1; observed_at=2026-06-04T09:00:00+09:00
 Expected state: working
@@ -694,7 +694,7 @@ messages or mutate state.
 Manual event format:
 
 ```text
-[RESULT_READY] WU-YYYYMMDD-001
+[RESULT_READY] WU-YYMMDD-001
 Work Card: <GitHub Issue URL>
 Assignment: <Assignment Packet ref>
 Claim: <Claim ref>
@@ -792,7 +792,7 @@ Run this smoke test after setup.
 1. Create a demo Work Unit id:
 
    ```bash
-   WU_ID=WU-YYYYMMDD-001
+   WU_ID=WU-YYMMDD-001
    ```
 
 2. Create artifact files from templates.

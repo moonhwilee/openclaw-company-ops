@@ -169,10 +169,10 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     snapshot = work_dir / "session-snapshot.json"
 
     try:
-        build_artifacts = create_artifacts(args, work_dir, "WU-20260605-901", "build-lab")
-        market_artifacts = create_artifacts(args, work_dir, "WU-20260605-902", "market")
-        build_claim = create_claim(args, ledger, "WU-20260605-901", "build-lab", build_artifacts)
-        create_claim(args, ledger, "WU-20260605-902", "market", market_artifacts)
+        build_artifacts = create_artifacts(args, work_dir, "WU-260605-901", "build-lab")
+        market_artifacts = create_artifacts(args, work_dir, "WU-260605-902", "market")
+        build_claim = create_claim(args, ledger, "WU-260605-901", "build-lab", build_artifacts)
+        create_claim(args, ledger, "WU-260605-902", "market", market_artifacts)
         write_json(
             snapshot,
             {
