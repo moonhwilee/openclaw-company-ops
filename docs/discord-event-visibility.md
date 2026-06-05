@@ -285,11 +285,12 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    sequence guard, UTF-16 length guard, 1,600-character generation budget,
    foreground `publish-card`, live `proof-validate`, and no extra Team Lead or
    LLM summarization call for normal visibility.
-2. Phase 5.2 decides whether a small repo-local Completion / Hook Guard MVP is
-   needed. Phase 3.5 was the earlier optional insertion point; current hook
-   activation is reconsidered here based on observed sequence, completion, and
-   handoff risks. Checkpoint-needed automation and yieldable long-work runners
-   are not part of this gate unless later evidence reopens them.
+2. Phase 5.2 accepted a narrow repo-local Completion / Hook Guard MVP:
+   `.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`. It is a late
+   safety layer for red-line commands, Work Unit completion artifacts, and
+   compaction handoff; it does not publish progress or mutate operating state.
+   Checkpoint-needed automation and yieldable long-work runners are not part of
+   this gate unless later evidence reopens them.
 3. Phase 5.3 decides whether GitHub Project sync is needed or whether
    Work Cards, source artifacts, issue labels, and `dashboard_snapshot.py` are
    enough as the v1 dashboard surface.

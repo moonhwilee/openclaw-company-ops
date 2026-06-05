@@ -22,14 +22,18 @@ Current internal architecture version: v1.
 
 Most operating elements now have either documented manual practices or
 repo-local support scripts. The owner-visible dogfood, friction patch, first
-real Team Lead delegation, and Phase 5.1 visibility contract close have been
-exercised. The remaining internal work is to complete the later Phase 5
-activation sub-gates, then package only the stable surface.
+real Team Lead delegation, Phase 5.1 visibility contract close, and the narrow
+Phase 5.2 hook guard MVP have been exercised. The remaining internal work is to
+complete the later Phase 5 activation sub-gates, then package only the stable
+surface.
 
 Phase 5.1 has accepted the visibility contract: `discord card`, foreground
 `discord publish-card`, and `discord proof-validate` are the stable live
-visibility path. Remaining Phase 5 work is limited to the later activation
-decisions before packaging.
+visibility path. Phase 5.2 has accepted only a narrow repo-local hook guard:
+`.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`. The guard blocks
+clear red-line commands and checks Work Unit completion/handoff structure; it
+does not publish progress or mutate operating state. Remaining Phase 5 work is
+limited to the later activation decisions before packaging.
 
 Owner-visible dogfood uses `#ops-feed` as the owner-facing request/result
 briefing timeline and `#team-*` as the detailed Team Lead execution trail.

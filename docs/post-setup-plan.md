@@ -382,7 +382,7 @@ Decision record:
 
 ### Phase 5.2: Completion / Hook Guard MVP Decision
 
-Status: Preparing decision and possible narrow implementation.
+Status: Accepted on 2026-06-06 as a narrow repo-local MVP.
 
 Purpose: decide whether to implement a small repo-local hook guard now.
 
@@ -442,6 +442,40 @@ No-go boundaries:
   shows the common guard is insufficient.
 
 Decision output: implement MVP now, defer with trigger, or no-go with rationale.
+
+Decision record:
+
+- Decision: `ACCEPT_NARROW_MVP`.
+- Implemented files:
+  - `.codex/hooks.json`
+  - `.codex/hooks/company_ops_gate.py`
+- Implemented scope:
+  - `PreToolUse` common red-line guard for `sudo npm`, `sudo openclaw`,
+    `git reset --hard`, destructive user-change reverts, and obviously unsafe
+    broad `rm -rf` targets.
+  - `Stop` Work Unit artifact gate that no-ops without Work Unit context and
+    blocks seeded missing-evidence completion cases.
+  - `PreCompact` handoff guard that no-ops without Work Unit context and warns
+    when handoff text would lose claim, evidence, decision, or next-action
+    state.
+- Evidence:
+  - repo-local hook smoke fixtures were added to
+    `python3 scripts/company_ops_smoke.py multi-team`;
+  - dangerous-command fixtures are blocked;
+  - normal repo inspection and existing smoke commands are allowed;
+  - simple non-Work-Unit completion no-ops;
+  - seeded missing-evidence completion is caught;
+  - seeded blocked/hold evidence is allowed.
+- Boundary:
+  - no `checkpoint-needed` user-facing feature;
+  - no yieldable long-work runner;
+  - no foreground monitor;
+  - no automatic Discord publish;
+  - no GitHub, Discord, claim, Work Card, evidence, decision, dashboard, or
+    completion mutation.
+- Rationale: this gives a cheap late safety layer for clear red lines and
+  premature completion without adding a hidden orchestrator or making hooks an
+  operating state owner.
 
 ### Phase 5.3: Dashboard Gate
 

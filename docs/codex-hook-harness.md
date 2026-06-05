@@ -1,24 +1,45 @@
 # Codex Hook Harness
 
-Status: Planned, not implemented
+Status: Narrow Phase 5.2 MVP implemented; full hook harness remains deferred
 
-This document is the source of truth for future Codex hook decisions in
-OpenClaw Company Ops. It records what hooks should enforce, what they must not
-do, when they should be introduced, and what evidence is required before
-expanding them.
+This document is the source of truth for Company Ops hook decisions. It records
+what hooks enforce, what they must not do, when they may expand, and what
+evidence is required before expansion.
 
 Hooks are optional guardrails around the existing operating model. They are not
 the operating model.
 
 ## Current Decision
 
-The full hook harness remains unimplemented. The earlier rule was to avoid a
-full harness before Phase 1, Phase 2, or the Phase 3 friction patch so those
-phases could reveal real operating risks first.
+The full hook harness remains unimplemented. Phase 5.2 accepted only a narrow
+repo-local MVP:
+
+```text
+.codex/hooks.json
+.codex/hooks/company_ops_gate.py
+```
+
+The MVP has three deterministic guard surfaces:
+
+- `PreToolUse`: hard-blocks only clear red lines such as `sudo npm`,
+  `sudo openclaw`, `git reset --hard`, destructive user-change reverts, and
+  obviously unsafe broad `rm -rf` targets.
+- `Stop`: no-ops without Work Unit context; with Work Unit context, checks for
+  source artifacts before completion reporting.
+- `PreCompact`: no-ops without Work Unit context; with Work Unit context,
+  warns when handoff text lacks claim, evidence, decision, or next-action
+  state.
+
+It returns JSON feedback, writes no files, calls no network APIs, sends no
+Discord messages, mutates no claims, and does not replace Operations Lead
+judgment.
+
+The earlier rule was to avoid a full harness before Phase 1, Phase 2, or the
+Phase 3 friction patch so those phases could reveal real operating risks first.
 
 Phase 3.5 was the optional insertion point after Phase 3 and before Phase 4.
-Phase 4 has now completed without opening that MVP, so the current hook
-decision point has moved to Phase 5.2 in `docs/post-setup-plan.md`.
+Phase 4 completed without opening that MVP, so the hook decision point moved to
+Phase 5.2 in `docs/post-setup-plan.md`.
 
 The historical insertion point remains:
 
@@ -36,8 +57,8 @@ That timing was deliberate:
   depended too much on manual completion and red-line discipline.
 
 Because Phase 4 proceeded without the hook MVP, do not reopen Phase 3.5 as a
-parallel active phase. Reconsider a small repo-local hook guard under Phase 5.2
-using the observed risks from Phase 4 and Phase 5.
+parallel active phase. Phase 5.2 accepted a small repo-local guard, not the
+full harness described by the historical Phase 3.5 candidate.
 
 ## Design Principle
 
@@ -160,10 +181,9 @@ Track hook relevance through the remaining phases:
 - Phase 4: Run first Team Lead delegation. If Phase 3.5 was accepted, run with
   the Operations Lead hook active; otherwise record observed completion,
   sequence, and handoff risks for Phase 5.2.
-- Phase 5.2: Reconsider the small repo-local Completion / Hook Guard MVP.
-  This is now the active decision point for hooks. Implementation requires
-  explicit yes/no rationale and must preserve the no-mutation boundaries in
-  this document.
+- Phase 5.2: Accepted the small repo-local Completion / Hook Guard MVP.
+  Further expansion requires explicit yes/no rationale and must preserve the
+  no-mutation boundaries in this document.
 - Phase 5.3-5.6: Keep hook expansion separate from dashboard, foreground
   publisher, scheduled monitor, and packaging decisions. Hooks may later check
   whether live visibility proof exists before final completion, but hooks must

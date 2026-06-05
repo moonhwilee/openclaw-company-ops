@@ -17,6 +17,7 @@ ARTIFACTS = SCRIPT_DIR / "work_unit_artifacts.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
+HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
 
 
 def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -896,6 +897,144 @@ def run_discord_card_smoke() -> None:
             raise RuntimeError("discord arbitrary message guard exceeded output budget")
 
 
+def run_hook_guard(
+    payload: dict[str, Any],
+    mode: str,
+    *extra_args: str,
+) -> tuple[int, dict[str, Any]]:
+    result = subprocess.run(
+        [sys.executable, str(HOOK_GUARD), "--mode", mode, *extra_args],
+        input=json.dumps(payload),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"hook guard returned invalid JSON: {result.stdout!r}") from exc
+    return result.returncode, parsed
+
+
+def require_hook_status(payload: dict[str, Any], mode: str, expected: str, *extra_args: str) -> dict[str, Any]:
+    returncode, parsed = run_hook_guard(payload, mode, *extra_args)
+    if parsed.get("status") != expected:
+        raise RuntimeError(f"hook {mode} expected {expected}, got {parsed}")
+    if expected == "block" and returncode == 0:
+        raise RuntimeError(f"hook {mode} block returned success exit code")
+    if expected != "block" and returncode != 0:
+        raise RuntimeError(f"hook {mode} non-block returned failing exit code: {parsed}")
+    return parsed
+
+
+def run_hook_guard_smoke() -> None:
+    require_hook_status(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"cmd": "sudo npm install -g openclaw"},
+        },
+        "pretool",
+        "block",
+    )
+    require_hook_status(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"cmd": "git reset --hard HEAD~1"},
+        },
+        "pretool",
+        "block",
+    )
+    require_hook_status(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"cmd": "rm -fr /"},
+        },
+        "pretool",
+        "block",
+    )
+    require_hook_status(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"cmd": "rg -n hook docs/codex-hook-harness.md"},
+        },
+        "pretool",
+        "pass",
+    )
+    require_hook_status(
+        {
+            "hook_event_name": "Stop",
+            "transcript_tail": "Short repo inspection finished with no Work Unit.",
+        },
+        "stop",
+        "pass",
+    )
+
+    with tempfile.TemporaryDirectory(prefix="openclaw-company-ops-hook-smoke.") as work_root_raw:
+        work_root = Path(work_root_raw)
+        missing_dir = work_root / "WU-260606-901"
+        missing_dir.mkdir()
+        (missing_dir / "assignment.md").write_text("# Assignment\n\nReal assignment text for smoke.\n", encoding="utf-8")
+        (missing_dir / "claim.md").write_text("# Claim\n\nReal claim text for smoke.\n", encoding="utf-8")
+        missing_payload = {
+            "hook_event_name": "Stop",
+            "final_response": "Task WU-260606-901 complete and accepted.",
+        }
+        parsed_missing = require_hook_status(
+            missing_payload,
+            "stop",
+            "block",
+            "--work-unit-root",
+            str(work_root),
+        )
+        if not any(finding.get("code") == "missing-work-unit-artifact" for finding in parsed_missing["findings"]):
+            raise RuntimeError("hook guard did not identify missing Work Unit artifact")
+
+        valid_dir = work_root / "WU-260606-902"
+        valid_dir.mkdir()
+        (valid_dir / "assignment.md").write_text(
+            "# Assignment\n\n"
+            "This assignment packet has enough detail for smoke validation and names a bounded "
+            "repo-local hook guard fixture with no external mutation.\n",
+            encoding="utf-8",
+        )
+        (valid_dir / "claim.md").write_text(
+            "# Claim\n\n"
+            "The Team Lead owns this bounded smoke slice and has not marked it done; the claim "
+            "exists only to prove the hook allows blocked or hold outcomes.\n",
+            encoding="utf-8",
+        )
+        (valid_dir / "evidence.md").write_text(
+            "# Evidence\n\nStatus: blocked.\n\n## Verification Performed\n\nBlocked before external checks because source input is missing.\n",
+            encoding="utf-8",
+        )
+        valid_payload = {
+            "hook_event_name": "Stop",
+            "final_response": "WU-260606-902 is blocked; evidence records the blocker.",
+        }
+        require_hook_status(valid_payload, "stop", "pass", "--work-unit-root", str(work_root))
+
+    require_hook_status(
+        {
+            "hook_event_name": "PreCompact",
+            "handoff": "WU-260606-902 claim working, evidence blocked, decision hold, next wait for source.",
+        },
+        "precompact",
+        "pass",
+    )
+    require_hook_status(
+        {
+            "hook_event_name": "PreCompact",
+            "handoff": "WU-260606-902 still active.",
+        },
+        "precompact",
+        "warn",
+    )
+
+
 def cmd_multi_team(args: argparse.Namespace) -> int:
     work_dir = args.work_dir or Path(tempfile.mkdtemp(prefix="openclaw-company-ops-multi-team-smoke."))
     work_dir = work_dir.expanduser()
@@ -915,6 +1054,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
             },
         )
         run_pulse_ok(args, ledger, snapshot)
+        run_hook_guard_smoke()
         run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         claims = load_claims(ledger)
@@ -933,6 +1073,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
+        "repo-local hook guard fixtures, "
         "purpose-specific Discord card/checkpoint composition, "
         "live proof validation with burst replay rejection, "
         "and one result_ready update"
