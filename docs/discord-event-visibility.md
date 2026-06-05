@@ -48,6 +48,10 @@ visibility:
 - `discord-bound`: the Team Lead is invoked from a bound Discord team channel
   or thread. This route should leave a team-channel or thread record because
   Discord was the execution conversation surface.
+- `cli-delivered`: a CLI-triggered run uses `--deliver` and Discord delivery
+  options to post a result into Discord. This can be a useful delivery smoke,
+  but it is not the same as `discord-bound` unless the session itself is the
+  bound channel or thread session.
 
 Both routes still use the same source artifacts: Work Card, Assignment Packet,
 Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead Decision.
@@ -64,6 +68,8 @@ store. Treat this as a runner/output-plumbing risk. Before relying on a
 `cli-direct` result, verify at least one of:
 
 - structured CLI output such as `--json`, when available and known to return;
+- for CLI-triggered visible sends, `--json --deliver` delivery status showing a
+  successful send to the expected channel or thread;
 - a session-store readback showing the final assistant message and successful
   session end;
 - source artifacts, evidence, and checks produced by the Team Lead.
@@ -81,6 +87,12 @@ run a route validation: send a small assignment or status handoff through the
 selected team channel or Work Unit thread, confirm the matching Team Lead
 responds there, and read the message back. If this validation fails, do not
 claim that Discord-visible delegation has been proven.
+
+Do not count a CLI command that only uses `--deliver --reply-channel discord
+--reply-to ...` as this route validation by itself. Official OpenClaw CLI
+semantics treat reply-channel and reply-to as delivery overrides, separate from
+session routing. They can prove delivery into Discord, but not that the Team
+Lead conversation is running from the bound Discord channel or thread.
 
 ## Recommended Channels
 

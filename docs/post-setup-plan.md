@@ -213,6 +213,11 @@ Route gate:
 - If `discord-bound` validation fails, either block Phase 4 or explicitly
   downgrade the run to `cli-direct` and record that team-channel conversation
   visibility was not proven.
+- Do not treat a CLI-triggered Discord delivery as a substitute for
+  `discord-bound` validation. `--deliver --reply-channel discord --reply-to
+  ...` can prove a visible send, especially when paired with structured
+  delivery status, but official CLI semantics keep delivery overrides separate
+  from session routing.
 - Do not rely on plain `cli-direct` final terminal output as the only Team Lead
   result signal. Prior dogfood showed successful Team Lead sessions whose final
   assistant text existed in session storage but did not cleanly return to the
@@ -236,6 +241,9 @@ Acceptance gate:
 - The route is recorded as `discord-bound` or `cli-direct`.
 - For `discord-bound`, the target team channel or Work Unit thread contains the
   assignment/handoff and Team Lead response, and that record is read back.
+- For CLI-triggered visible sends, structured delivery status is captured if
+  used, but the run is still recorded separately from `discord-bound` unless the
+  session key/readback proves a channel or thread session.
 - For `cli-direct`, the run is not counted as proving Discord-visible Team Lead
   communication; `#ops-feed` lifecycle events plus source artifacts are required
   instead.

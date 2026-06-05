@@ -60,6 +60,10 @@ matter.
 - `discord-bound`: the Team Lead runs through a bound Discord team channel or
   thread. A team-channel or thread record is expected because Discord is the
   conversation surface.
+- `cli-delivered`: the Team Lead is triggered from CLI and the result is sent
+  into Discord with delivery options. This is useful for delivery checks, but it
+  does not prove a Discord-bound conversation unless the selected session is the
+  channel or thread session.
 
 Team-channel records are also expected for explicit owner or Operations Lead
 Q&A in a team channel. They are not expected for `cli-direct` execution by
@@ -71,6 +75,11 @@ terminal does not receive a clean final text response. When using `cli-direct`,
 the Operations Lead must verify completion through session readback, source
 artifacts, evidence, and checks. When the owner needs to inspect Team Lead
 communication in Discord, use `discord-bound` instead.
+
+If a CLI-triggered run must send a visible Discord result, use structured output
+and inspect the delivery result. A successful Discord send is delivery evidence,
+not source-of-truth evidence and not by itself proof of a Discord-bound team
+conversation.
 
 For both routes, Discord is visibility-only and publisher-only. It must not
 create, mutate, approve, close, reassign, recover, or complete Work Units.
