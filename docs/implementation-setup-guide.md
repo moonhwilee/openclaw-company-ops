@@ -646,7 +646,7 @@ Recommended channels:
 
 - `#ops-lead`: direct owner-to-Operations-Lead planning, phase decisions, and
   handoff preparation.
-- `#ops-feed`: owner-facing assignment, completion, and blocker summaries.
+- `#ops-feed`: owner-facing assignment, completion, and blocker briefing cards.
 - `#ops-alerts`: stale claims, suspected session mismatch, and suspected
   compaction recovery.
 - `#team-build-pq`: direct questions for the PrimeQuant platform team lead.
@@ -691,7 +691,7 @@ python3 scripts/discord_ops.py alerts \
 The repo-local formatter prints Discord-ready text only. It does not send
 messages or mutate state.
 
-Manual event format:
+Manual team-detail event format:
 
 ```text
 [RESULT_READY] WU-YYMMDD-001
@@ -710,11 +710,37 @@ Recommended visibility kinds:
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 
-Use stable English for event kinds and field names, but use Korean by default
-for internal long-form values such as `Summary`, `Why`, `Verification`, and
-`Next`. Public/package examples may use English. For team detail trails,
-`RESULT_READY` is not enough to close the trail; Operations Lead review must
-follow as `ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL`.
+Use stable English for event kinds and internal schema, but use Korean by
+default for owner-facing `#ops-feed` cards and internal long-form values.
+Public/package examples may use English. For team detail trails, `RESULT_READY`
+is not enough to close the trail; Operations Lead review must follow as
+`ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL`.
+
+Owner-facing `#ops-feed` cards should use reader-friendly labels instead of
+generic formatter fields:
+
+```text
+[요청] WU-YYMMDD-001 · <team>
+문제: 무엇이 불확실하거나 막혀 있는가.
+요청: 누구에게 무엇을 맡겼는가.
+기준: 어떤 조건이면 성공 또는 실패로 볼 것인가.
+주의: 범위 제한이나 금지사항.
+다음: 결과를 받은 뒤 금비가 판단할 일.
+```
+
+```text
+[완료] WU-YYMMDD-001 · <team>
+결과: 팀장이 확인, 생성, 수정, 또는 판단한 핵심 결과.
+기준 대비: 요청 기준을 충족했는가.
+금비 판정: ACCEPTED, REVISE, or BLOCKED.
+확인: 테스트, readback, repo state, evidence 등 핵심 검증.
+다음: 다음 액션 또는 추가 조치 없음.
+```
+
+Normal visibility should not add another Team Lead execution or LLM
+summarization call. Use one Operations Lead composition step per transition to
+write the `#ops-feed` card and the `#team-*` detail message from the same facts,
+then validate that they do not contradict each other.
 
 Every Discord visibility message must link back to the real artifact or source
 reference. Discord must not accept commands that mutate Work Units in v1.

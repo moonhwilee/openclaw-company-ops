@@ -187,7 +187,7 @@ Recommended channels:
 
 - `#ops-lead`: owner-to-Operations-Lead planning, scope alignment, phase
   decisions, and handoff preparation.
-- `#ops-feed`: owner-facing assignment, completion, and blocker summaries.
+- `#ops-feed`: owner-facing assignment, completion, and blocker briefing cards.
 - `#ops-alerts`: stale claim, suspected session mismatch, and suspected
   compaction recovery alerts.
 - `#team-build-pq`: direct questions for the PrimeQuant platform team lead.
@@ -211,6 +211,8 @@ Routing rules:
 - Require an explicit mention or address before an agent answers non-owner
   chatter.
 - Keep `#ops-feed` focused on owner-facing request/result summaries.
+- Do not expose internal fields such as `Surface`, raw `Source`, mechanical
+  `Owner`, or default `Public summary` in normal `#ops-feed` posts.
 - Keep `#ops-alerts` alert-focused.
 - Do not bind default conversational responders to `#ops-feed` or
   `#ops-alerts`.
@@ -235,10 +237,16 @@ Recommended event types:
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 
-For internal operation, keep event kinds and field names in stable English but
-write long human-readable values in Korean by default. A team channel result
-that stops at `RESULT_READY` is not closed; the Operations Lead must post
-`ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL` before reporting completion.
+For internal operation, keep event kinds and internal schema in stable English
+but write owner-facing `#ops-feed` cards and long human-readable values in
+Korean by default. A team channel result that stops at `RESULT_READY` is not
+closed; the Operations Lead must post `ACCEPTED`, `REVISE`, or
+`BLOCKED_DETAIL` before reporting completion.
+
+Normal visibility should not add another Team Lead execution or LLM
+summarization call. The Operations Lead should use one composition step per
+transition to write a purpose-built `#ops-feed` card and a separate
+purpose-built `#team-*` detail message from the same facts.
 
 Discord messages are not a source of truth. They must point back to the Work
 Card, Assignment Packet, Ops Claim Ledger entry, Evidence & Result Record, or

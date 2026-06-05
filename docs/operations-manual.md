@@ -92,17 +92,43 @@ The Discord messages are visibility only. They show the owner what was assigned,
 what changed, what result came back, and where to inspect detail, but they do
 not create, mutate, approve, close, reassign, recover, or complete Work Units.
 
-The expected Team Lead result should include a short result summary, verification
-summary, changed artifact list, and next action. This avoids a second
-summarization call and lets the Operations Lead render both the `#ops-feed`
-summary and the team detail trail from one event object.
+The expected Team Lead result should include a short result summary,
+verification summary, changed artifact list, blocker if any, and next action.
+This avoids a second Team Lead execution or LLM summarization call for normal
+visibility.
 
-Use stable English for event kinds and field names, and Korean by default for
-internal long-form human-readable values. In internal operation, values such as
-`Summary`, `Why`, `Verification`, and `Next` should be Korean unless the message
-is explicitly public/package-facing. If a line may later be reused publicly,
-add an optional English `Public summary` rather than making the internal body
-English.
+The Operations Lead should use one composition step per operating transition,
+but should write separate messages for separate readers:
+
+- Assignment transition: one owner-facing `#ops-feed` request card and one
+  detailed `#team-*` assignment message.
+- Review/completion transition: one detailed `#team-*` review message and one
+  owner-facing `#ops-feed` completion or blocker card.
+
+These messages share a fact packet, but they are not the same event text
+rendered twice. `#ops-feed` is the owner's briefing timeline. `#team-*` is the
+Team Lead execution and review trail.
+
+Use stable English for event kinds and internal schema, and Korean by default
+for owner-facing `#ops-feed` card content and internal long-form
+human-readable values. Public/package documentation, CLI help text, and
+reusable release examples may use English. Do not show `Public summary`,
+`Surface`, raw `Source`, or mechanical `Owner` fields in normal internal
+`#ops-feed` posts.
+
+Owner-facing `#ops-feed` cards use reader-friendly labels:
+
+- Request: `문제`, `요청`, `기준`, optional `주의`, optional `근거`, `다음`.
+- Completion: `결과`, `기준 대비`, `금비 판정`, `확인`, optional `근거`,
+  `다음`.
+- Blocker: `문제`, `원인`, `필요`, optional `근거`, `다음`.
+
+When a source reference is useful for the owner, show it as a human-readable
+`근거` line. Do not expose a raw `Source:` field in `#ops-feed`.
+
+Team detail messages may use operational labels such as `Goal`, `Scope`,
+`Criteria`, `Cautions`, `Result`, `Evidence`, `Verification`, `Decision`,
+`Reason`, and `Next`.
 
 Keep a lightweight final judgment. The Operations Lead still checks that the
 result matches the request, required smoke or tests passed, and repo state is
@@ -136,8 +162,11 @@ Additional default visibility cost:
   seconds while posting is manual.
 
 Do not add a second Team Lead or LLM summarization call for visibility. Use one
-Operations Lead event object to render both the owner-facing `#ops-feed` message
-and the detailed `#team-*` message.
+Operations Lead composition step per transition to write both the owner-facing
+`#ops-feed` card and the detailed `#team-*` message from the same facts. A
+deterministic validator should check Work Unit id, team, decision, next action,
+team-final-review-before-ops-completion, and absence of internal fields in
+`#ops-feed`.
 
 If a future publisher is approved, it may send formatted messages only. It must
 not decide channels by reading message content, mutate state, approve results,

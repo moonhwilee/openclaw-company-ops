@@ -254,9 +254,12 @@ Acceptance gate:
 - The relevant team channel closes each submitted result with exactly one
   Operations Lead review event: `[ACCEPTED]`, `[REVISE]`, or
   `[BLOCKED_DETAIL]`.
-- The visibility messages are derived from the Team Lead result and Operations
-  Lead review, not from a separate Team Lead execution or LLM summarization
-  call.
+- The visibility messages are composed from the Team Lead result and Operations
+  Lead review in one Operations Lead composition step per transition, not from
+  a separate Team Lead execution or LLM summarization call.
+- The `#ops-feed` messages are owner-facing briefing cards, not generic field
+  dumps. They must avoid internal fields such as `Surface`, raw `Source`,
+  mechanical `Owner`, and default `Public summary`.
 - CLI-triggered delivery status may be captured if used, but it is delivery
   evidence only.
 - Subagent output is treated as input, not completion truth.
@@ -293,10 +296,12 @@ Phase 4 changed the priority from "enable more automation" to "simplify the
 default visible delegation path." Evaluate in this order:
 
 1. Visibility formatter/reporting contract: first activation candidate.
-   Standardize `#ops-feed` owner summaries and `#team-*` detail trail text from
-   one Operations Lead event object. The contract must include the team-channel
-   close invariant: `RESULT_READY` is followed by `ACCEPTED`, `REVISE`, or
-   `BLOCKED_DETAIL` before a completion is reported.
+   Standardize `#ops-feed` owner briefing cards and `#team-*` detail trail
+   messages from one Operations Lead composition step per transition. The
+   messages share facts but are written separately for their readers. The
+   contract must include the team-channel close invariant: `RESULT_READY` is
+   followed by `ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL` before a completion is
+   reported.
 2. Discord publisher: enable only if manual visibility posting remains
    repetitive after formatter standardization. It may send explicitly targeted
    formatted messages only and must not become a command router or source of
@@ -315,8 +320,10 @@ Evaluate each gate independently:
 
 - Visibility formatter/reporting contract: accept when owner summaries and team
   detail messages can be generated locally without sending or mutating state,
-  and when internal examples use stable English keys with Korean long-form
-  operating text by default.
+  when `#ops-feed` uses owner-friendly card labels instead of internal
+  formatter fields, when internal examples use Korean long-form operating text
+  by default, and when normal visibility does not add another Team Lead or LLM
+  summarization call.
 - Discord publisher: enable only if repeated manual posting is still too slow
   after the visibility formatter exists.
 - GitHub Project sync: enable only if there are enough Work Cards or repos to

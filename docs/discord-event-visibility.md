@@ -43,7 +43,8 @@ The default delegation path is `CLI-first + #ops-feed owner summary +
 Use the CLI or local agent session for actual Team Lead execution. Every Team
 Lead delegation also produces the same Discord audit-visible trail:
 
-- `#ops-feed`: owner-facing assignment and result/blocker summaries.
+- `#ops-feed`: owner-facing briefing cards for assignment and
+  result/blocker summaries.
 - `#team-*`: detailed assignment, progress, result, and Operations Lead review
   trail for the relevant Team Lead.
 
@@ -61,39 +62,73 @@ with task risk.
 The Discord messages are not commands, source artifacts, state changes,
 approvals, recoveries, or completion truth.
 
-Recommended `#ops-feed` assignment summary:
+## Composition Model
+
+Visibility messages should be composed from the same known facts, but they
+should not be rendered as the same generic event object.
+
+The Operations Lead should perform one composition step per operating
+transition:
+
+- Assignment transition: compose the internal fact packet, one `#ops-feed`
+  request card, and one `#team-*` assignment detail.
+- Review/completion transition: compose the updated internal fact packet, one
+  `#team-*` review message, and one `#ops-feed` completion or blocker card.
+
+This is a writing and validation structure, not a requirement for extra LLM
+calls. Normal visibility must not add a second Team Lead execution call or a
+separate LLM summarization call. A second LLM review is reserved for high-risk
+work, public-facing releases, or explicit owner request.
+
+The internal fact packet keeps stable facts aligned:
+
+- Work Unit id.
+- Team and responsible agent.
+- Problem being addressed.
+- Requested work.
+- Done and verification criteria.
+- Scope limits and cautions.
+- Team Lead result.
+- Operations Lead review decision.
+- Verification performed.
+- Next action.
+- Human-readable evidence or source reference.
+
+`#ops-feed` and `#team-*` messages use those facts for different readers. The
+`#ops-feed` message is a concise owner briefing. The `#team-*` message is a
+detailed execution and review trail. They may share facts, but they should not
+share the same wording.
+
+Recommended `#ops-feed` request card:
 
 ```text
-[ASSIGNED] WU-YYMMDD-001
-Surface: ops-feed
-Summary: build-lab가 route cost guidance 보완 작업을 맡았습니다.
-Owner: build-lab
-Source: cli-direct
-Why: 주인님이 위임 상태를 바로 확인할 수 있어야 합니다.
-Next: Team Lead가 실행 후 결과 요약과 검증 내역을 반환합니다.
+[요청] WU-YYMMDD-001 · build-lab
+문제: route cost guidance가 현재 운영 기준과 맞는지 확인이 필요합니다.
+요청: build-lab에 문서와 formatter smoke 기준을 점검하도록 맡겼습니다.
+기준: 변경이 필요하면 최소 패치 범위와 검증 방법을 함께 제시해야 합니다.
+주의: Work Unit 상태, GitHub issue, claim/evidence/decision artifact는 변경하지 않습니다.
+다음: Team Lead 결과를 받은 뒤 금비가 수락 또는 수정요청 여부를 판정합니다.
 ```
 
 Recommended `#team-*` assignment detail:
 
 ```text
 [ASSIGNED_DETAIL] WU-YYMMDD-001
-Surface: team-detail
-Summary: route cost guidance를 보완하고 변경 범위는 문서와 formatter smoke로 제한합니다.
-Owner: build-lab
-Source: cli-direct
-Why: 주인님용 timeline과 team drill-down 기록이 같은 위임을 가리켜야 합니다.
-Next: Team Lead가 결과 요약, 검증 내역, 변경 artifact, 다음 액션을 보고합니다.
+Goal: route cost guidance가 현재 Company Ops visibility 원칙과 맞는지 검토합니다.
+Scope: 문서와 formatter smoke 기준만 확인합니다.
+Criteria: 불일치가 있으면 위치, 영향, 최소 수정 방향을 보고합니다.
+Cautions: 상태 mutation, GitHub issue 변경, claim/evidence/decision artifact 변경은 금지합니다.
+Report: 결과 요약, 기준별 판단, 확인한 파일, blocker, 다음 액션을 보고합니다.
 ```
 
 Recommended `#team-*` result-ready detail:
 
 ```text
 [RESULT_READY] WU-YYMMDD-001
-Surface: team-detail
-Summary: Team Lead 결과가 제출되었고 Operations Lead 검토 대기 상태입니다.
-Owner: build-lab
-Source: docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md
+Result: Team Lead 결과가 제출되었고 Operations Lead 검토 대기 상태입니다.
+Evidence: docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md
 Verification: Team Lead가 보고한 smoke와 diff-check가 통과했습니다.
+Risks: 추가 artifact 변경은 보고되지 않았습니다.
 Next: Operations Lead가 결과를 검토하고 ACCEPTED 또는 REVISE를 남깁니다.
 ```
 
@@ -101,25 +136,21 @@ Recommended `#team-*` Operations Lead review detail:
 
 ```text
 [ACCEPTED] WU-YYMMDD-001
-Surface: team-detail
-Summary: 금비 검토 결과, Team Lead 결과는 요청 범위와 검증 기준을 충족했습니다.
-Owner: Operations Lead
-Source: docs/examples/manual-dry-run/WU-YYMMDD-001/decision.md
-Verification: evidence, smoke, repo state를 확인했고 추가 수정 요구는 없습니다.
-Public summary: Operations Lead accepted the Team Lead result.
-Next: ops-feed에 주인님용 completion summary를 남깁니다.
+Decision: 금비 검토 결과, Team Lead 결과는 요청 범위와 검증 기준을 충족했습니다.
+Reason: evidence, smoke, repo state를 확인했고 추가 수정 요구는 없습니다.
+Evidence: docs/examples/manual-dry-run/WU-YYMMDD-001/decision.md
+Next: ops-feed에 주인님용 completion card를 남깁니다.
 ```
 
-Recommended `#ops-feed` completion summary:
+Recommended `#ops-feed` completion card:
 
 ```text
-[COMPLETED] WU-YYMMDD-001
-Surface: ops-feed
-Summary: build-lab 결과를 금비가 검토했고 문서 보완과 formatter smoke가 통과했습니다.
-Owner: Operations Lead
-Source: docs/operations-manual.md
-Verification: py_compile, smoke, diff-check를 확인했습니다.
-Next: none.
+[완료] WU-YYMMDD-001 · build-lab
+결과: build-lab 결과를 금비가 검토했고 요청 범위 안에서 기준 충족을 확인했습니다.
+기준 대비: 문서 원칙과 formatter smoke 기준을 충족했습니다.
+금비 판정: ACCEPTED.
+확인: evidence, smoke, repo state를 확인했습니다.
+다음: 추가 조치 없음.
 ```
 
 If a visibility message cannot be sent, report that the visibility send failed.
@@ -177,9 +208,10 @@ Compare against the baseline of CLI-first execution.
 - Expected added default overhead is roughly thirty to ninety seconds while
   posting is manual.
 - No extra Team Lead execution call or LLM summarization call should be added
-  for visibility. Ask the Team Lead to include a concise result summary,
+  for normal visibility. Ask the Team Lead to include a concise result summary,
   verification summary, changed/source artifacts, blocker if any, and next
-  action in the normal result.
+  action in the normal result, then compose the owner-facing card and team
+  detail message in one Operations Lead composition step.
 - `discord-bound` diagnostics can still add one short Team Lead LLM response,
   but diagnostics are not the default run path.
 
@@ -324,7 +356,7 @@ Manual Day-0 visibility may be posted by the Operations Lead. Pulse Monitor
 alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge events
 may be automated, but they must remain visibility events.
 
-Repo-local visibility text can be formatted without sending:
+Current repo-local visibility text can be formatted without sending:
 
 ```bash
 python3 scripts/openclaw_company_ops.py discord visibility \
@@ -338,9 +370,16 @@ python3 scripts/openclaw_company_ops.py discord visibility \
   --next "Team Lead가 실행 후 결과 요약을 보고합니다."
 ```
 
-Use `--format json` when another publisher needs structured output. The
+Use `--format json` when another publisher needs structured output. The current
 formatter prints only; it does not send to Discord, mutate GitHub, update
 claims, or change execution state.
+
+Implementation note: the current `discord visibility` command is a generic
+field formatter and still exposes fields such as `Surface`, `Owner`, `Source`,
+and optional `Public summary`. The next implementation should add a higher-level
+card composer for owner-facing `#ops-feed` cards and team detail trail messages.
+Until that composer exists, manually written `#ops-feed` posts should follow
+the card shapes above rather than the generic formatter output.
 
 Repo-local team-detail text uses the same command with `--surface team-detail`:
 
@@ -359,28 +398,42 @@ python3 scripts/openclaw_company_ops.py discord visibility \
 Visibility formatting prints only; it does not send to Discord, mutate GitHub,
 update claims, or change execution state.
 
-## Required Event Fields
+## Required Message Content
 
 Every Discord visibility message should include:
 
-- Surface.
 - Event kind.
 - Work Unit id.
-- Current owner or next-action owner.
-- Source reference.
 - Short human-readable summary.
 - Next action.
 
-Use stable English for event kinds and field names. For internal Company Ops
-operation, use Korean by default for long human-written values such as
-`Summary`, `Why`, `Verification`, and `Next`. Public/package documentation,
-CLI help text, and reusable release examples may use English. If an internal
-message may later be reused publicly, add an optional `Public summary` line in
-English instead of turning the internal body into English.
+`#ops-feed` cards should not show internal routing fields such as `Surface`,
+raw `Source`, mechanical `Owner`, or default `Public summary`. The channel
+already identifies the surface. Use reader-friendly labels instead:
+
+- Request card: `문제`, `요청`, `기준`, optional `주의`, optional `근거`,
+  `다음`.
+- Completion card: `결과`, `기준 대비`, `금비 판정`, `확인`, optional `근거`,
+  `다음`.
+- Blocker card: `문제`, `원인`, `필요`, optional `근거`, `다음`.
+
+`#team-*` detail messages may use more operational labels such as `Goal`,
+`Scope`, `Criteria`, `Cautions`, `Result`, `Evidence`, `Verification`, `Risks`,
+`Decision`, `Reason`, and `Next`.
+
+Use stable English for event kinds. Use Korean by default for owner-facing
+`#ops-feed` card content and internal long-form human-readable values. Public
+package documentation, CLI help text, and reusable release examples may use
+English. Add an English public one-liner only when a message is explicitly
+intended for public/package reuse; do not show `Public summary` by default in
+internal `#ops-feed`.
 
 Include a Work Card or deeper source artifact link when one exists. Small
 delegated tasks may use a CLI assignment reference or source path until a Work
 Card is justified by task risk.
+
+For `#ops-feed`, expose that source as a human-readable `근거` line only when it
+helps the owner inspect detail. Do not show it as a raw `Source:` field.
 
 Use one source artifact link per event when possible:
 
@@ -418,27 +471,37 @@ new Work Units should use `WU-YYMMDD-NNN`.
 
 ## Message Shape
 
-Recommended manual format:
+Recommended `#ops-feed` request card:
 
 ```text
-[EVENT_KIND] WU-YYMMDD-NNN
-Surface: ops-feed or team-detail.
-Summary: 내부 운영용 한글 요약 문장.
-Owner: Operations Lead or Team Lead OpenClaw Agent.
-Source: link to the relevant artifact.
-Verification: 필요한 경우 한글 검증 요약.
-Public summary: optional English one-liner for public/package reuse.
-Next: 한글 다음 액션 또는 "none".
+[요청] WU-YYMMDD-NNN · <team>
+문제: 주인님이 한눈에 이해해야 할 문제나 불확실성.
+요청: 금비가 누구에게 무엇을 맡겼는지.
+기준: 성공, 실패, 또는 검토 기준.
+주의: 범위 제한이나 금지사항.
+근거: Work Card, Assignment Packet, 또는 source artifact를 사람이 이해할 수 있게 표시.
+다음: 결과를 받은 뒤 금비가 판단할 일.
 ```
 
-Example:
+Recommended `#ops-feed` completion card:
+
+```text
+[완료] WU-YYMMDD-NNN · <team>
+결과: 팀장이 확인, 생성, 수정, 또는 판단한 핵심 결과.
+기준 대비: 요청 기준을 충족했는지.
+금비 판정: ACCEPTED, REVISE, or BLOCKED.
+확인: readback, tests, repo state, evidence 등 핵심 검증.
+근거: Team Lead 결과, evidence, decision, 또는 readback 위치를 사람이 이해할 수 있게 표시.
+다음: 다음 액션 또는 추가 조치 없음.
+```
+
+Recommended `#team-*` detail message:
 
 ```text
 [RESULT_READY] WU-260606-001
-Surface: team-detail
-Summary: Demo thread handoff evidence가 제출되었고 금비 검토 대기 상태입니다.
-Owner: Operations Lead
-Source: docs/examples/manual-dry-run/WU-260606-001/evidence.md
+Result: Demo thread handoff evidence가 제출되었고 금비 검토 대기 상태입니다.
+Evidence: docs/examples/manual-dry-run/WU-260606-001/evidence.md
+Verification: Team Lead가 보고한 smoke가 통과했습니다.
 Next: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 ```
 

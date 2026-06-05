@@ -26,9 +26,11 @@ with owner-visible dogfood, decide which visibility/automation gates to
 activate, and package only the stable surface.
 
 Owner-visible dogfood uses `#ops-feed` as the owner-facing request/result
-timeline and `#team-*` as the detailed Team Lead execution trail. Direct Team
-Lead answers are allowed, but they do not mutate official Work Unit state unless
-the normal source artifacts exist.
+briefing timeline and `#team-*` as the detailed Team Lead execution trail.
+`#ops-feed` should show concise cards about the problem, request, criteria,
+result, verification, and next action; it should not expose internal formatter
+fields. Direct Team Lead answers are allowed, but they do not mutate official
+Work Unit state unless the normal source artifacts exist.
 
 Repo-local tooling is available through:
 
@@ -45,6 +47,7 @@ python3 scripts/openclaw_company_ops.py --help
 - [Manual Day-0 Templates](docs/templates/README.md)
 - [Operations Manual](docs/operations-manual.md)
 - [Discord Event Visibility](docs/discord-event-visibility.md)
+- [Visibility Card Implementation Plan](docs/visibility-card-implementation-plan.md)
 - [Company Dashboard Timing](docs/company-dashboard-timing.md)
 - [Post-Setup Realization Plan](docs/post-setup-plan.md)
 - [Manual Dry Run Examples](docs/examples/manual-dry-run/README.md)

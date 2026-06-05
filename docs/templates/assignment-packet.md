@@ -121,6 +121,12 @@ The Team Lead should report:
 - Checks performed.
 - Remaining risks.
 - Blockers or missing artifacts.
+- Recommended next action.
+
+The Team Lead report is input for Operations Lead review. It should be concise
+enough to support one Operations Lead composition step for both the owner-facing
+`#ops-feed` result card and the detailed `#team-*` review trail. Do not ask for
+or create a separate LLM summarization call just for visibility.
 
 ## Blocked Rule
 

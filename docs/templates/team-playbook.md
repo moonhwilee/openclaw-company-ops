@@ -127,6 +127,11 @@ Then resume the mode selected by the active packet.
 - Remaining risks:
 - Blockers:
 - Recommended decision:
+- Recommended next action:
+
+This report is not the owner-facing `#ops-feed` card. The Operations Lead uses
+it as input to write a separate owner briefing card and a separate team review
+message from the same facts.
 
 ## Guardrails
 

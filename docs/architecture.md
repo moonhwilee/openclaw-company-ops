@@ -354,7 +354,8 @@ Pulse Monitor must not:
 
 ## Discord Ops
 
-Discord Ops is the human-visible request/result timeline and team detail trail.
+Discord Ops is the human-visible request/result briefing timeline and team
+detail trail.
 
 Allowed `#ops-feed` owner-facing summary kinds:
 
@@ -373,8 +374,19 @@ Allowed `#team-*` detail trail kinds:
 
 `RESULT_READY` is the Team Lead submission signal. A normal team detail trail
 is not closed until Operations Lead review is posted as `ACCEPTED`, `REVISE`,
-or `BLOCKED_DETAIL`. Internal operating text uses stable English keys with
-Korean long-form values by default; public/package examples may use English.
+or `BLOCKED_DETAIL`.
+
+Normal visibility uses one Operations Lead composition step per transition:
+compose a user-friendly `#ops-feed` card and a separate detailed `#team-*`
+message from the same facts. This should not add another Team Lead execution or
+LLM summarization call. `#ops-feed` content should use owner-facing labels such
+as `문제`, `요청`, `기준`, `결과`, `확인`, and `다음` rather than internal fields
+such as `Surface`, raw `Source`, mechanical `Owner`, or default
+`Public summary`.
+
+Internal schema can remain stable English; owner-facing cards and internal
+long-form values use Korean by default. Public/package examples may use
+English.
 
 Discord Ops must not become:
 
