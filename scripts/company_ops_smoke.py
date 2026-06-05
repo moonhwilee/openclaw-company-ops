@@ -713,7 +713,7 @@ def run_discord_card_smoke() -> None:
     require_success(long_result, "discord long card compaction")
     if len(long_result.stdout) > 1850:
         raise RuntimeError("long Discord card exceeded target one-message length")
-    if "요약됨" not in long_result.stdout:
+    if "일부 생략됨" not in long_result.stdout:
         raise RuntimeError("long Discord card did not include compaction notice")
     if "📦 [RESULT_READY] WU-260605-906 · 🧪 build-lab" not in long_result.stdout:
         raise RuntimeError("long Discord card lost its header during compaction")

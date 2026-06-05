@@ -373,8 +373,9 @@ Default status icons:
 
 Discord is the limiting surface. Visibility card output must fit into one
 Discord message by default. If the body is too long, compact it before sending:
-preserve the header and next action, mark the body as summarized, and keep the
-full detail in the Work Unit evidence, Team Lead result, or source artifact.
+preserve the header and next action, mark the body as partially omitted, and
+keep the full detail in the Work Unit evidence, Team Lead result, or source
+artifact. This is deterministic compaction, not semantic LLM summarization.
 Do not rely on Discord's automatic message splitting for normal operations.
 For manual posts that do not come from `discord card`, run the same guard first:
 

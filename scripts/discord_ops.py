@@ -81,7 +81,7 @@ TEAM_FINAL_REVIEW_EVENTS = {
 
 DISCORD_MESSAGE_LIMIT = 2000
 DISCORD_MESSAGE_TARGET_CHARS = 1800
-DISCORD_COMPACTION_SUFFIX = "… (요약됨; 상세 내용은 source artifact 또는 team result 원문을 확인하세요.)"
+DISCORD_COMPACTION_SUFFIX = "… (일부 생략됨; 상세 내용은 source artifact 또는 team result 원문을 확인하세요.)"
 
 
 def read_json(path: str) -> dict[str, Any]:

@@ -148,7 +148,8 @@ Implemented validation:
 - Generated card text, legacy visibility text, alert text, and arbitrary
   manually guarded text are compacted to stay within a single Discord message.
   The header and next action are preserved, and long body content is marked as
-  summarized. Detailed evidence belongs in the source artifact, not inside a
+  partially omitted. This is deterministic compaction, not semantic LLM
+  summarization. Detailed evidence belongs in the source artifact, not inside a
   long Discord post.
 - Sequence validation requires `#ops-feed [요청]` before `#team-*`
   `ASSIGNED_DETAIL`, and requires `RESULT_READY` plus the final Operations Lead
