@@ -16,6 +16,14 @@ ALERT_EVENTS = {
     "COMPACTION_RECOVERY_SUSPECTED",
 }
 
+LIFECYCLE_EVENTS = {
+    "ASSIGNED",
+    "STARTED",
+    "BLOCKED",
+    "RESULT_READY",
+    "DECISION",
+}
+
 
 def read_json(path: str) -> dict[str, Any]:
     if path == "-":
@@ -73,15 +81,35 @@ def event_from_alert(alert: dict[str, Any], source_ref: str) -> dict[str, str]:
 
 
 def format_text_event(event: dict[str, str]) -> str:
-    return "\n".join(
+    lines = [
+        f"[{event['event']}] {event['work_unit_id']}",
+        f"Summary: {event['summary']}",
+    ]
+    work_card = event.get("work_card")
+    if work_card:
+        lines.append(f"Work Card: {work_card}")
+    lines.extend(
         [
-            f"[{event['event']}] {event['work_unit_id']}",
-            f"Summary: {event['summary']}",
             f"Owner: {event['owner']}",
             f"Source: {event['source']}",
             f"Next: {event['next']}",
         ]
     )
+    return "\n".join(lines)
+
+
+def lifecycle_event_from_args(args: argparse.Namespace) -> dict[str, str]:
+    if args.event not in LIFECYCLE_EVENTS:
+        raise ValueError(f"unsupported lifecycle event: {args.event}")
+    return {
+        "event": args.event,
+        "work_unit_id": args.work_unit_id,
+        "work_card": args.work_card,
+        "owner": args.owner,
+        "source": args.source_artifact,
+        "summary": args.summary,
+        "next": args.next,
+    }
 
 
 def cmd_alerts(args: argparse.Namespace) -> int:
@@ -103,6 +131,21 @@ def cmd_alerts(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_event(args: argparse.Namespace) -> int:
+    try:
+        event = lifecycle_event_from_args(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(json.dumps({"event": event}, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+
+    print(format_text_event(event))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Format Company Ops Discord visibility events without sending them."
@@ -114,6 +157,21 @@ def build_parser() -> argparse.ArgumentParser:
     alerts.add_argument("--source-ref", required=True, help="Ledger or claim source ref to include")
     alerts.add_argument("--format", choices=("text", "json"), default="text")
     alerts.set_defaults(func=cmd_alerts)
+
+    event = subparsers.add_parser("event", help="Format a Work Unit lifecycle event for #ops-feed")
+    event.add_argument(
+        "--event",
+        required=True,
+        help="Lifecycle event name: ASSIGNED, STARTED, BLOCKED, RESULT_READY, or DECISION",
+    )
+    event.add_argument("--work-unit-id", required=True, help="Work Unit id")
+    event.add_argument("--work-card", required=True, help="Work Card URL")
+    event.add_argument("--owner", required=True, help="Current owner or next-action owner")
+    event.add_argument("--source-artifact", required=True, help="Source artifact path or URL")
+    event.add_argument("--summary", required=True, help="Short human-readable summary")
+    event.add_argument("--next", default="none", help="Expected next action")
+    event.add_argument("--format", choices=("text", "json"), default="text")
+    event.set_defaults(func=cmd_event)
 
     return parser
 

@@ -35,6 +35,30 @@ It should not answer by itself:
 Those judgments stay in the Assignment Packet, Ops Claim Ledger entry, Evidence
 & Result Record, and Operations Lead Decision.
 
+## Execution Routes
+
+Use explicit execution route names when recording or reviewing Work Unit
+visibility:
+
+- `cli-direct`: the Team Lead is invoked directly through a CLI or local agent
+  session. This route does not target Discord and does not create a
+  team-channel execution record.
+- `discord-bound`: the Team Lead is invoked from a bound Discord team channel
+  or thread. This route should leave a team-channel or thread record because
+  Discord was the execution conversation surface.
+
+Both routes still use the same source artifacts: Work Card, Assignment Packet,
+Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead Decision.
+Discord remains visibility-only for both routes.
+
+For `cli-direct` execution, do not pretend that `#team-build-lab` or another
+team channel has an execution record. The required owner-visible trail is
+source-artifact-backed lifecycle events in `#ops-feed`.
+
+For `discord-bound` execution, team-channel records are expected for the
+Discord conversation itself. They are still not source of truth and must point
+back to the source artifacts.
+
 ## Recommended Channels
 
 Use seven channels for Phase 1 operation.
@@ -148,6 +172,22 @@ Use these event names consistently:
 Manual Day-0 events may be posted by the Operations Lead or Team Lead. Pulse
 Monitor alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge
 events may be automated, but they must remain visibility events.
+
+Repo-local lifecycle events can be formatted without sending:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord event \
+  --event ASSIGNED \
+  --work-unit-id WU-260606-002 \
+  --work-card https://github.com/moonhwilee/openclaw-company-ops/issues/18 \
+  --owner build-lab \
+  --source-artifact docs/examples/manual-dry-run/WU-260606-002/assignment.md \
+  --summary "Work Unit assigned for routing and visibility patch."
+```
+
+Use `--format json` when another publisher needs structured output. The
+formatter prints only; it does not send to Discord, mutate GitHub, update
+claims, or change execution state.
 
 ## Required Event Fields
 

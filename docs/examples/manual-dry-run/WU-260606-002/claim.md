@@ -1,0 +1,59 @@
+# Ops Claim Ledger Entry
+
+Status: Working
+
+The Ops Claim Ledger records expected responsibility. It is not runtime truth,
+progress history, evidence storage, a dashboard database, or a recovery system.
+
+## Claim Identity
+
+- Claim ref: `CLAIM-WU-260606-002-001`
+- Work Unit id: `WU-260606-002`
+- Title: Patch Work Unit execution visibility routing
+- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/18
+- Claim type: `execution`
+- Owner session ref: `build-lab`
+- Created at: `2026-06-06`
+- Updated at: `2026-06-06`
+
+## Expected Responsibility
+
+- Expected state: `working`
+- Expected until: `2026-06-06T03:00:00+09:00`
+- Last claim: `build-lab` is implementing a narrow Phase 3 routing and
+  visibility friction patch.
+- Last seen compaction count: `unknown`
+
+Allowed expected states:
+
+- `assigned`
+- `working`
+- `waiting`
+- `blocked`
+- `result_ready`
+- `done`
+
+`done` is not completion truth. It is an expected responsibility state after
+the Operations Lead has made a decision.
+
+## Artifact References
+
+- Assignment Packet: `docs/examples/manual-dry-run/WU-260606-002/assignment.md`
+- Evidence ref: `docs/examples/manual-dry-run/WU-260606-002/evidence.md`
+- Operations Lead decision ref: `docs/examples/manual-dry-run/WU-260606-002/decision.md`
+
+## Staleness Check
+
+If this claim is not refreshed before `expected_until`, the Operations Lead
+should review the Work Unit state.
+
+The Pulse Monitor, when implemented, may alert on stale or mismatched claims. It
+must not restart, reassign, recover, mutate GitHub, or mark completion.
+
+## Notes
+
+- Execution route for this Work Unit: `cli-direct`.
+- Expected Discord team-channel record: none for execution, unless the owner or
+  Operations Lead separately asks a direct team-channel question.
+- Required visibility trail: source-artifact-backed lifecycle events in
+  `#ops-feed`.

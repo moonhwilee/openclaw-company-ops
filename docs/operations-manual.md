@@ -47,6 +47,26 @@ For the active post-setup sequence, see `docs/post-setup-plan.md`. In that
 sequence, Discord visibility is checked before the first real dogfood Work Unit
 is accepted, so the owner can observe orchestration transitions directly.
 
+## Execution Route Visibility
+
+Record the execution route explicitly when Discord visibility expectations
+matter.
+
+- `cli-direct`: the Team Lead runs through a direct CLI or local agent session.
+  This route does not create a Discord team-channel execution record. It must be
+  made owner-visible through source-artifact-backed lifecycle events in
+  `#ops-feed`.
+- `discord-bound`: the Team Lead runs through a bound Discord team channel or
+  thread. A team-channel or thread record is expected because Discord is the
+  conversation surface.
+
+Team-channel records are also expected for explicit owner or Operations Lead
+Q&A in a team channel. They are not expected for `cli-direct` execution by
+itself.
+
+For both routes, Discord is visibility-only and publisher-only. It must not
+create, mutate, approve, close, reassign, recover, or complete Work Units.
+
 ## Direct Owner Questions To Team Leads
 
 The owner may ask Team Lead OpenClaw Agents direct questions in the relevant
