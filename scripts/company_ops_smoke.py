@@ -251,6 +251,237 @@ def run_discord_visibility_smoke() -> None:
         raise RuntimeError("discord accepted visibility did not include expected header")
 
 
+def require_absent(text: str, forbidden: tuple[str, ...], label: str) -> None:
+    leaked = [item for item in forbidden if item in text]
+    if leaked:
+        raise RuntimeError(f"{label} leaked internal labels: {', '.join(leaked)}")
+
+
+def run_discord_card_smoke() -> None:
+    forbidden_ops_labels = ("Surface:", "Owner:", "Source:", "Public summary:")
+    request_result = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            "ASSIGNED",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--team",
+            "build-lab",
+            "--problem",
+            "요청-완료 visibility 흐름이 사용자 관점에서 읽히는지 확인이 필요합니다.",
+            "--request",
+            "build-lab에 bounded smoke 기준의 card composer 출력을 점검하도록 맡깁니다.",
+            "--criteria",
+            "ops-feed에는 내부 필드 없이 문제, 요청, 기준, 다음 액션이 보여야 합니다.",
+            "--caution",
+            "외부 Discord 전송 없이 로컬 formatter만 검증합니다.",
+            "--evidence",
+            "scripts/discord_ops.py card composer",
+            "--next",
+            "Team Lead 상세 trail을 생성합니다.",
+        ]
+    )
+    require_success(request_result, "discord ops-feed request card")
+    if "[요청] WU-260605-901 · build-lab" not in request_result.stdout:
+        raise RuntimeError("ops-feed request card did not include expected header")
+    for expected in ("문제:", "요청:", "기준:", "다음:"):
+        if expected not in request_result.stdout:
+            raise RuntimeError(f"ops-feed request card missing {expected}")
+    require_absent(request_result.stdout, forbidden_ops_labels, "ops-feed request card")
+
+    assigned_detail = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "ASSIGNED_DETAIL",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--team",
+            "build-lab",
+            "--goal",
+            "Validate card composer output for a bounded smoke slice.",
+            "--scope",
+            "Local formatter only; no Discord mutation.",
+            "--criteria",
+            "Return concise result, evidence, verification, and risks.",
+            "--caution",
+            "Do not edit repo state during this smoke.",
+            "--report",
+            "RESULT_READY with evidence and verification.",
+            "--next",
+            "Team Lead returns RESULT_READY.",
+        ]
+    )
+    require_success(assigned_detail, "discord team assigned detail card")
+    if "[ASSIGNED_DETAIL] WU-260605-901 · build-lab" not in assigned_detail.stdout:
+        raise RuntimeError("team assignment card did not include expected header")
+    if "Goal:" not in assigned_detail.stdout or "Report:" not in assigned_detail.stdout:
+        raise RuntimeError("team assignment card missing expected detail fields")
+
+    result_ready = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "RESULT_READY",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--team",
+            "build-lab",
+            "--result",
+            "Card composer produced separate ops-feed and team-detail messages.",
+            "--evidence",
+            "local smoke command output",
+            "--verification",
+            "request card did not expose internal labels.",
+            "--risks",
+            "Fresh Discord posting remains outside this smoke.",
+            "--next",
+            "Operations Lead review.",
+        ]
+    )
+    require_success(result_ready, "discord team result ready card")
+    if "[RESULT_READY] WU-260605-901 · build-lab" not in result_ready.stdout:
+        raise RuntimeError("team result card did not include expected header")
+    if "Evidence:" not in result_ready.stdout or "Verification:" not in result_ready.stdout:
+        raise RuntimeError("team result card missing expected fields")
+
+    accepted = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "ACCEPTED",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--team",
+            "build-lab",
+            "--decision",
+            "ACCEPTED",
+            "--reason",
+            "The bounded output meets the card composer smoke criteria.",
+            "--evidence",
+            "RESULT_READY local smoke output",
+            "--next",
+            "ops-feed completion card.",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(accepted, "discord team accepted card")
+    accepted_parsed = json.loads(accepted.stdout)
+    accepted_text = accepted_parsed.get("text", "")
+    if "[ACCEPTED] WU-260605-901 · build-lab" not in accepted_text:
+        raise RuntimeError("team accepted card did not include expected header")
+
+    blocked_completion = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            "COMPLETED",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--team",
+            "build-lab",
+            "--outcome",
+            "build-lab card smoke 결과가 Operations Lead 검토를 통과했습니다.",
+            "--criteria-result",
+            "내부 필드 제거와 team final review gate를 모두 충족했습니다.",
+            "--decision",
+            "ACCEPTED",
+            "--verification",
+            "request, result, accepted card output inspected.",
+            "--next",
+            "추가 조치 없음.",
+        ]
+    )
+    if blocked_completion.returncode == 0:
+        raise RuntimeError("ops-feed completion card passed without team final review gate")
+
+    completion = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            "COMPLETED",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--team",
+            "build-lab",
+            "--outcome",
+            "build-lab card smoke 결과가 Operations Lead 검토를 통과했습니다.",
+            "--criteria-result",
+            "내부 필드 제거와 team final review gate를 모두 충족했습니다.",
+            "--decision",
+            "ACCEPTED",
+            "--verification",
+            "request, result, accepted card output inspected.",
+            "--evidence",
+            "team RESULT_READY and ACCEPTED card smoke",
+            "--team-final-review-kind",
+            "ACCEPTED",
+            "--next",
+            "추가 조치 없음.",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(completion, "discord ops-feed completion card")
+    parsed = json.loads(completion.stdout)
+    text = parsed.get("text", "")
+    if parsed.get("card", {}).get("kind") != "COMPLETED":
+        raise RuntimeError("completion card JSON did not include COMPLETED kind")
+    if "[완료] WU-260605-901 · build-lab" not in text:
+        raise RuntimeError("ops-feed completion card did not include expected header")
+    for expected in ("결과:", "기준 대비:", "금비 판정:", "확인:", "다음:"):
+        if expected not in text:
+            raise RuntimeError(f"ops-feed completion card missing {expected}")
+    require_absent(text, forbidden_ops_labels, "ops-feed completion card")
+
+    with tempfile.TemporaryDirectory(prefix="openclaw-company-ops-card-pair.") as pair_dir_raw:
+        pair_dir = Path(pair_dir_raw)
+        ops_card_json = pair_dir / "ops-card.json"
+        team_card_json = pair_dir / "team-card.json"
+        ops_card_json.write_text(completion.stdout, encoding="utf-8")
+        team_card_json.write_text(accepted.stdout, encoding="utf-8")
+        pair_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card-pair",
+                "--ops-card-json",
+                str(ops_card_json),
+                "--team-card-json",
+                str(team_card_json),
+            ]
+        )
+        require_success(pair_result, "discord card pair validation")
+        if "OK paired visibility cards: WU-260605-901 · build-lab COMPLETED + ACCEPTED" not in pair_result.stdout:
+            raise RuntimeError("card pair validation did not include expected result")
+
+
 def cmd_multi_team(args: argparse.Namespace) -> int:
     work_dir = args.work_dir or Path(tempfile.mkdtemp(prefix="openclaw-company-ops-multi-team-smoke."))
     work_dir = work_dir.expanduser()
@@ -271,6 +502,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         )
         run_pulse_ok(args, ledger, snapshot)
         run_discord_visibility_smoke()
+        run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         claims = load_claims(ledger)
     except (RuntimeError, json.JSONDecodeError) as exc:
@@ -288,7 +520,8 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
-        "discord visibility formatting through accepted review, and one result_ready update"
+        "discord visibility formatting, purpose-specific visibility card composition, "
+        "and one result_ready update"
     )
     return 0
 

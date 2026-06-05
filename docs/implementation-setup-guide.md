@@ -749,12 +749,15 @@ Every official Work Unit still needs the normal artifact trail. A direct team
 question becomes official work only after a Work Card, Assignment Packet, claim,
 Evidence & Result Record, and Operations Lead Decision are created or updated.
 
-Future automation can add an explicit publisher around the same visibility shape
-only after the activation decision gate:
+Repo-local card composition is available now. It prints visibility text only and
+does not post to Discord:
 
 ```bash
-openclaw-company-ops discord visibility --surface team-detail --kind RESULT_READY --work-unit-id <id>
+python3 scripts/openclaw_company_ops.py discord card --surface team-detail --kind RESULT_READY --work-unit-id <id> ...
 ```
+
+Future automation can add an explicit publisher around the same visibility shape
+only after the activation decision gate.
 
 Do not add a Discord command router. The first acceptable implementation is a
 publisher-only path that posts source-artifact-backed visibility messages and cannot mutate

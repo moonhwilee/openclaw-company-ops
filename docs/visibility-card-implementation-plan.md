@@ -1,9 +1,9 @@
 # Visibility Card Implementation Plan
 
-Status: Implementation prep
+Status: Initial implementation complete
 
-This plan prepares the next implementation pass for user-friendly Company Ops
-Discord visibility.
+This plan describes the first repo-local implementation pass for user-friendly
+Company Ops Discord visibility.
 
 ## Objective
 
@@ -70,6 +70,35 @@ After implementation, run a fresh virtual Work Unit and verify readback order:
 
 The proof must use a new Work Unit id. Retroactive repair messages are not
 evidence that the flow works.
+
+## Implemented Local Command
+
+The first local composer is available without sending to Discord:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord card ...
+```
+
+Supported local card families:
+
+- `--surface ops-feed --kind ASSIGNED|COMPLETED|BLOCKED`
+- `--surface team-detail --kind ASSIGNED_DETAIL|STARTED|RESULT_READY|ACCEPTED|REVISE|BLOCKED_DETAIL`
+- `discord card-pair --ops-card-json <path> --team-card-json <path>` validates
+  one ops-feed card against one team-detail card.
+
+The legacy `discord visibility` command remains available as the generic
+backward-compatible formatter. New owner-facing and team-detail visibility
+should prefer `discord card`.
+
+Implemented validation:
+
+- `#ops-feed` cards reject exposed internal labels such as `Surface`, raw
+  `Source`, mechanical `Owner`, and default `Public summary`.
+- `#ops-feed COMPLETED` requires `--team-final-review-kind ACCEPTED`.
+- `#ops-feed BLOCKED` requires `--team-final-review-kind BLOCKED_DETAIL`.
+- Required fields are enforced by card kind.
+- Paired-card validation checks Work Unit id, team, compatible event kinds, and
+  non-conflicting decisions.
 
 ## Implementation Notes
 

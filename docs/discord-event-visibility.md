@@ -356,46 +356,45 @@ Manual Day-0 visibility may be posted by the Operations Lead. Pulse Monitor
 alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge events
 may be automated, but they must remain visibility events.
 
-Current repo-local visibility text can be formatted without sending:
+Preferred repo-local visibility cards can be composed without sending:
 
 ```bash
-python3 scripts/openclaw_company_ops.py discord visibility \
+python3 scripts/openclaw_company_ops.py discord card \
   --surface ops-feed \
   --kind ASSIGNED \
   --work-unit-id WU-260606-002 \
-  --owner build-lab \
-  --source docs/examples/manual-dry-run/WU-260606-002/assignment.md \
-  --summary "build-lab가 routing/visibility patch Work Unit을 맡았습니다." \
-  --why "주인님용 timeline에 위임 상태가 보여야 합니다." \
+  --team build-lab \
+  --problem "요청-완료 visibility 흐름이 실제로 보이는지 확인이 필요합니다." \
+  --request "build-lab에 card composer smoke를 맡깁니다." \
+  --criteria "ops-feed에는 내부 필드 없이 문제, 요청, 기준, 다음 액션이 보여야 합니다." \
+  --evidence "docs/examples/manual-dry-run/WU-260606-002/assignment.md" \
   --next "Team Lead가 실행 후 결과 요약을 보고합니다."
 ```
 
-Use `--format json` when another publisher needs structured output. The current
-formatter prints only; it does not send to Discord, mutate GitHub, update
-claims, or change execution state.
+Use `--format json` when another publisher needs structured output. The card
+composer prints only; it does not send to Discord, mutate GitHub, update claims,
+or change execution state.
 
-Implementation note: the current `discord visibility` command is a generic
-field formatter and still exposes fields such as `Surface`, `Owner`, `Source`,
-and optional `Public summary`. The next implementation should add a higher-level
-card composer for owner-facing `#ops-feed` cards and team detail trail messages.
-Until that composer exists, manually written `#ops-feed` posts should follow
-the card shapes above rather than the generic formatter output.
+Compatibility note: `discord visibility` remains available as a generic
+formatter and still exposes fields such as `Surface`, `Owner`, `Source`, and
+optional `Public summary`. Normal owner-facing and team-detail visibility should
+prefer `discord card`.
 
 Repo-local team-detail text uses the same command with `--surface team-detail`:
 
 ```bash
-python3 scripts/openclaw_company_ops.py discord visibility \
+python3 scripts/openclaw_company_ops.py discord card \
   --surface team-detail \
   --kind RESULT_READY \
   --work-unit-id WU-YYMMDD-001 \
-  --owner build-lab \
-  --source docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md \
-  --summary "Evidence가 제출되었고 Operations Lead 검토 대기 상태입니다." \
+  --team build-lab \
+  --result "Evidence가 제출되었고 Operations Lead 검토 대기 상태입니다." \
+  --evidence "docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md" \
   --verification "smoke checks가 통과했습니다." \
   --next "Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다."
 ```
 
-Visibility formatting prints only; it does not send to Discord, mutate GitHub,
+Visibility card composition prints only; it does not send to Discord, mutate GitHub,
 update claims, or change execution state.
 
 ## Required Message Content
