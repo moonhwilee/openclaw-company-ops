@@ -43,6 +43,10 @@ artifacts.
 For Discord-specific event conventions, see
 `docs/discord-event-visibility.md`.
 
+For the active post-setup sequence, see `docs/post-setup-plan.md`. In that
+sequence, Discord visibility is checked before the first real dogfood Work Unit
+is accepted, so the owner can observe orchestration transitions directly.
+
 ## Standard Manual Loop
 
 1. Owner states a goal or problem.
@@ -51,13 +55,19 @@ For Discord-specific event conventions, see
 4. Operations Lead creates a GitHub Issue as the Work Card.
 5. Operations Lead links the Assignment Packet from the Work Card.
 6. Operations Lead records an initial Ops Claim Ledger Entry.
-7. Operations Lead assigns one Team Lead OpenClaw Agent.
-8. Team Lead executes the Work Unit and manages its own subagents.
-9. Team Lead updates the claim when state changes.
-10. Team Lead submits an Evidence & Result Record.
-11. Operations Lead reviews evidence against the Assignment Packet.
-12. Operations Lead records a decision.
-13. Work Card is closed only after evidence and decision links exist.
+7. Operations Lead emits an `ASSIGNED` visibility event when Discord visibility
+   is active.
+8. Operations Lead assigns one Team Lead OpenClaw Agent.
+9. Team Lead executes the Work Unit and manages its own subagents.
+10. Team Lead updates the claim when state changes.
+11. Team Lead emits visibility events for started, blocked, and result-ready
+    states when Discord visibility is active.
+12. Team Lead submits an Evidence & Result Record.
+13. Operations Lead reviews evidence against the Assignment Packet.
+14. Operations Lead records a decision.
+15. Operations Lead emits a decision visibility event when Discord visibility
+    is active.
+16. Work Card is closed only after evidence and decision links exist.
 
 If any required artifact is missing, mark the Work Unit blocked instead of
 substituting a GitHub comment, Discord message, PR summary, or dashboard field.
@@ -261,3 +271,7 @@ The fourth manual dry run is:
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/10
 - Artifacts: `docs/examples/manual-dry-run/WU-20260604-004/`
 - Output: `docs/implementation-setup-guide.md`
+
+The active post-setup plan is:
+
+- `docs/post-setup-plan.md`

@@ -20,10 +20,10 @@ projects are reference material only and are not compatibility targets.
 
 Current internal architecture version: v1.
 
-Most operating elements are currently documented as concepts, planned
-components, or manual Day-0 practices. The setup guide labels each element by
-status so the public docs can later be updated in place into installation and
-connection instructions as components are implemented.
+Most operating elements now have either documented manual practices or
+repo-local support scripts. The remaining work is to prove the operating loop
+with owner-visible dogfood, decide which visibility/automation gates to
+activate, and package only the stable surface.
 
 Repo-local tooling is available through:
 
@@ -41,6 +41,7 @@ python3 scripts/openclaw_company_ops.py --help
 - [Operations Manual](docs/operations-manual.md)
 - [Discord Event Visibility](docs/discord-event-visibility.md)
 - [Company Dashboard Timing](docs/company-dashboard-timing.md)
+- [Post-Setup Realization Plan](docs/post-setup-plan.md)
 - [Manual Dry Run Examples](docs/examples/manual-dry-run/README.md)
 
 ## Project Rules
@@ -55,5 +56,9 @@ python3 scripts/openclaw_company_ops.py --help
 
 ## Planned Work
 
-- Turn the repo-local entrypoint into a small reproducible package for other
-  users when the operating surface stabilizes.
+- Follow the post-setup realization plan: first make orchestration observable
+  with visibility-only Discord events, then run a real dogfood Work Unit,
+  patch friction, delegate to a real Team Lead, decide activation gates, package
+  the stable surface, and only then adopt it across product repos.
+- Turn the repo-local entrypoint into a small reproducible package only after
+  dogfood, delegation, and activation gates pass.

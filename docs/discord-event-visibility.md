@@ -5,8 +5,13 @@ Status: Repo-local alert formatter supported
 This guide describes how to use Discord as an operational visibility surface for
 OpenClaw Company Ops before an implemented Discord Ops Bridge exists.
 
-Discord is optional at this stage. It is not a source of truth, not a command
-router, not a state database, and not a completion authority.
+Discord is not a source of truth, not a command router, not a state database,
+and not a completion authority.
+
+For post-setup dogfood, Discord visibility is required before the first real
+Work Unit is accepted as a valid dogfood run. The requirement is observability,
+not authority: the owner should be able to see events and follow links back to
+source artifacts.
 
 ## Purpose
 
@@ -189,6 +194,21 @@ Before posting a Discord event, check:
 
 If the event lacks a source artifact, do not post it as an operating event. Add
 or fix the source artifact first.
+
+## Pre-Dogfood Visibility Gate
+
+Before running the first real dogfood Work Unit:
+
+- Choose the actual channels for `#ops-feed` and `#ops-alerts`.
+- Verify that the owner can see the channels.
+- Post or emit one harmless test event with a real source artifact link.
+- Confirm that the event is traceable back to the Work Card, Assignment Packet,
+  claim, evidence, or decision artifact.
+- Confirm that no Discord action can mutate operating state.
+
+If these checks fail, the dogfood Work Unit can still be prepared, but it should
+not be accepted as a full orchestration dogfood run because owner-visible
+orchestration was not proven.
 
 ## Future Bridge Boundary
 

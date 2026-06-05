@@ -43,7 +43,8 @@ Use this map when turning manual setup into CLI commands later.
 | Create Work Card plus artifacts | `openclaw-company-ops work-unit create` |
 | Update claim files | `openclaw-company-ops claim update` |
 | Run stale/session checks manually | `openclaw-company-ops pulse check` |
-| Post Discord visibility messages | `openclaw-company-ops discord emit` |
+| Format Discord alert messages | `openclaw-company-ops discord alerts` |
+| Publish Discord visibility messages | `openclaw-company-ops discord emit` after activation |
 | Run smoke test manually | `openclaw-company-ops smoke` |
 
 When a command exists, remove or collapse the corresponding manual section.
@@ -635,9 +636,11 @@ launchd, or any background job by itself.
 
 ## Discord Visibility Setup
 
-Status: Repo-local alert formatter supported, visibility bridge later
+Status: Repo-local alert formatter supported, pre-dogfood visibility required
 
-Discord is optional. If used, it is only an event visibility surface.
+Discord is only an event visibility surface. For post-setup dogfood, configure a
+minimal Discord visibility path before the first real Work Unit so the owner can
+observe orchestration events directly.
 
 Recommended channels:
 
@@ -693,11 +696,16 @@ Recommended event types:
 Every Discord event must link back to the real artifact. Discord must not
 accept commands that mutate Work Units in v1.
 
-Future automation can add an explicit publisher around the same event shape:
+Future automation can add an explicit publisher around the same event shape
+only after the activation decision gate:
 
 ```bash
 openclaw-company-ops discord emit --event RESULT_READY --work-unit <id>
 ```
+
+Do not add a Discord command router. The first acceptable implementation is a
+publisher-only path that posts source-artifact-backed events and cannot mutate
+GitHub, claims, decisions, assignments, or execution state.
 
 ## Team Lead Execution Setup
 
@@ -824,6 +832,24 @@ still lacks the required closure artifact.
 If GitHub Project or dashboard status disagrees with the artifacts, treat the
 dashboard as stale visibility and update it after reviewing the source
 artifacts.
+
+## Post-Setup Realization
+
+Status: Active plan
+
+After the base setup and repo-local scripts exist, continue with
+`docs/post-setup-plan.md`:
+
+1. Pre-dogfood Discord visibility setup.
+2. Real dogfood Work Unit.
+3. Dogfood friction patch.
+4. First real Team Lead delegation.
+5. Activation decision gates.
+6. Packaging / public v1.
+7. Cross-project adoption.
+
+This ordering keeps the original architecture intact while making the owner
+able to observe orchestration before dogfood results are accepted.
 
 ## Future CLI Migration
 

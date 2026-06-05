@@ -12,6 +12,9 @@ For a detailed follow-along guide that a user can use to manually implement
 the full structure before CLI automation exists, see
 `docs/implementation-setup-guide.md`.
 
+For the active post-setup realization sequence after this base setup, see
+`docs/post-setup-plan.md`.
+
 ## Document Status
 
 Use these labels when reading this guide:
@@ -36,15 +39,17 @@ the full toolchain exists.
 It covers:
 
 - GitHub setup for Work Cards, evidence links, and later dashboard use.
-- Optional Discord setup for operational visibility.
+- Discord visibility setup for operational observability. It is optional for a
+  generic manual reproduction, but required before accepting the first real
+  post-setup dogfood Work Unit.
 - Manual Assignment Packet, Work Card, and Evidence & Result Record flow.
 - Planned components that must not be treated as implemented yet.
 
 It does not cover:
 
 - Installing a finished OpenClaw Company Ops package.
-- Running an implemented Pulse Monitor daemon.
-- Connecting an implemented Discord Ops Bridge.
+- Installing a scheduled Pulse Monitor background job.
+- Connecting a full Discord command bridge.
 - Installing a Company Dashboard app.
 - Running an automated Ops Claim Ledger backend.
 
@@ -58,7 +63,8 @@ You need:
 - A GitHub repository for the operating system workspace.
 - GitHub Issues enabled.
 - A place to store Assignment Packets and Evidence & Result Records.
-- Optional: a Discord server or channel for operational visibility.
+- Optional for generic manual setup, required for post-setup dogfood: a Discord
+  server or channel for operational visibility.
 
 For the current repo, GitHub is already configured with:
 
@@ -170,10 +176,12 @@ Dashboard creation timing is documented in `docs/company-dashboard-timing.md`.
 
 ## Discord Setup
 
-Status: Manual Day-0
+Status: Repo-local alert formatter supported, pre-dogfood visibility required
 
-Discord is optional at this stage. If used, it is only an event visibility
-surface.
+Discord remains a visibility-only surface. For post-setup dogfood, however, a
+minimal Discord visibility path should be configured before the first real Work
+Unit so the owner can observe orchestration events directly instead of relying
+only on Operations Lead summaries.
 
 Recommended channels:
 
@@ -198,6 +206,10 @@ Operations Lead decision.
 
 Detailed Discord event conventions are documented in
 `docs/discord-event-visibility.md`.
+
+The first post-setup phase is a pre-dogfood visibility setup. It verifies that
+at least one harmless event can be seen in the chosen channel and traced back to
+the source artifact. This is not a Discord command router and not a state owner.
 
 ## Manual Day-0 Operating Flow
 
@@ -348,7 +360,7 @@ check`, then optionally schedule it as an alert-only job.
 
 ### Discord Ops Bridge
 
-Status: Alert formatter supported, publisher planned
+Status: Alert formatter supported, visibility publisher gated
 
 Discord Ops Bridge will publish normalized operating events to Discord.
 
@@ -358,8 +370,11 @@ Current practice: the Operations Lead or Team Lead posts concise updates that
 link back to the relevant source artifact. Pulse Monitor alert JSON can be
 formatted with `scripts/discord_ops.py` before manual posting.
 
-Future setup path: connect a publisher that emits the same event shape without
-deciding, recovering, or mutating Work Units.
+Post-setup path: first verify manual or formatter-assisted posting in
+pre-dogfood visibility setup. Connect an automatic publisher only after the
+activation decision gate confirms that manual posting is too slow or too hidden.
+Any publisher must emit the same event shape without deciding, recovering,
+reassigning, closing, or mutating Work Units.
 
 ### Company Dashboard
 
@@ -482,6 +497,9 @@ check exists as `scripts/pulse_monitor.py`. The first bounded multi-team smoke
 exists as `scripts/company_ops_smoke.py`. The first Discord alert formatter
 exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
 `scripts/dashboard_snapshot.py`. The first non-installing Pulse Monitor daemon
-runner exists as `scripts/pulse_daemon.py`. The next recommended step is
-turning the repo-local entrypoint into a published package only after the
-operating surface stabilizes.
+runner exists as `scripts/pulse_daemon.py`.
+
+The next recommended step is not packaging. It is the post-setup realization
+sequence in `docs/post-setup-plan.md`: pre-dogfood Discord visibility setup,
+real dogfood Work Unit, friction patch, first real Team Lead delegation,
+activation decision gates, packaging/public v1, and cross-project adoption.

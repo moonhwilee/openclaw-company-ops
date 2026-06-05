@@ -416,26 +416,31 @@ If a required layer is missing, the state is `blocked` or `control_gap`.
 
 ## Implementation Direction
 
-Build in this order:
+The base setup foundation now includes documentation, templates, repo-local
+Work Unit artifact generation, JSON-backed Ops Claim Ledger support, alert-only
+Pulse Monitor checks, a bounded multi-team smoke, Discord alert formatting,
+dashboard snapshots, a non-installing pulse daemon runner, and a repo-local
+entrypoint.
 
-1. Documentation and templates.
-2. Manual operating dry run with one Work Unit.
-3. GitHub Issue and Project setup.
-4. Discord event dry run.
-5. File-backed Ops Claim Ledger.
-6. Manual Pulse Monitor check.
-7. Optional Pulse Monitor daemon runner.
-8. Optional Discord Ops formatter/publisher.
-9. Reproducible package for other users.
+The active remaining order is documented in `docs/post-setup-plan.md`:
 
-Do not implement optional automation until the manual operating loop is proven.
+1. Pre-dogfood visibility setup.
+2. Real dogfood Work Unit.
+3. Dogfood friction patch.
+4. First real Team Lead delegation.
+5. Activation decision gates.
+6. Packaging / public v1.
+7. Cross-project adoption.
+
+Do not activate optional automation until the dogfood and delegation phases
+prove that the manual/repo-local operating loop works and remains auditable.
 
 ## Open Decisions
 
 These decisions are not blockers for the architecture:
 
-- When to implement the Pulse Monitor daemon.
-- When to automate Discord Ops publishing.
-- When to create the public GitHub repository.
+- When to install or schedule the Pulse Monitor daemon runner.
+- When to automate Discord Ops publishing after pre-dogfood visibility works.
+- When to create or sync a GitHub Project dashboard.
 - Whether the first public package is a CLI, OpenClaw skill, setup script, or a
   combination.
