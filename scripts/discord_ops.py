@@ -24,6 +24,11 @@ LIFECYCLE_EVENTS = {
     "DECISION",
 }
 
+MIRROR_KINDS = {
+    "ASSIGNMENT",
+    "RESULT",
+}
+
 
 def read_json(path: str) -> dict[str, Any]:
     if path == "-":
@@ -98,6 +103,20 @@ def format_text_event(event: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+def format_text_mirror(mirror: dict[str, str]) -> str:
+    lines = [
+        f"[{mirror['kind']}_MIRROR] {mirror['work_unit_id']}",
+        f"Summary: {mirror['summary']}",
+        f"Owner: {mirror['owner']}",
+        f"Source: {mirror['source']}",
+    ]
+    verification = mirror.get("verification")
+    if verification:
+        lines.append(f"Verification: {verification}")
+    lines.append(f"Next: {mirror['next']}")
+    return "\n".join(lines)
+
+
 def lifecycle_event_from_args(args: argparse.Namespace) -> dict[str, str]:
     if args.event not in LIFECYCLE_EVENTS:
         raise ValueError(f"unsupported lifecycle event: {args.event}")
@@ -108,6 +127,20 @@ def lifecycle_event_from_args(args: argparse.Namespace) -> dict[str, str]:
         "owner": args.owner,
         "source": args.source_artifact,
         "summary": args.summary,
+        "next": args.next,
+    }
+
+
+def mirror_from_args(args: argparse.Namespace) -> dict[str, str]:
+    if args.kind not in MIRROR_KINDS:
+        raise ValueError(f"unsupported mirror kind: {args.kind}")
+    return {
+        "kind": args.kind,
+        "work_unit_id": args.work_unit_id,
+        "owner": args.owner,
+        "source": args.source,
+        "summary": args.summary,
+        "verification": args.verification,
         "next": args.next,
     }
 
@@ -146,6 +179,21 @@ def cmd_event(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mirror(args: argparse.Namespace) -> int:
+    try:
+        mirror = mirror_from_args(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(json.dumps({"mirror": mirror}, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+
+    print(format_text_mirror(mirror))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Format Company Ops Discord visibility events without sending them."
@@ -172,6 +220,24 @@ def build_parser() -> argparse.ArgumentParser:
     event.add_argument("--next", default="none", help="Expected next action")
     event.add_argument("--format", choices=("text", "json"), default="text")
     event.set_defaults(func=cmd_event)
+
+    mirror = subparsers.add_parser(
+        "mirror", help="Format a team-channel assignment/result mirror"
+    )
+    mirror.add_argument(
+        "--kind",
+        required=True,
+        choices=tuple(sorted(MIRROR_KINDS)),
+        help="Mirror kind: ASSIGNMENT or RESULT",
+    )
+    mirror.add_argument("--work-unit-id", required=True, help="Work Unit id or task id")
+    mirror.add_argument("--owner", required=True, help="Assigned Team Lead or result owner")
+    mirror.add_argument("--source", default="cli-direct", help="CLI assignment, repo path, or URL")
+    mirror.add_argument("--summary", required=True, help="Short team-channel summary")
+    mirror.add_argument("--verification", default="", help="Short verification summary for result mirrors")
+    mirror.add_argument("--next", default="none", help="Expected next action")
+    mirror.add_argument("--format", choices=("text", "json"), default="text")
+    mirror.set_defaults(func=cmd_mirror)
 
     return parser
 

@@ -16,6 +16,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ARTIFACTS = SCRIPT_DIR / "work_unit_artifacts.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
+DISCORD = SCRIPT_DIR / "discord_ops.py"
 
 
 def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -162,6 +163,59 @@ def load_claims(ledger: Path) -> list[dict[str, Any]]:
     return parsed
 
 
+def run_discord_mirror_smoke() -> None:
+    text_result = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "mirror",
+            "--kind",
+            "ASSIGNMENT",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--owner",
+            "build-lab",
+            "--source",
+            "cli-direct",
+            "--summary",
+            "build-lab owns this bounded smoke slice.",
+            "--next",
+            "Team Lead returns a concise result summary.",
+        ]
+    )
+    require_success(text_result, "discord assignment mirror")
+    if "[ASSIGNMENT_MIRROR] WU-260605-901" not in text_result.stdout:
+        raise RuntimeError("discord assignment mirror did not include expected header")
+
+    json_result = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "mirror",
+            "--kind",
+            "RESULT",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--owner",
+            "gbee",
+            "--source",
+            "local-smoke://WU-260605-901",
+            "--summary",
+            "Smoke result mirror is ready.",
+            "--verification",
+            "mirror formatter parsed as JSON",
+            "--next",
+            "Operations Lead final report.",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(json_result, "discord result mirror json")
+    parsed = json.loads(json_result.stdout)
+    if parsed.get("mirror", {}).get("kind") != "RESULT":
+        raise RuntimeError("discord result mirror JSON did not include RESULT kind")
+
+
 def cmd_multi_team(args: argparse.Namespace) -> int:
     work_dir = args.work_dir or Path(tempfile.mkdtemp(prefix="openclaw-company-ops-multi-team-smoke."))
     work_dir = work_dir.expanduser()
@@ -181,6 +235,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
             },
         )
         run_pulse_ok(args, ledger, snapshot)
+        run_discord_mirror_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         claims = load_claims(ledger)
     except (RuntimeError, json.JSONDecodeError) as exc:
@@ -196,7 +251,10 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         return 1
 
     print(f"PASS multi-team smoke work_dir={work_dir}")
-    print("checked artifact generation, two independent claims, pulse no-alert check, and one result_ready update")
+    print(
+        "checked artifact generation, two independent claims, pulse no-alert check, "
+        "discord mirror formatting, and one result_ready update"
+    )
     return 0
 
 

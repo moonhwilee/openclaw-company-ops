@@ -35,31 +35,62 @@ It should not answer by itself:
 Those judgments stay in the Assignment Packet, Ops Claim Ledger entry, Evidence
 & Result Record, and Operations Lead Decision.
 
+## Default CLI-First Mirrors
+
+The default delegation path is CLI-first execution with Discord mirrors.
+
+Use the CLI or local agent session for the actual Team Lead assignment. Post
+two concise mirror messages in the relevant `#team-*` channel:
+
+- assignment mirror: what was assigned and who owns it;
+- result mirror: what came back, verification summary, and next action.
+
+This gives the owner a visible team-channel trail while preserving the fast CLI
+execution path. The mirror messages are not commands, source artifacts, state
+changes, approvals, recoveries, or completion truth.
+
+The `#ops-feed` summary remains the operating timeline. If it already existed
+in the baseline flow, it is not new mirror overhead.
+
+Recommended assignment mirror:
+
+```text
+[ASSIGNMENT_MIRROR] WU-YYMMDD-001
+Summary: build-lab is assigned to patch the route cost guidance.
+Owner: build-lab
+Source: cli-direct
+Next: Team Lead executes and returns a concise result summary.
+```
+
+Recommended result mirror:
+
+```text
+[RESULT_MIRROR] WU-YYMMDD-001
+Summary: build-lab updated the docs and formatter smoke passed.
+Owner: Operations Lead
+Source: docs/operations-manual.md
+Verification: py_compile, smoke, diff-check passed.
+Next: Operations Lead final report.
+```
+
+If the mirror cannot be sent, report that mirror visibility failed. Do not
+invent a fallback truth source and do not claim Discord visibility was achieved.
+
 ## Execution Routes
 
-Use explicit execution route names when recording or reviewing Work Unit
-visibility:
+Use explicit route names when recording or reviewing execution behavior:
 
-- `cli-direct`: the Team Lead is invoked directly through a CLI or local agent
-  session. This route does not target Discord and does not create a
-  team-channel execution record. It is suitable for internal repo-local work
-  only when the Operations Lead accepts that the team conversation itself will
-  not be visible in Discord.
+- `cli-direct`: the Team Lead is invoked directly through CLI or a local agent
+  session. This is the default execution surface.
+- `cli-delivered`: a CLI-triggered run uses delivery options to post a result
+  into Discord. This proves delivery only.
 - `discord-bound`: the Team Lead is invoked from a bound Discord team channel
-  or thread. This route should leave a team-channel or thread record because
-  Discord was the execution conversation surface.
-- `cli-delivered`: a CLI-triggered run uses `--deliver` and Discord delivery
-  options to post a result into Discord. This can be a useful delivery smoke,
-  but it is not the same as `discord-bound` unless the session itself is the
-  bound channel or thread session.
+  or thread. This is a diagnostic or deliberate experiment, not the normal
+  delegation path.
 
-Both routes still use the same source artifacts: Work Card, Assignment Packet,
-Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead Decision.
-Discord remains visibility-only for both routes.
-
-For `cli-direct` execution, do not pretend that `#team-build-lab` or another
-team channel has an execution record. The required owner-visible trail is
-source-artifact-backed lifecycle events in `#ops-feed`.
+All routes keep source of truth outside Discord. Formal Work Units still use
+the Work Card, Assignment Packet, Ops Claim Ledger entry, Evidence & Result
+Record, and Operations Lead Decision when those artifacts are required.
 
 Known limitation: a successful `cli-direct` agent run may still fail to return a
 clean final text response to the caller's terminal even when the agent session
@@ -74,19 +105,9 @@ store. Treat this as a runner/output-plumbing risk. Before relying on a
   session end;
 - source artifacts, evidence, and checks produced by the Team Lead.
 
-Do not use plain `cli-direct` as the owner-visible path for real Team Lead
-delegation. If the owner should be able to watch Operations Lead to Team Lead
-communication, use `discord-bound`.
-
-For `discord-bound` execution, team-channel records are expected for the
-Discord conversation itself. They are still not source of truth and must point
-back to the source artifacts.
-
-Before Phase 4 or any other real delegation that is meant to be owner-visible,
-run a route validation: send a small assignment or status handoff through the
-selected team channel or Work Unit thread, confirm the matching Team Lead
-responds there, and read the message back. If this validation fails, do not
-claim that Discord-visible delegation has been proven.
+Use `discord-bound` route validation only when proving or diagnosing a channel
+session. For normal delegation, owner-visible communication is provided by
+assignment/result mirrors, not by forcing the execution session into Discord.
 
 Do not count a CLI command that only uses `--deliver --reply-channel discord
 --reply-to ...` as this route validation by itself. Official OpenClaw CLI
@@ -96,34 +117,30 @@ Lead conversation is running from the bound Discord channel or thread.
 
 ## Cost And Activation Guidance
 
-`discord-bound` is the owner-visible delegation route, so it carries more
-operating cost than `cli-direct`.
+Compare against the baseline of CLI-first execution plus the existing
+`#ops-feed` summary.
 
-- Proving a new Discord route can add one short Team Lead LLM response for
-  owner-authored inbound validation. Repeat it only for new channels, threads,
-  agents, bindings, or suspected routing/session drift.
-- Once the route is proven, normal Work Units should not need an extra Team
-  Lead LLM call just to be visible. The repeated cost is mostly manual
-  lifecycle posting, team-channel readback, source-artifact checks, and
-  Operations Lead decision review.
-- Day-0 manual `discord-bound` operation is expected to add roughly four to
-  eight minutes to a small Work Unit compared with an artifact-only
-  `cli-direct` run. Larger Work Units dilute this overhead; tiny tasks may not
-  justify it.
-- `cli-delivered` is useful for delivery smoke and structured `deliveryStatus`,
-  but it remains weaker evidence than owner-authored inbound plus channel
-  readback.
+- Assignment mirror adds about ten to thirty seconds.
+- Result mirror adds about twenty to sixty seconds.
+- Expected added default overhead is roughly thirty to ninety seconds.
+- No extra Team Lead execution call should be added for visibility. Ask the
+  Team Lead to include a concise `team_channel_summary` in the normal result.
+- `#ops-feed` summary is not counted as extra overhead when it was already part
+  of the operating baseline.
+- `discord-bound` diagnostics can still add one short Team Lead LLM response,
+  but diagnostics are not the default run path.
 
 Activation priority after Phase 4:
 
-1. Prefer a Discord publisher first, because lifecycle event posting is now the
-   most obvious repeated manual cost and can be automated without changing
-   source-of-truth rules.
-2. Defer GitHub Project sync until issue volume makes the existing Work
+1. Standardize mirror formatting first. This removes the strict-route ceremony
+   without introducing a new command router.
+2. Consider a Discord publisher only if manual mirror or feed posting remains
+   repetitive. The publisher may send formatted messages only.
+3. Defer GitHub Project sync until issue volume makes the existing Work
    Card/artifact/status trail hard to scan.
-3. Defer scheduled daemon or Pulse Monitor activation until real stale-claim
+4. Defer scheduled daemon or Pulse Monitor activation until real stale-claim
    risk outweighs alert noise and false positives.
-4. Keep packaging/public v1 behind the internal loop proving stable.
+5. Keep packaging/public v1 behind the internal loop proving stable.
 
 ## Recommended Channels
 
@@ -152,9 +169,10 @@ default. If no agent is bound to a channel, a response should not be assumed. If
 multiple agents answer the same team channel by default, fix routing before
 dogfood because the channel is no longer auditable.
 
-Telegram direct chat remains the fallback and private control plane for
-sensitive setup, credentials locations, Discord outage, and recovery. It should
-not broadcast normal Discord requests back into Discord by default.
+Telegram direct chat remains the private control plane for sensitive setup,
+credentials locations, Discord outage, and recovery discussion. It is not a
+replacement source of truth and should not broadcast normal Discord requests
+back into Discord by default.
 
 Do not create extra channels beyond these seven until the event or
 direct-question volume proves they are needed.
@@ -254,6 +272,22 @@ python3 scripts/openclaw_company_ops.py discord event \
 Use `--format json` when another publisher needs structured output. The
 formatter prints only; it does not send to Discord, mutate GitHub, update
 claims, or change execution state.
+
+Repo-local team-channel mirrors can also be formatted without sending:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord mirror \
+  --kind ASSIGNMENT \
+  --work-unit-id WU-YYMMDD-001 \
+  --owner build-lab \
+  --source cli-direct \
+  --summary "build-lab is assigned to patch the route cost guidance." \
+  --next "Team Lead executes and returns a concise result summary."
+```
+
+Use `--kind RESULT` with `--verification` for result mirrors. Mirror formatting
+also prints only; it does not send to Discord, mutate GitHub, update claims, or
+change execution state.
 
 ## Required Event Fields
 

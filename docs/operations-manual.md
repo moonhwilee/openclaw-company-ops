@@ -25,10 +25,19 @@ Owner -> Operations Lead -> Team Lead OpenClaw Agent -> Subagents
 
 A Work Unit is not an actor. It is the task unit owned by a Team Lead session.
 
-## Daily Operating Surfaces
+## Operating Surfaces
 
-Use these surfaces together. None of them may replace another required
-artifact.
+Use the smallest surface that preserves truth and visibility.
+
+For normal CLI-first delegation, the required surfaces are:
+
+- CLI Team Lead assignment and result.
+- Team-channel assignment and result mirrors.
+- Existing `#ops-feed` summary.
+- Operations Lead final report with lightweight verification and judgment.
+
+For formal audit-critical Work Units, also use these source artifacts together.
+None of them may replace another required artifact:
 
 - Work Card: shared GitHub Issue for the Work Unit.
 - Assignment Packet: detailed handoff from Operations Lead to Team Lead.
@@ -47,76 +56,69 @@ For the active post-setup sequence, see `docs/post-setup-plan.md`. In that
 sequence, Discord visibility is checked before the first real dogfood Work Unit
 is accepted, so the owner can observe orchestration transitions directly.
 
-## Execution Route Visibility
+## Default Delegation Path
 
-Record the execution route explicitly when Discord visibility expectations
-matter.
+Use `CLI-first + team-channel mirror + #ops-feed summary` as the default
+delegation path.
 
-- `cli-direct`: the Team Lead runs through a direct CLI or local agent session.
-  This route does not create a Discord team-channel execution record. It must be
-  made owner-visible through source-artifact-backed lifecycle events in
-  `#ops-feed`. Use it for internal repo-local execution only when a visible
-  team-channel conversation is not required.
-- `discord-bound`: the Team Lead runs through a bound Discord team channel or
-  thread. A team-channel or thread record is expected because Discord is the
-  conversation surface.
-- `cli-delivered`: the Team Lead is triggered from CLI and the result is sent
-  into Discord with delivery options. This is useful for delivery checks, but it
-  does not prove a Discord-bound conversation unless the selected session is the
-  channel or thread session.
+The default flow is:
 
-Team-channel records are also expected for explicit owner or Operations Lead
-Q&A in a team channel. They are not expected for `cli-direct` execution by
-itself.
+1. Operations Lead assigns the Team Lead through CLI or a local agent session.
+2. Operations Lead posts one assignment mirror in the relevant `#team-*`
+   channel.
+3. Team Lead executes through CLI and reports back to the Operations Lead.
+4. Operations Lead posts one result mirror in the same `#team-*` channel, using
+   the Team Lead's `team_channel_summary` when available.
+5. Operations Lead performs lightweight verification before final reporting.
+6. Operations Lead keeps the existing `#ops-feed` summary cadence.
 
-Do not treat a successful `cli-direct` session as owner-visible delegation by
-default. The agent may finish and store a final response while the caller's
-terminal does not receive a clean final text response. When using `cli-direct`,
-the Operations Lead must verify completion through session readback, source
-artifacts, evidence, and checks. When the owner needs to inspect Team Lead
-communication in Discord, use `discord-bound` instead.
+The team-channel mirrors are visibility only. They show the owner what was
+assigned and what result came back, but they do not create, mutate, approve,
+close, reassign, recover, or complete Work Units.
 
-If a CLI-triggered run must send a visible Discord result, use structured output
-and inspect the delivery result. A successful Discord send is delivery evidence,
-not source-of-truth evidence and not by itself proof of a Discord-bound team
-conversation.
+The expected Team Lead result should include a short `team_channel_summary`
+field or equivalent concise result text. This avoids a second summarization
+call and lets the Operations Lead publish the mirror directly.
 
-For both routes, Discord is visibility-only and publisher-only. It must not
-create, mutate, approve, close, reassign, recover, or complete Work Units.
+Keep a lightweight final judgment. The Operations Lead still checks that the
+result matches the request, required smoke or tests passed, and repo state is
+not misleading. For normal tasks this judgment lives in the final report, such
+as `Verification: pass` and `Decision: accept`; it does not require a separate
+decision artifact.
+
+If a team-channel mirror send fails, say that the mirror failed. Do not create
+a fallback truth source, do not pretend Discord visibility was achieved, and do
+not route commands through another surface to compensate. The source of truth
+remains the repo artifacts, checks, and final Operations Lead report.
+
+Discord-bound execution is no longer the default path. Use it only for route
+diagnostics, owner-authored Q&A smoke tests, or a deliberate experiment where
+the team channel itself must be the execution conversation surface.
+
+For all paths, Discord is visibility-only and publisher-only. It must not create,
+mutate, approve, close, reassign, recover, or complete Work Units.
 
 ## Manual Cost Budget
 
-Use this budget when deciding whether owner-visible delegation is worth the
-extra ceremony.
+Use this budget against the default `cli-direct + #ops-feed summary` baseline.
 
-One-time or reset-time route validation:
+Additional default mirror cost:
 
-- Owner-authored inbound validation adds one short Team Lead LLM response. It
-  is required when proving a channel, thread, or binding for the first time, and
-  should be repeated after material routing changes, Gateway/session drift, or
-  suspicious compaction/recovery behavior.
-- CLI channel-session delivery smoke can also add one short Team Lead LLM call
-  if used. It proves delivery and structured status, but it does not replace
-  owner-authored Discord-bound validation.
+- Assignment mirror: about ten to thirty seconds.
+- Result mirror: about twenty to sixty seconds.
+- Expected additional cost over the existing CLI-first flow: roughly thirty to
+  ninety seconds.
 
-Normal `discord-bound` Work Unit cost after the route is already validated:
+Do not count the existing `#ops-feed` summary as new mirror overhead when it
+was already part of the baseline operation.
 
-- Do not add a second Team Lead execution call just for visibility. The Team
-  Lead execution is still the main LLM call.
-- Expect Day-0 manual overhead of roughly four to eight minutes per small Work
-  Unit for lifecycle event posting, team-channel readback, route recording,
-  evidence/decision review, GitHub issue hygiene, and final status checks.
-- Team-channel readback, `#ops-feed` event formatting, source-artifact checks,
-  and Work Unit status commands are operational/tool time, not separate Team
-  Lead LLM calls.
-- Operations Lead review still consumes judgment time and main-session context.
-  This is intentional: acceptance remains a human-auditable decision, not a
-  Team Lead self-certification.
+No extra Team Lead LLM execution call should be added for visibility. The Team
+Lead should include a concise result summary in the same response that reports
+the work.
 
-Use `discord-bound` when the owner should be able to inspect Team Lead
-communication in Discord. Use `cli-direct` only for low-risk internal work where
-team-channel conversation visibility is not required, and record that route
-truthfully.
+One-time route diagnostics may still add one short Team Lead LLM response when
+testing a new Discord channel, thread, binding, agent, or suspected stale
+session. That diagnostic is not part of normal delegation cost.
 
 ## Direct Owner Questions To Team Leads
 
@@ -141,25 +143,22 @@ Evidence & Result Record, and Operations Lead Decision.
 ## Standard Manual Loop
 
 1. Owner states a goal or problem.
-2. Operations Lead decides whether it should become a Work Unit.
-3. Operations Lead writes an Assignment Packet.
-4. Operations Lead creates a GitHub Issue as the Work Card.
-5. Operations Lead links the Assignment Packet from the Work Card.
-6. Operations Lead records an initial Ops Claim Ledger Entry.
-7. Operations Lead emits an `ASSIGNED` visibility event when Discord visibility
-   is active.
-8. Operations Lead records the execution route before assigning one Team Lead
-   OpenClaw Agent.
-9. Team Lead executes the Work Unit and manages its own subagents.
-10. Team Lead updates the claim when state changes.
-11. Team Lead emits visibility events for started, blocked, and result-ready
-    states when Discord visibility is active.
-12. Team Lead submits an Evidence & Result Record.
-13. Operations Lead reviews evidence against the Assignment Packet.
-14. Operations Lead records a decision.
-15. Operations Lead emits a decision visibility event when Discord visibility
-    is active.
-16. Work Card is closed only after evidence and decision links exist.
+2. Operations Lead decides whether it should become an official Work Unit or a
+   smaller delegated task.
+3. Operations Lead sends the Team Lead a CLI-first assignment.
+4. Operations Lead posts one assignment mirror in the relevant team channel.
+5. Team Lead executes the work and reports back with a concise
+   `team_channel_summary` when possible.
+6. Operations Lead posts one result mirror in the same team channel.
+7. Operations Lead verifies the result at the level required by the task.
+8. Operations Lead keeps the existing `#ops-feed` summary trail.
+9. Operations Lead reports the final result with lightweight verification and
+   accept/revise/hold judgment.
+
+For formal audit-critical Work Units, also create the Work Card, Assignment
+Packet, Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead
+Decision. These formal artifacts are required before closing a formal Work
+Card, but they are not required for every small CLI-first team delegation.
 
 If any required artifact is missing, mark the Work Unit blocked instead of
 substituting a GitHub comment, Discord message, PR summary, or dashboard field.
