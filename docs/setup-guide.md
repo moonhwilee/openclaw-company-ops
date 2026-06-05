@@ -176,18 +176,18 @@ Dashboard creation timing is documented in `docs/company-dashboard-timing.md`.
 
 ## Discord Setup
 
-Status: Repo-local alert formatter supported, pre-dogfood visibility required
+Status: Repo-local visibility formatter supported, pre-dogfood visibility required
 
 Discord remains a visibility-only surface. For post-setup dogfood, however, a
 minimal Discord visibility path should be configured before the first real Work
-Unit so the owner can observe orchestration events directly instead of relying
-only on Operations Lead summaries.
+Unit so the owner can follow the `#ops-feed` request/result timeline and drill
+into team detail trails instead of relying only on Operations Lead summaries.
 
 Recommended channels:
 
 - `#ops-lead`: owner-to-Operations-Lead planning, scope alignment, phase
   decisions, and handoff preparation.
-- `#ops-feed`: high-level assignment, blocker, result, and decision events.
+- `#ops-feed`: owner-facing assignment, completion, and blocker summaries.
 - `#ops-alerts`: stale claim, suspected session mismatch, and suspected
   compaction recovery alerts.
 - `#team-build-pq`: direct questions for the PrimeQuant platform team lead.
@@ -210,7 +210,7 @@ Routing rules:
   channel by default.
 - Require an explicit mention or address before an agent answers non-owner
   chatter.
-- Keep `#ops-feed` event-focused.
+- Keep `#ops-feed` focused on owner-facing request/result summaries.
 - Keep `#ops-alerts` alert-focused.
 - Do not bind default conversational responders to `#ops-feed` or
   `#ops-alerts`.
@@ -400,7 +400,7 @@ check`, then optionally schedule it as an alert-only job.
 
 ### Discord Ops Bridge
 
-Status: Alert formatter supported, visibility publisher gated
+Status: Visibility formatter supported, publisher gated
 
 Discord Ops Bridge will publish normalized operating events to Discord.
 

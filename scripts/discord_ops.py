@@ -16,17 +16,24 @@ ALERT_EVENTS = {
     "COMPACTION_RECOVERY_SUSPECTED",
 }
 
-LIFECYCLE_EVENTS = {
-    "ASSIGNED",
-    "STARTED",
-    "BLOCKED",
-    "RESULT_READY",
-    "DECISION",
+VISIBILITY_SURFACES = {
+    "ops-feed",
+    "team-detail",
 }
 
-MIRROR_KINDS = {
-    "ASSIGNMENT",
-    "RESULT",
+OPS_FEED_EVENTS = {
+    "ASSIGNED",
+    "COMPLETED",
+    "BLOCKED",
+}
+
+TEAM_DETAIL_EVENTS = {
+    "ASSIGNED_DETAIL",
+    "STARTED",
+    "RESULT_READY",
+    "ACCEPTED",
+    "REVISE",
+    "BLOCKED_DETAIL",
 }
 
 
@@ -103,43 +110,38 @@ def format_text_event(event: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def format_text_mirror(mirror: dict[str, str]) -> str:
+def format_text_visibility(event: dict[str, str]) -> str:
     lines = [
-        f"[{mirror['kind']}_MIRROR] {mirror['work_unit_id']}",
-        f"Summary: {mirror['summary']}",
-        f"Owner: {mirror['owner']}",
-        f"Source: {mirror['source']}",
+        f"[{event['kind']}] {event['work_unit_id']}",
+        f"Surface: {event['surface']}",
+        f"Summary: {event['summary']}",
+        f"Owner: {event['owner']}",
+        f"Source: {event['source']}",
     ]
-    verification = mirror.get("verification")
+    why = event.get("why")
+    if why:
+        lines.append(f"Why: {why}")
+    verification = event.get("verification")
     if verification:
         lines.append(f"Verification: {verification}")
-    lines.append(f"Next: {mirror['next']}")
+    lines.append(f"Next: {event['next']}")
     return "\n".join(lines)
 
 
-def lifecycle_event_from_args(args: argparse.Namespace) -> dict[str, str]:
-    if args.event not in LIFECYCLE_EVENTS:
-        raise ValueError(f"unsupported lifecycle event: {args.event}")
-    return {
-        "event": args.event,
-        "work_unit_id": args.work_unit_id,
-        "work_card": args.work_card,
-        "owner": args.owner,
-        "source": args.source_artifact,
-        "summary": args.summary,
-        "next": args.next,
-    }
-
-
-def mirror_from_args(args: argparse.Namespace) -> dict[str, str]:
-    if args.kind not in MIRROR_KINDS:
-        raise ValueError(f"unsupported mirror kind: {args.kind}")
+def visibility_from_args(args: argparse.Namespace) -> dict[str, str]:
+    if args.surface not in VISIBILITY_SURFACES:
+        raise ValueError(f"unsupported visibility surface: {args.surface}")
+    allowed = OPS_FEED_EVENTS if args.surface == "ops-feed" else TEAM_DETAIL_EVENTS
+    if args.kind not in allowed:
+        raise ValueError(f"unsupported {args.surface} visibility kind: {args.kind}")
     return {
         "kind": args.kind,
+        "surface": args.surface,
         "work_unit_id": args.work_unit_id,
         "owner": args.owner,
         "source": args.source,
         "summary": args.summary,
+        "why": args.why,
         "verification": args.verification,
         "next": args.next,
     }
@@ -164,33 +166,18 @@ def cmd_alerts(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_event(args: argparse.Namespace) -> int:
+def cmd_visibility(args: argparse.Namespace) -> int:
     try:
-        event = lifecycle_event_from_args(args)
+        event = visibility_from_args(args)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     if args.format == "json":
-        print(json.dumps({"event": event}, indent=2, sort_keys=True, ensure_ascii=False))
+        print(json.dumps({"visibility": event}, indent=2, sort_keys=True, ensure_ascii=False))
         return 0
 
-    print(format_text_event(event))
-    return 0
-
-
-def cmd_mirror(args: argparse.Namespace) -> int:
-    try:
-        mirror = mirror_from_args(args)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-    if args.format == "json":
-        print(json.dumps({"mirror": mirror}, indent=2, sort_keys=True, ensure_ascii=False))
-        return 0
-
-    print(format_text_mirror(mirror))
+    print(format_text_visibility(event))
     return 0
 
 
@@ -206,38 +193,32 @@ def build_parser() -> argparse.ArgumentParser:
     alerts.add_argument("--format", choices=("text", "json"), default="text")
     alerts.set_defaults(func=cmd_alerts)
 
-    event = subparsers.add_parser("event", help="Format a Work Unit lifecycle event for #ops-feed")
-    event.add_argument(
-        "--event",
+    visibility = subparsers.add_parser(
+        "visibility", help="Format owner-summary or team-detail visibility text"
+    )
+    visibility.add_argument(
+        "--surface",
         required=True,
-        help="Lifecycle event name: ASSIGNED, STARTED, BLOCKED, RESULT_READY, or DECISION",
+        choices=tuple(sorted(VISIBILITY_SURFACES)),
+        help="Visibility surface: ops-feed or team-detail",
     )
-    event.add_argument("--work-unit-id", required=True, help="Work Unit id")
-    event.add_argument("--work-card", required=True, help="Work Card URL")
-    event.add_argument("--owner", required=True, help="Current owner or next-action owner")
-    event.add_argument("--source-artifact", required=True, help="Source artifact path or URL")
-    event.add_argument("--summary", required=True, help="Short human-readable summary")
-    event.add_argument("--next", default="none", help="Expected next action")
-    event.add_argument("--format", choices=("text", "json"), default="text")
-    event.set_defaults(func=cmd_event)
-
-    mirror = subparsers.add_parser(
-        "mirror", help="Format a team-channel assignment/result mirror"
-    )
-    mirror.add_argument(
+    visibility.add_argument(
         "--kind",
         required=True,
-        choices=tuple(sorted(MIRROR_KINDS)),
-        help="Mirror kind: ASSIGNMENT or RESULT",
+        help=(
+            "Visibility kind. ops-feed: ASSIGNED, COMPLETED, BLOCKED. "
+            "team-detail: ASSIGNED_DETAIL, STARTED, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
+        ),
     )
-    mirror.add_argument("--work-unit-id", required=True, help="Work Unit id or task id")
-    mirror.add_argument("--owner", required=True, help="Assigned Team Lead or result owner")
-    mirror.add_argument("--source", default="cli-direct", help="CLI assignment, repo path, or URL")
-    mirror.add_argument("--summary", required=True, help="Short team-channel summary")
-    mirror.add_argument("--verification", default="", help="Short verification summary for result mirrors")
-    mirror.add_argument("--next", default="none", help="Expected next action")
-    mirror.add_argument("--format", choices=("text", "json"), default="text")
-    mirror.set_defaults(func=cmd_mirror)
+    visibility.add_argument("--work-unit-id", required=True, help="Work Unit id or task id")
+    visibility.add_argument("--owner", required=True, help="Assigned Team Lead or result owner")
+    visibility.add_argument("--source", default="cli-direct", help="CLI assignment, repo path, or URL")
+    visibility.add_argument("--summary", required=True, help="Short human-readable summary")
+    visibility.add_argument("--why", default="", help="Short reason for assignment or decision")
+    visibility.add_argument("--verification", default="", help="Short verification summary for result events")
+    visibility.add_argument("--next", default="none", help="Expected next action")
+    visibility.add_argument("--format", choices=("text", "json"), default="text")
+    visibility.set_defaults(func=cmd_visibility)
 
     return parser
 

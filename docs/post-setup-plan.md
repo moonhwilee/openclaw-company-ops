@@ -39,8 +39,8 @@ Scope:
   - `#ops-lead` for owner-to-Operations-Lead planning, scope alignment, phase
     decisions, and handoff preparation before Team Lead delegation.
 - Select or create the visibility channels:
-  - `#ops-feed` for assignment, started, blocked, result-ready, and decision
-    events.
+  - `#ops-feed` for owner-facing assignment, completion, and blocker
+    summaries.
   - `#ops-alerts` for stale claim, session mismatch, and suspected compaction
     recovery alerts.
 - Select or create the direct team channels:
@@ -126,7 +126,7 @@ Scope:
 - Have the Team Lead execute packet-first.
 - Produce an Evidence & Result Record.
 - Record an Operations Lead Decision.
-- Emit Discord visibility events for the major transitions.
+- Emit Discord visibility messages for the major transitions.
 - Record any missing evidence, stale claim, compaction, unsafe-command, or
   premature-completion friction that a future hook could prevent.
 
@@ -159,7 +159,7 @@ Acceptance gate:
   explicit limitation.
 - Existing setup smokes still pass.
 - The owner can still audit the Work Unit trail through artifacts plus
-  visibility events.
+  visibility messages.
 - Any hook decision has a yes/no rationale. If hooks are still not justified,
   record why and proceed without them.
 
@@ -206,17 +206,24 @@ Purpose: prove the team-lead model, not just the Operations Lead loop.
 Default route:
 
 - Phase 4 proved that strict `discord-bound` routing can work, but it is not
-  the normal operating path. The default path is now `CLI-first +
-  team-channel mirror + #ops-feed summary`.
+  the normal operating path. The default path is now `CLI-first + #ops-feed
+  owner summary + #team-* detail trail`.
 - Operations Lead assigns through CLI or a local agent session for speed.
-- Operations Lead posts one assignment mirror in the relevant `#team-*`
-  channel.
-- Team Lead reports back through the CLI path and includes a concise
-  `team_channel_summary` when possible.
-- Operations Lead posts one result mirror in the same team channel.
-- `#ops-feed` keeps the existing operating summary cadence.
-- Discord mirrors are visibility-only and must not create, mutate, approve,
-  close, reassign, recover, or complete Work Units.
+- Operations Lead posts one owner-facing `[ASSIGNED]` summary in `#ops-feed`.
+- Operations Lead posts one `[ASSIGNED_DETAIL]` entry in the relevant
+  `#team-*` channel.
+- Team Lead reports back through the CLI path and includes a concise result
+  summary, verification summary, changed/source artifacts, blocker if any, and
+  next action.
+- Operations Lead posts detailed trail entries such as `[STARTED]` and
+  `[RESULT_READY]` in the relevant `#team-*` channel when claim or result
+  information is available.
+- Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
+  in `#ops-feed`.
+- Operations Lead posts `[ACCEPTED]`, `[REVISE]`, or `[BLOCKED_DETAIL]` in the
+  relevant `#team-*` channel after review.
+- Discord visibility messages must not create, mutate, approve, close,
+  reassign, recover, or complete Work Units.
 - `discord-bound` route validation is reserved for diagnostics, owner-authored
   Q&A smoke tests, or deliberate experiments where the Discord channel itself
   must be the execution session.
@@ -237,10 +244,13 @@ Acceptance gate:
 
 - The Team Lead can execute without hidden Operations Lead intervention.
 - The route is recorded truthfully, usually `cli-direct`.
-- The relevant team channel contains one assignment mirror and one result
-  mirror.
-- The result mirror is derived from the Team Lead result, preferably the
-  `team_channel_summary` field, rather than a separate execution call.
+- `#ops-feed` contains one owner-facing assignment summary and one owner-facing
+  completion or blocker summary.
+- The relevant team channel contains a detailed execution trail covering
+  assignment detail, result/evidence detail, and Operations Lead review.
+- The visibility messages are derived from the Team Lead result and Operations
+  Lead review, not from a separate Team Lead execution or LLM summarization
+  call.
 - CLI-triggered delivery status may be captured if used, but it is delivery
   evidence only.
 - Subagent output is treated as input, not completion truth.
@@ -253,17 +263,18 @@ Observed Phase 4 result:
 
 - `WU-260606-003` proved the stricter route gate: owner-authored inbound in
   `#team-build-lab`, Team Lead response in the same channel, Operations Lead
-  assignment/result handoff visible there, lifecycle events in `#ops-feed`, and
-  `execution_route: discord-bound` in the source artifact.
+  assignment/result handoff visible there, lifecycle visibility in `#ops-feed`,
+  and `execution_route: discord-bound` in the source artifact.
 - The result also proved that strict `discord-bound` ceremony is too expensive
   as the default. In the Phase 4 slice, the build-lab execution itself took
   about four minutes, while route validation plus manual
   visibility/evidence/decision handling took the overall slice to roughly
   eleven minutes.
 - The revised default keeps the useful visibility outcome and removes the
-  strict-route ceremony. Compared with the existing CLI-first plus `#ops-feed`
-  baseline, only the assignment/result mirrors are incremental. Expected added
-  cost is roughly thirty to ninety seconds.
+  strict-route ceremony. Compared with the CLI-first baseline, only
+  deterministic visibility formatting and manual posting are incremental.
+  Expected added cost is roughly thirty to ninety seconds while posting remains
+  manual.
 - Rerun owner-authored route validation only when diagnosing a new channel,
   thread, binding, agent, or suspected stale session. It is not part of normal
   delegation.
@@ -275,12 +286,13 @@ Purpose: decide which optional automation is ready to activate.
 Phase 4 changed the priority from "enable more automation" to "simplify the
 default visible delegation path." Evaluate in this order:
 
-1. Mirror formatter/reporting contract: first activation candidate. Standardize
-   assignment/result mirror text and require Team Lead results to include a
-   concise `team_channel_summary` when useful.
-2. Discord publisher: enable only if manual mirror or feed posting remains
-   repetitive after formatter standardization. It may send formatted messages
-   only and must not become a command router or source of truth.
+1. Visibility formatter/reporting contract: first activation candidate.
+   Standardize `#ops-feed` owner summaries and `#team-*` detail trail text from
+   one Operations Lead event object.
+2. Discord publisher: enable only if manual visibility posting remains
+   repetitive after formatter standardization. It may send explicitly targeted
+   formatted messages only and must not become a command router or source of
+   truth.
 3. GitHub Project sync: defer unless Work Card volume or cross-repo tracking
    makes issue labels plus source artifacts too slow to scan.
 4. Scheduled Pulse Monitor: defer until stale-claim risk appears in repeated
@@ -293,10 +305,10 @@ default visible delegation path." Evaluate in this order:
 
 Evaluate each gate independently:
 
-- Mirror formatter/reporting contract: accept when assignment and result
-  mirrors can be generated locally without sending or mutating state.
+- Visibility formatter/reporting contract: accept when owner summaries and team
+  detail messages can be generated locally without sending or mutating state.
 - Discord publisher: enable only if repeated manual posting is still too slow
-  after the mirror formatter exists.
+  after the visibility formatter exists.
 - GitHub Project sync: enable only if there are enough Work Cards or repos to
   make a dashboard useful.
 - Scheduled Pulse Monitor: enable only if manual pulse checks reveal real stale

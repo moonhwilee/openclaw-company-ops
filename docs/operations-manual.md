@@ -29,15 +29,20 @@ A Work Unit is not an actor. It is the task unit owned by a Team Lead session.
 
 Use the smallest surface that preserves truth and visibility.
 
-For normal CLI-first delegation, the required surfaces are:
+For every Team Lead delegation, the required visibility surfaces are:
 
 - CLI Team Lead assignment and result.
-- Team-channel assignment and result mirrors.
-- Existing `#ops-feed` summary.
+- `#ops-feed` owner-facing assignment and result summaries.
+- Relevant `#team-*` detailed execution trail.
 - Operations Lead final report with lightweight verification and judgment.
 
-For formal audit-critical Work Units, also use these source artifacts together.
-None of them may replace another required artifact:
+All Team Lead delegations are audit-visible. The Discord flow does not split
+into normal and formal message modes. Only the depth of source artifacts varies
+with task risk.
+
+For work that changes source, affects operations, carries external/cost risk,
+or needs later audit, also use these source artifacts together. None of them
+may replace another required artifact:
 
 - Work Card: shared GitHub Issue for the Work Unit.
 - Assignment Packet: detailed handoff from Operations Lead to Team Lead.
@@ -58,38 +63,43 @@ is accepted, so the owner can observe orchestration transitions directly.
 
 ## Default Delegation Path
 
-Use `CLI-first + team-channel mirror + #ops-feed summary` as the default
+Use `CLI-first + #ops-feed owner summary + #team-* detail trail` as the default
 delegation path.
 
 The default flow is:
 
 1. Operations Lead assigns the Team Lead through CLI or a local agent session.
-2. Operations Lead posts one assignment mirror in the relevant `#team-*`
-   channel.
-3. Team Lead executes through CLI and reports back to the Operations Lead.
-4. Operations Lead posts one result mirror in the same `#team-*` channel, using
-   the Team Lead's `team_channel_summary` when available.
-5. Operations Lead performs lightweight verification before final reporting.
-6. Operations Lead keeps the existing `#ops-feed` summary cadence.
+2. Operations Lead posts one owner-facing `[ASSIGNED]` summary in `#ops-feed`.
+3. Operations Lead posts one `[ASSIGNED_DETAIL]` entry in the relevant
+   `#team-*` channel.
+4. Team Lead executes through CLI and reports back to the Operations Lead.
+5. Operations Lead posts team detail entries such as `[STARTED]` and
+   `[RESULT_READY]` when the Team Lead claim or result is available.
+6. Operations Lead performs lightweight verification before final reporting.
+7. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
+   in `#ops-feed`.
+8. Operations Lead posts the detailed accept, revise, or blocker note in the
+   relevant `#team-*` channel.
 
-The team-channel mirrors are visibility only. They show the owner what was
-assigned and what result came back, but they do not create, mutate, approve,
-close, reassign, recover, or complete Work Units.
+The Discord messages are visibility only. They show the owner what was assigned,
+what changed, what result came back, and where to inspect detail, but they do
+not create, mutate, approve, close, reassign, recover, or complete Work Units.
 
-The expected Team Lead result should include a short `team_channel_summary`
-field or equivalent concise result text. This avoids a second summarization
-call and lets the Operations Lead publish the mirror directly.
+The expected Team Lead result should include a short result summary, verification
+summary, changed artifact list, and next action. This avoids a second
+summarization call and lets the Operations Lead render both the `#ops-feed`
+summary and the team detail trail from one event object.
 
 Keep a lightweight final judgment. The Operations Lead still checks that the
 result matches the request, required smoke or tests passed, and repo state is
-not misleading. For normal tasks this judgment lives in the final report, such
-as `Verification: pass` and `Decision: accept`; it does not require a separate
-decision artifact.
+not misleading. For small delegated tasks this judgment lives in the final
+report, such as `Verification: pass` and `Decision: accept`; it does not require
+a separate decision artifact.
 
-If a team-channel mirror send fails, say that the mirror failed. Do not create
-a fallback truth source, do not pretend Discord visibility was achieved, and do
-not route commands through another surface to compensate. The source of truth
-remains the repo artifacts, checks, and final Operations Lead report.
+If a Discord visibility send fails, say that the visibility send failed. Do not
+create a fallback truth source, do not pretend Discord visibility was achieved,
+and do not route commands through another surface to compensate. The source of
+truth remains the repo artifacts, checks, and final Operations Lead report.
 
 Discord-bound execution is no longer the default path. Use it only for route
 diagnostics, owner-authored Q&A smoke tests, or a deliberate experiment where
@@ -100,21 +110,24 @@ mutate, approve, close, reassign, recover, or complete Work Units.
 
 ## Manual Cost Budget
 
-Use this budget against the default `cli-direct + #ops-feed summary` baseline.
+Use this budget against the default `cli-direct` baseline.
 
-Additional default mirror cost:
+Additional default visibility cost:
 
-- Assignment mirror: about ten to thirty seconds.
-- Result mirror: about twenty to sixty seconds.
-- Expected additional cost over the existing CLI-first flow: roughly thirty to
-  ninety seconds.
+- `#ops-feed` assignment summary and matching team detail: about ten to thirty
+  seconds when manually posted.
+- `#ops-feed` completion or blocker summary and matching team detail: about
+  twenty to sixty seconds when manually posted.
+- Expected additional cost over the CLI-first flow: roughly thirty to ninety
+  seconds while posting is manual.
 
-Do not count the existing `#ops-feed` summary as new mirror overhead when it
-was already part of the baseline operation.
+Do not add a second Team Lead or LLM summarization call for visibility. Use one
+Operations Lead event object to render both the owner-facing `#ops-feed` message
+and the detailed `#team-*` message.
 
-No extra Team Lead LLM execution call should be added for visibility. The Team
-Lead should include a concise result summary in the same response that reports
-the work.
+If a future publisher is approved, it may send formatted messages only. It must
+not decide channels by reading message content, mutate state, approve results,
+or become a command router.
 
 One-time route diagnostics may still add one short Team Lead LLM response when
 testing a new Discord channel, thread, binding, agent, or suspected stale
@@ -146,19 +159,22 @@ Evidence & Result Record, and Operations Lead Decision.
 2. Operations Lead decides whether it should become an official Work Unit or a
    smaller delegated task.
 3. Operations Lead sends the Team Lead a CLI-first assignment.
-4. Operations Lead posts one assignment mirror in the relevant team channel.
-5. Team Lead executes the work and reports back with a concise
-   `team_channel_summary` when possible.
-6. Operations Lead posts one result mirror in the same team channel.
-7. Operations Lead verifies the result at the level required by the task.
-8. Operations Lead keeps the existing `#ops-feed` summary trail.
-9. Operations Lead reports the final result with lightweight verification and
+4. Operations Lead posts `[ASSIGNED]` in `#ops-feed`.
+5. Operations Lead posts `[ASSIGNED_DETAIL]` in the relevant team channel.
+6. Team Lead executes the work and reports back with a concise result summary,
+   verification summary, changed artifact list, and next action when possible.
+7. Operations Lead posts team detail trail entries as claim, progress, result,
+   and review information become available.
+8. Operations Lead verifies the result at the level required by the task.
+9. Operations Lead posts `[COMPLETED]` or `[BLOCKED]` in `#ops-feed`.
+10. Operations Lead reports the final result with lightweight verification and
    accept/revise/hold judgment.
 
-For formal audit-critical Work Units, also create the Work Card, Assignment
-Packet, Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead
-Decision. These formal artifacts are required before closing a formal Work
-Card, but they are not required for every small CLI-first team delegation.
+For higher-risk delegated work, also create the Work Card, Assignment Packet,
+Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead Decision.
+These artifacts are required before closing a Work Card, but Discord detail
+trail is always required for Team Lead delegation even when a separate Work
+Card is not created.
 
 If any required artifact is missing, mark the Work Unit blocked instead of
 substituting a GitHub comment, Discord message, PR summary, or dashboard field.

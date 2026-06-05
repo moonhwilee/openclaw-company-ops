@@ -1,6 +1,6 @@
 # Discord Event Visibility
 
-Status: Repo-local alert formatter supported
+Status: Repo-local visibility formatter supported
 
 This guide describes how to use Discord as an operational visibility surface for
 OpenClaw Company Ops before an implemented Discord Ops Bridge exists.
@@ -35,46 +35,64 @@ It should not answer by itself:
 Those judgments stay in the Assignment Packet, Ops Claim Ledger entry, Evidence
 & Result Record, and Operations Lead Decision.
 
-## Default CLI-First Mirrors
+## Default Visibility Flow
 
-The default delegation path is CLI-first execution with Discord mirrors.
+The default delegation path is `CLI-first + #ops-feed owner summary +
+#team-* detail trail`.
 
-Use the CLI or local agent session for the actual Team Lead assignment. Post
-two concise mirror messages in the relevant `#team-*` channel:
+Use the CLI or local agent session for actual Team Lead execution. Every Team
+Lead delegation also produces the same Discord audit-visible trail:
 
-- assignment mirror: what was assigned and who owns it;
-- result mirror: what came back, verification summary, and next action.
+- `#ops-feed`: owner-facing assignment and result/blocker summaries.
+- `#team-*`: detailed assignment, progress, result, and Operations Lead review
+  trail for the relevant Team Lead.
 
-This gives the owner a visible team-channel trail while preserving the fast CLI
-execution path. The mirror messages are not commands, source artifacts, state
-changes, approvals, recoveries, or completion truth.
+There is no normal/formal Discord message-mode split. The Discord flow is the
+same for every Team Lead delegation. Only the depth of source artifacts changes
+with task risk.
 
-The `#ops-feed` summary remains the operating timeline. If it already existed
-in the baseline flow, it is not new mirror overhead.
+The Discord messages are not commands, source artifacts, state changes,
+approvals, recoveries, or completion truth.
 
-Recommended assignment mirror:
+Recommended `#ops-feed` assignment summary:
 
 ```text
-[ASSIGNMENT_MIRROR] WU-YYMMDD-001
+[ASSIGNED] WU-YYMMDD-001
+Surface: ops-feed
 Summary: build-lab is assigned to patch the route cost guidance.
 Owner: build-lab
 Source: cli-direct
+Why: owner-facing delegation visibility.
 Next: Team Lead executes and returns a concise result summary.
 ```
 
-Recommended result mirror:
+Recommended `#team-*` assignment detail:
 
 ```text
-[RESULT_MIRROR] WU-YYMMDD-001
+[ASSIGNED_DETAIL] WU-YYMMDD-001
+Surface: team-detail
+Summary: Patch the route cost guidance and keep the change scoped to docs and formatter smoke.
+Owner: build-lab
+Source: cli-direct
+Why: owner-facing timeline and team drill-down must stay consistent.
+Next: Team Lead executes and reports result summary, verification, changed artifacts, and next action.
+```
+
+Recommended `#ops-feed` completion summary:
+
+```text
+[COMPLETED] WU-YYMMDD-001
+Surface: ops-feed
 Summary: build-lab updated the docs and formatter smoke passed.
 Owner: Operations Lead
 Source: docs/operations-manual.md
 Verification: py_compile, smoke, diff-check passed.
-Next: Operations Lead final report.
+Next: none.
 ```
 
-If the mirror cannot be sent, report that mirror visibility failed. Do not
-invent a fallback truth source and do not claim Discord visibility was achieved.
+If a visibility message cannot be sent, report that the visibility send failed.
+Do not invent a fallback truth source and do not claim Discord visibility was
+achieved.
 
 ## Execution Routes
 
@@ -106,8 +124,9 @@ store. Treat this as a runner/output-plumbing risk. Before relying on a
 - source artifacts, evidence, and checks produced by the Team Lead.
 
 Use `discord-bound` route validation only when proving or diagnosing a channel
-session. For normal delegation, owner-visible communication is provided by
-assignment/result mirrors, not by forcing the execution session into Discord.
+session. For normal delegation, owner-visible communication is provided by the
+`#ops-feed` owner timeline and `#team-*` detail trail, not by forcing the
+execution session into Discord.
 
 Do not count a CLI command that only uses `--deliver --reply-channel discord
 --reply-to ...` as this route validation by itself. Official OpenClaw CLI
@@ -117,25 +136,28 @@ Lead conversation is running from the bound Discord channel or thread.
 
 ## Cost And Activation Guidance
 
-Compare against the baseline of CLI-first execution plus the existing
-`#ops-feed` summary.
+Compare against the baseline of CLI-first execution.
 
-- Assignment mirror adds about ten to thirty seconds.
-- Result mirror adds about twenty to sixty seconds.
-- Expected added default overhead is roughly thirty to ninety seconds.
-- No extra Team Lead execution call should be added for visibility. Ask the
-  Team Lead to include a concise `team_channel_summary` in the normal result.
-- `#ops-feed` summary is not counted as extra overhead when it was already part
-  of the operating baseline.
+- `#ops-feed` assignment summary plus matching team detail adds about ten to
+  thirty seconds when posted manually.
+- `#ops-feed` completion or blocker summary plus matching team detail adds
+  about twenty to sixty seconds when posted manually.
+- Expected added default overhead is roughly thirty to ninety seconds while
+  posting is manual.
+- No extra Team Lead execution call or LLM summarization call should be added
+  for visibility. Ask the Team Lead to include a concise result summary,
+  verification summary, changed/source artifacts, blocker if any, and next
+  action in the normal result.
 - `discord-bound` diagnostics can still add one short Team Lead LLM response,
   but diagnostics are not the default run path.
 
 Activation priority after Phase 4:
 
-1. Standardize mirror formatting first. This removes the strict-route ceremony
+1. Standardize visibility formatting first. This removes strict-route ceremony
    without introducing a new command router.
-2. Consider a Discord publisher only if manual mirror or feed posting remains
-   repetitive. The publisher may send formatted messages only.
+2. Consider a Discord publisher only if manual visibility posting remains
+   repetitive. The publisher may send explicitly targeted formatted messages
+   only.
 3. Defer GitHub Project sync until issue volume makes the existing Work
    Card/artifact/status trail hard to scan.
 4. Defer scheduled daemon or Pulse Monitor activation until real stale-claim
@@ -151,11 +173,11 @@ Use one Operations Lead channel for owner-to-Operations-Lead discussion:
 - `#ops-lead`: Company Ops planning, scope alignment, phase decisions, and
   handoff preparation. This channel should route to the Operations Lead only.
 
-Use two channels for event and alert visibility:
+Use two channels for owner timeline and alert visibility:
 
-- `#ops-feed`: assignment, started, blocked, result-ready, and decision events.
+- `#ops-feed`: owner-facing `ASSIGNED`, `COMPLETED`, and `BLOCKED` summaries.
 - `#ops-alerts`: claim stale, session mismatch, and suspected compaction
-  recovery alerts.
+  recovery alerts only.
 
 Use team channels when the owner needs to ask a Team Lead directly:
 
@@ -239,77 +261,102 @@ Forbidden direct-message behavior:
 Direct answers can be useful context, but source artifacts remain the operating
 record.
 
-## Event Types
+## Visibility Kinds
 
-Use these event names consistently:
+Use these event names consistently.
 
-- `ASSIGNED`: Operations Lead assigned a Work Unit.
-- `STARTED`: Team Lead started execution.
+`#ops-feed` owner-facing summary kinds:
+
+- `ASSIGNED`: Operations Lead assigned a Team Lead.
+- `COMPLETED`: Operations Lead accepted the result for owner-facing purposes.
 - `BLOCKED`: required input, artifact, permission, or decision is missing.
+
+`#team-*` detail-trail kinds:
+
+- `ASSIGNED_DETAIL`: detailed Team Lead assignment and done criteria.
+- `STARTED`: Team Lead started or claimed execution.
+- `RESULT_READY`: Team Lead submitted result, evidence, or verification
+  candidates.
+- `ACCEPTED`: Operations Lead accepted the result after review.
+- `REVISE`: Operations Lead requires revision.
+- `BLOCKED_DETAIL`: blocker details, missing evidence, or required owner input.
+
+`#ops-alerts` alert kinds:
+
 - `CLAIM_STALE`: claim is older than its expected window.
 - `SESSION_MISMATCH`: observed session state conflicts with the claim.
 - `COMPACTION_RECOVERY_SUSPECTED`: compaction may have interrupted Work Unit
   recovery.
-- `RESULT_READY`: Team Lead submitted evidence.
-- `DECISION`: Operations Lead recorded accept, revise, hold, or reject.
 
-Manual Day-0 events may be posted by the Operations Lead or Team Lead. Pulse
-Monitor alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge
-events may be automated, but they must remain visibility events.
+Manual Day-0 visibility may be posted by the Operations Lead. Pulse Monitor
+alert JSON can be formatted with `scripts/discord_ops.py`. Future bridge events
+may be automated, but they must remain visibility events.
 
-Repo-local lifecycle events can be formatted without sending:
+Repo-local visibility text can be formatted without sending:
 
 ```bash
-python3 scripts/openclaw_company_ops.py discord event \
-  --event ASSIGNED \
+python3 scripts/openclaw_company_ops.py discord visibility \
+  --surface ops-feed \
+  --kind ASSIGNED \
   --work-unit-id WU-260606-002 \
-  --work-card https://github.com/moonhwilee/openclaw-company-ops/issues/18 \
   --owner build-lab \
-  --source-artifact docs/examples/manual-dry-run/WU-260606-002/assignment.md \
-  --summary "Work Unit assigned for routing and visibility patch."
+  --source docs/examples/manual-dry-run/WU-260606-002/assignment.md \
+  --summary "Work Unit assigned for routing and visibility patch." \
+  --why "Owner-facing timeline must show delegated work." \
+  --next "Team Lead executes and reports result summary."
 ```
 
 Use `--format json` when another publisher needs structured output. The
 formatter prints only; it does not send to Discord, mutate GitHub, update
 claims, or change execution state.
 
-Repo-local team-channel mirrors can also be formatted without sending:
+Repo-local team-detail text uses the same command with `--surface team-detail`:
 
 ```bash
-python3 scripts/openclaw_company_ops.py discord mirror \
-  --kind ASSIGNMENT \
+python3 scripts/openclaw_company_ops.py discord visibility \
+  --surface team-detail \
+  --kind RESULT_READY \
   --work-unit-id WU-YYMMDD-001 \
   --owner build-lab \
-  --source cli-direct \
-  --summary "build-lab is assigned to patch the route cost guidance." \
-  --next "Team Lead executes and returns a concise result summary."
+  --source docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md \
+  --summary "Evidence is ready for Operations Lead review." \
+  --verification "smoke checks passed" \
+  --next "Operations Lead review."
 ```
 
-Use `--kind RESULT` with `--verification` for result mirrors. Mirror formatting
-also prints only; it does not send to Discord, mutate GitHub, update claims, or
-change execution state.
+Visibility formatting prints only; it does not send to Discord, mutate GitHub,
+update claims, or change execution state.
 
 ## Required Event Fields
 
-Every Discord event should include:
+Every Discord visibility message should include:
 
-- Event type.
+- Surface.
+- Event kind.
 - Work Unit id.
-- Work Card link.
 - Current owner or next-action owner.
-- Source artifact link.
+- Source reference.
 - Short human-readable summary.
+- Next action.
+
+Include a Work Card or deeper source artifact link when one exists. Small
+delegated tasks may use a CLI assignment reference or source path until a Work
+Card is justified by task risk.
 
 Use one source artifact link per event when possible:
 
-- `ASSIGNED`: Assignment Packet.
-- `STARTED`: Ops Claim Ledger entry.
-- `BLOCKED`: Work Card or claim entry with blocker.
+- `ASSIGNED`: Assignment Packet or CLI assignment reference.
+- `ASSIGNED_DETAIL`: Assignment Packet or CLI assignment reference.
+- `STARTED`: Ops Claim Ledger entry or claim note.
+- `BLOCKED`: owner-facing blocked summary source.
+- `BLOCKED_DETAIL`: Work Card, claim entry, or blocker note.
 - `CLAIM_STALE`: Ops Claim Ledger entry.
 - `SESSION_MISMATCH`: Ops Claim Ledger entry and alert note.
 - `COMPACTION_RECOVERY_SUSPECTED`: Ops Claim Ledger entry and alert note.
 - `RESULT_READY`: Evidence & Result Record.
-- `DECISION`: Operations Lead Decision.
+- `COMPLETED`: accepted result source or Operations Lead Decision.
+- `ACCEPTED`: Operations Lead Decision or final review note.
+- `REVISE`: Operations Lead review note.
 
 ## Work Unit Id Format
 
@@ -335,7 +382,8 @@ new Work Units should use `WU-YYMMDD-NNN`.
 Recommended manual format:
 
 ```text
-[EVENT_TYPE] WU-YYMMDD-NNN
+[EVENT_KIND] WU-YYMMDD-NNN
+Surface: ops-feed or team-detail.
 Summary: one short sentence.
 Owner: Operations Lead or Team Lead OpenClaw Agent.
 Source: link to the relevant artifact.
@@ -346,6 +394,7 @@ Example:
 
 ```text
 [RESULT_READY] WU-260606-001
+Surface: team-detail
 Summary: Demo thread handoff evidence is ready for review.
 Owner: Operations Lead
 Source: docs/examples/manual-dry-run/WU-260606-001/evidence.md
@@ -457,29 +506,32 @@ python3 scripts/discord_ops.py alerts \
 The formatter prints messages only. It does not send to Discord or mutate any
 operating state.
 
-## Decision Events
+## Decision Visibility
 
-Use `DECISION` only after an Operations Lead Decision artifact exists.
+Use `ACCEPTED` or `REVISE` in the team detail trail only after Operations Lead
+review. Use `COMPLETED` in `#ops-feed` only when the owner-facing result summary
+is accepted.
 
-The Discord event may summarize the decision, but the decision artifact remains
-the authority.
+The Discord visibility message may summarize the decision, but the decision
+artifact or final Operations Lead review remains the authority.
 
 Accepted decisions can lead to Work Card closure only after both the Evidence &
 Result Record and Operations Lead Decision are linked from the Work Card.
 
 ## Manual Day-0 Checklist
 
-Before posting a Discord event, check:
+Before posting a Discord visibility message, check:
 
 - The Work Unit id is present.
-- The Work Card link is present.
-- The source artifact link exists.
-- The event does not imply completion without evidence and decision.
-- The event does not tell Discord to mutate state.
-- The event is short enough to scan.
+- The surface is explicit: `ops-feed`, `team-detail`, or `ops-alerts`.
+- The source artifact or source reference exists.
+- The message does not imply completion without evidence and Operations Lead
+  review.
+- The message does not tell Discord to mutate state.
+- The message is short enough to scan.
 
-If the event lacks a source artifact, do not post it as an operating event. Add
-or fix the source artifact first.
+If the message lacks a source artifact or source reference, do not post it as an
+operating visibility message. Add or fix the source artifact first.
 
 ## Pre-Dogfood Visibility Gate
 
@@ -487,9 +539,9 @@ Before running the first real dogfood Work Unit:
 
 - Choose the actual channels for `#ops-feed` and `#ops-alerts`.
 - Verify that the owner can see the channels.
-- Post or emit one harmless test event with a real source artifact link.
-- Confirm that the event is traceable back to the Work Card, Assignment Packet,
-  claim, evidence, or decision artifact.
+- Post or emit one harmless visibility message with a real source artifact link.
+- Confirm that the message is traceable back to the Work Card, Assignment
+  Packet, claim, evidence, or decision artifact.
 - Confirm that no Discord action can mutate operating state.
 
 If these checks fail, the dogfood Work Unit can still be prepared, but it should

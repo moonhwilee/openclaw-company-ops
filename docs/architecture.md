@@ -13,7 +13,8 @@ It exists to make this possible:
 - The Operations Lead can define and assign many Work Units.
 - Each team lead OpenClaw agent can execute one Work Unit at a time.
 - Each team lead can directly manage its own subagents.
-- The owner can see company-wide state through a dashboard and event feed.
+- The owner can see company-wide state through a dashboard and `#ops-feed`
+  request/result timeline.
 - The owner can ask Team Leads direct questions in team channels without turning
   those channels into an operating-state command router.
 - Stalled work can be detected without automatic recovery or hidden
@@ -39,7 +40,7 @@ The owner checks:
 - Operations Lead operating judgment.
 - Company direction and priorities.
 - Final result quality.
-- Dashboard and Discord event visibility.
+- Dashboard visibility and Discord request/result visibility.
 - Direct Team Lead answers when a question is better asked in the team channel.
 - Operations Lead decision records.
 
@@ -347,23 +348,28 @@ Pulse Monitor must not:
 8. Team lead directly manages subagents.
 9. Team lead submits Evidence & Result Record.
 10. Operations Lead reviews evidence and records a final decision.
-11. Company Dashboard and Discord Ops reflect the state.
+11. Company Dashboard and Discord visibility reflect the state.
 12. Pulse Monitor emits alerts only if claim expectations and session signals
     diverge.
 
 ## Discord Ops
 
-Discord Ops is the human-visible event feed.
+Discord Ops is the human-visible request/result timeline and team detail trail.
 
-Allowed event types:
+Allowed `#ops-feed` owner-facing summary kinds:
 
 - `ASSIGNED`
-- `STARTED`
+- `COMPLETED`
 - `BLOCKED`
+
+Allowed `#team-*` detail trail kinds:
+
+- `ASSIGNED_DETAIL`
+- `STARTED`
 - `RESULT_READY`
-- `DECISION`
-- `DONE`
-- `ALERT`
+- `ACCEPTED`
+- `REVISE`
+- `BLOCKED_DETAIL`
 
 Discord Ops must not become:
 

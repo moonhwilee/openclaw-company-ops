@@ -44,7 +44,7 @@ Use this map when turning manual setup into CLI commands later.
 | Update claim files | `openclaw-company-ops claim update` |
 | Run stale/session checks manually | `openclaw-company-ops pulse check` |
 | Format Discord alert messages | `openclaw-company-ops discord alerts` |
-| Publish Discord visibility messages | `openclaw-company-ops discord emit` after activation |
+| Publish Discord visibility messages | `openclaw-company-ops discord visibility` after activation |
 | Run smoke test manually | `openclaw-company-ops smoke` |
 
 When a command exists, remove or collapse the corresponding manual section.
@@ -87,7 +87,7 @@ You need:
 - A GitHub account with permission to create or administer the target repo.
 - GitHub Issues enabled on the target repo.
 - A local workspace for private runtime state.
-- Optional: a Discord server or channel for visibility events.
+- Optional: a Discord server or channel for visibility messages.
 
 If an OpenClaw command differs in your environment, run the matching help
 command first:
@@ -636,17 +636,17 @@ launchd, or any background job by itself.
 
 ## Discord Visibility Setup
 
-Status: Repo-local alert formatter supported, pre-dogfood visibility required
+Status: Repo-local visibility formatter supported, pre-dogfood visibility required
 
-Discord is only an event visibility surface. For post-setup dogfood, configure a
+Discord is only a visibility surface. For post-setup dogfood, configure a
 minimal Discord visibility path before the first real Work Unit so the owner can
-observe orchestration events directly.
+follow the `#ops-feed` request/result timeline and team detail trails directly.
 
 Recommended channels:
 
 - `#ops-lead`: direct owner-to-Operations-Lead planning, phase decisions, and
   handoff preparation.
-- `#ops-feed`: assignments, starts, blockers, results, and decisions.
+- `#ops-feed`: owner-facing assignment, completion, and blocker summaries.
 - `#ops-alerts`: stale claims, suspected session mismatch, and suspected
   compaction recovery.
 - `#team-build-pq`: direct questions for the PrimeQuant platform team lead.
@@ -702,33 +702,30 @@ Evidence: <Evidence & Result Record ref>
 Next action: Operations Lead decision
 ```
 
-Recommended event types:
+Recommended visibility kinds:
 
-- `ASSIGNED`
-- `STARTED`
-- `BLOCKED`
-- `CLAIM_STALE`
-- `SESSION_MISMATCH`
-- `COMPACTION_RECOVERY_SUSPECTED`
-- `RESULT_READY`
-- `DECISION`
+- `#ops-feed`: `ASSIGNED`, `COMPLETED`, `BLOCKED`.
+- `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `RESULT_READY`, `ACCEPTED`,
+  `REVISE`, `BLOCKED_DETAIL`.
+- `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
+  `COMPACTION_RECOVERY_SUSPECTED`.
 
-Every Discord event must link back to the real artifact. Discord must not
-accept commands that mutate Work Units in v1.
+Every Discord visibility message must link back to the real artifact or source
+reference. Discord must not accept commands that mutate Work Units in v1.
 
 Every official Work Unit still needs the normal artifact trail. A direct team
 question becomes official work only after a Work Card, Assignment Packet, claim,
 Evidence & Result Record, and Operations Lead Decision are created or updated.
 
-Future automation can add an explicit publisher around the same event shape
+Future automation can add an explicit publisher around the same visibility shape
 only after the activation decision gate:
 
 ```bash
-openclaw-company-ops discord emit --event RESULT_READY --work-unit <id>
+openclaw-company-ops discord visibility --surface team-detail --kind RESULT_READY --work-unit-id <id>
 ```
 
 Do not add a Discord command router. The first acceptable implementation is a
-publisher-only path that posts source-artifact-backed events and cannot mutate
+publisher-only path that posts source-artifact-backed visibility messages and cannot mutate
 GitHub, claims, decisions, assignments, or execution state.
 
 ## Team Lead Execution Setup
@@ -898,7 +895,8 @@ Recommended replacement order:
 3. Replace artifact scaffolding with `work-unit create`.
 4. Replace manual claim edits with `claim update`.
 5. Replace manual pulse comparison with `pulse check`.
-6. Replace manual Discord posting with `discord emit`.
+6. Replace manual Discord posting with `discord visibility`, followed by an
+   explicitly approved publisher only if manual posting stays repetitive.
 7. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the

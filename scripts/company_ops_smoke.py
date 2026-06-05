@@ -163,14 +163,16 @@ def load_claims(ledger: Path) -> list[dict[str, Any]]:
     return parsed
 
 
-def run_discord_mirror_smoke() -> None:
+def run_discord_visibility_smoke() -> None:
     text_result = run_command(
         [
             sys.executable,
             str(DISCORD),
-            "mirror",
+            "visibility",
+            "--surface",
+            "ops-feed",
             "--kind",
-            "ASSIGNMENT",
+            "ASSIGNED",
             "--work-unit-id",
             "WU-260605-901",
             "--owner",
@@ -179,41 +181,45 @@ def run_discord_mirror_smoke() -> None:
             "cli-direct",
             "--summary",
             "build-lab owns this bounded smoke slice.",
+            "--why",
+            "visibility formatter smoke",
             "--next",
             "Team Lead returns a concise result summary.",
         ]
     )
-    require_success(text_result, "discord assignment mirror")
-    if "[ASSIGNMENT_MIRROR] WU-260605-901" not in text_result.stdout:
-        raise RuntimeError("discord assignment mirror did not include expected header")
+    require_success(text_result, "discord ops-feed visibility")
+    if "[ASSIGNED] WU-260605-901" not in text_result.stdout:
+        raise RuntimeError("discord ops-feed visibility did not include expected header")
 
     json_result = run_command(
         [
             sys.executable,
             str(DISCORD),
-            "mirror",
+            "visibility",
+            "--surface",
+            "team-detail",
             "--kind",
-            "RESULT",
+            "RESULT_READY",
             "--work-unit-id",
             "WU-260605-901",
             "--owner",
-            "gbee",
+            "build-lab",
             "--source",
             "local-smoke://WU-260605-901",
             "--summary",
-            "Smoke result mirror is ready.",
+            "Smoke result detail is ready.",
             "--verification",
-            "mirror formatter parsed as JSON",
+            "visibility formatter parsed as JSON",
             "--next",
             "Operations Lead final report.",
             "--format",
             "json",
         ]
     )
-    require_success(json_result, "discord result mirror json")
+    require_success(json_result, "discord team-detail visibility json")
     parsed = json.loads(json_result.stdout)
-    if parsed.get("mirror", {}).get("kind") != "RESULT":
-        raise RuntimeError("discord result mirror JSON did not include RESULT kind")
+    if parsed.get("visibility", {}).get("kind") != "RESULT_READY":
+        raise RuntimeError("discord visibility JSON did not include RESULT_READY kind")
 
 
 def cmd_multi_team(args: argparse.Namespace) -> int:
@@ -235,7 +241,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
             },
         )
         run_pulse_ok(args, ledger, snapshot)
-        run_discord_mirror_smoke()
+        run_discord_visibility_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         claims = load_claims(ledger)
     except (RuntimeError, json.JSONDecodeError) as exc:
@@ -253,7 +259,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
-        "discord mirror formatting, and one result_ready update"
+        "discord visibility formatting, and one result_ready update"
     )
     return 0
 
