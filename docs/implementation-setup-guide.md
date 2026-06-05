@@ -699,7 +699,7 @@ Work Card: <GitHub Issue URL>
 Assignment: <Assignment Packet ref>
 Claim: <Claim ref>
 Evidence: <Evidence & Result Record ref>
-Next action: Operations Lead decision
+Next action: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 ```
 
 Recommended visibility kinds:
@@ -709,6 +709,12 @@ Recommended visibility kinds:
   `REVISE`, `BLOCKED_DETAIL`.
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
+
+Use stable English for event kinds and field names, but use Korean by default
+for internal long-form values such as `Summary`, `Why`, `Verification`, and
+`Next`. Public/package examples may use English. For team detail trails,
+`RESULT_READY` is not enough to close the trail; Operations Lead review must
+follow as `ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL`.
 
 Every Discord visibility message must link back to the real artifact or source
 reference. Discord must not accept commands that mutate Work Units in v1.

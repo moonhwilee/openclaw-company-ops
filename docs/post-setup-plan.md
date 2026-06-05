@@ -218,10 +218,13 @@ Default route:
 - Operations Lead posts detailed trail entries such as `[STARTED]` and
   `[RESULT_READY]` in the relevant `#team-*` channel when claim or result
   information is available.
-- Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
-  in `#ops-feed`.
 - Operations Lead posts `[ACCEPTED]`, `[REVISE]`, or `[BLOCKED_DETAIL]` in the
   relevant `#team-*` channel after review.
+- Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
+  in `#ops-feed` after the team detail trail has been closed.
+- A team detail trail that stops at `[RESULT_READY]` is visibility-incomplete;
+  `[RESULT_READY]` is the Team Lead's submission, not the Operations Lead's
+  review decision.
 - Discord visibility messages must not create, mutate, approve, close,
   reassign, recover, or complete Work Units.
 - `discord-bound` route validation is reserved for diagnostics, owner-authored
@@ -248,6 +251,9 @@ Acceptance gate:
   completion or blocker summary.
 - The relevant team channel contains a detailed execution trail covering
   assignment detail, result/evidence detail, and Operations Lead review.
+- The relevant team channel closes each submitted result with exactly one
+  Operations Lead review event: `[ACCEPTED]`, `[REVISE]`, or
+  `[BLOCKED_DETAIL]`.
 - The visibility messages are derived from the Team Lead result and Operations
   Lead review, not from a separate Team Lead execution or LLM summarization
   call.
@@ -288,7 +294,9 @@ default visible delegation path." Evaluate in this order:
 
 1. Visibility formatter/reporting contract: first activation candidate.
    Standardize `#ops-feed` owner summaries and `#team-*` detail trail text from
-   one Operations Lead event object.
+   one Operations Lead event object. The contract must include the team-channel
+   close invariant: `RESULT_READY` is followed by `ACCEPTED`, `REVISE`, or
+   `BLOCKED_DETAIL` before a completion is reported.
 2. Discord publisher: enable only if manual visibility posting remains
    repetitive after formatter standardization. It may send explicitly targeted
    formatted messages only and must not become a command router or source of
@@ -306,7 +314,9 @@ default visible delegation path." Evaluate in this order:
 Evaluate each gate independently:
 
 - Visibility formatter/reporting contract: accept when owner summaries and team
-  detail messages can be generated locally without sending or mutating state.
+  detail messages can be generated locally without sending or mutating state,
+  and when internal examples use stable English keys with Korean long-form
+  operating text by default.
 - Discord publisher: enable only if repeated manual posting is still too slow
   after the visibility formatter exists.
 - GitHub Project sync: enable only if there are enough Work Cards or repos to

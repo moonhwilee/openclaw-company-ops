@@ -371,6 +371,11 @@ Allowed `#team-*` detail trail kinds:
 - `REVISE`
 - `BLOCKED_DETAIL`
 
+`RESULT_READY` is the Team Lead submission signal. A normal team detail trail
+is not closed until Operations Lead review is posted as `ACCEPTED`, `REVISE`,
+or `BLOCKED_DETAIL`. Internal operating text uses stable English keys with
+Korean long-form values by default; public/package examples may use English.
+
 Discord Ops must not become:
 
 - A command router.

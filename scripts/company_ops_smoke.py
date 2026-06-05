@@ -180,11 +180,11 @@ def run_discord_visibility_smoke() -> None:
             "--source",
             "cli-direct",
             "--summary",
-            "build-lab owns this bounded smoke slice.",
+            "build-lab가 이 제한된 smoke slice를 맡았습니다.",
             "--why",
-            "visibility formatter smoke",
+            "visibility formatter smoke입니다.",
             "--next",
-            "Team Lead returns a concise result summary.",
+            "Team Lead가 간단한 결과 요약을 반환합니다.",
         ]
     )
     require_success(text_result, "discord ops-feed visibility")
@@ -207,11 +207,11 @@ def run_discord_visibility_smoke() -> None:
             "--source",
             "local-smoke://WU-260605-901",
             "--summary",
-            "Smoke result detail is ready.",
+            "Smoke 결과 상세가 Operations Lead 검토 대기 상태입니다.",
             "--verification",
-            "visibility formatter parsed as JSON",
+            "visibility formatter JSON 파싱이 통과했습니다.",
             "--next",
-            "Operations Lead final report.",
+            "Operations Lead가 최종 판정을 남깁니다.",
             "--format",
             "json",
         ]
@@ -220,6 +220,35 @@ def run_discord_visibility_smoke() -> None:
     parsed = json.loads(json_result.stdout)
     if parsed.get("visibility", {}).get("kind") != "RESULT_READY":
         raise RuntimeError("discord visibility JSON did not include RESULT_READY kind")
+
+    accepted_result = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "visibility",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "ACCEPTED",
+            "--work-unit-id",
+            "WU-260605-901",
+            "--owner",
+            "Operations Lead",
+            "--source",
+            "local-smoke://WU-260605-901/final-review",
+            "--summary",
+            "Operations Lead 검토 결과, smoke 결과를 수락합니다.",
+            "--verification",
+            "RESULT_READY 이후 ACCEPTED까지 team detail trail이 닫혔습니다.",
+            "--public-summary",
+            "Operations Lead accepted the bounded visibility smoke result.",
+            "--next",
+            "ops-feed completion summary.",
+        ]
+    )
+    require_success(accepted_result, "discord team-detail accepted visibility")
+    if "[ACCEPTED] WU-260605-901" not in accepted_result.stdout:
+        raise RuntimeError("discord accepted visibility did not include expected header")
 
 
 def cmd_multi_team(args: argparse.Namespace) -> int:
@@ -259,7 +288,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
-        "discord visibility formatting, and one result_ready update"
+        "discord visibility formatting through accepted review, and one result_ready update"
     )
     return 0
 

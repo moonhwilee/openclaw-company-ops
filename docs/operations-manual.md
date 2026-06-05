@@ -76,10 +76,17 @@ The default flow is:
 5. Operations Lead posts team detail entries such as `[STARTED]` and
    `[RESULT_READY]` when the Team Lead claim or result is available.
 6. Operations Lead performs lightweight verification before final reporting.
-7. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
+7. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
+   `[BLOCKED_DETAIL]` review note in the relevant `#team-*` channel.
+8. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
    in `#ops-feed`.
-8. Operations Lead posts the detailed accept, revise, or blocker note in the
-   relevant `#team-*` channel.
+
+`[RESULT_READY]` is a Team Lead result-submission signal, not an Operations
+Lead decision. A Team Lead delegation is visibility-incomplete if the relevant
+team channel stops at `[RESULT_READY]`. Before reporting completion, the
+Operations Lead must close the team detail trail with `[ACCEPTED]`, `[REVISE]`,
+or `[BLOCKED_DETAIL]`, and then close the owner-facing timeline in `#ops-feed`
+with `[COMPLETED]` or `[BLOCKED]`.
 
 The Discord messages are visibility only. They show the owner what was assigned,
 what changed, what result came back, and where to inspect detail, but they do
@@ -89,6 +96,13 @@ The expected Team Lead result should include a short result summary, verificatio
 summary, changed artifact list, and next action. This avoids a second
 summarization call and lets the Operations Lead render both the `#ops-feed`
 summary and the team detail trail from one event object.
+
+Use stable English for event kinds and field names, and Korean by default for
+internal long-form human-readable values. In internal operation, values such as
+`Summary`, `Why`, `Verification`, and `Next` should be Korean unless the message
+is explicitly public/package-facing. If a line may later be reused publicly,
+add an optional English `Public summary` rather than making the internal body
+English.
 
 Keep a lightweight final judgment. The Operations Lead still checks that the
 result matches the request, required smoke or tests passed, and repo state is
@@ -166,8 +180,10 @@ Evidence & Result Record, and Operations Lead Decision.
 7. Operations Lead posts team detail trail entries as claim, progress, result,
    and review information become available.
 8. Operations Lead verifies the result at the level required by the task.
-9. Operations Lead posts `[COMPLETED]` or `[BLOCKED]` in `#ops-feed`.
-10. Operations Lead reports the final result with lightweight verification and
+9. Operations Lead posts `[ACCEPTED]`, `[REVISE]`, or `[BLOCKED_DETAIL]` in the
+   relevant team channel.
+10. Operations Lead posts `[COMPLETED]` or `[BLOCKED]` in `#ops-feed`.
+11. Operations Lead reports the final result with lightweight verification and
    accept/revise/hold judgment.
 
 For higher-risk delegated work, also create the Work Card, Assignment Packet,

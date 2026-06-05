@@ -229,14 +229,16 @@ state, such as `/done`, `/assign`, `/reassign`, or `/recover`.
 
 Recommended event types:
 
-- `ASSIGNED`
-- `STARTED`
-- `BLOCKED`
-- `CLAIM_STALE`
-- `SESSION_MISMATCH`
-- `COMPACTION_RECOVERY_SUSPECTED`
-- `RESULT_READY`
-- `DECISION`
+- `#ops-feed`: `ASSIGNED`, `COMPLETED`, `BLOCKED`.
+- `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `RESULT_READY`, `ACCEPTED`,
+  `REVISE`, `BLOCKED_DETAIL`.
+- `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
+  `COMPACTION_RECOVERY_SUSPECTED`.
+
+For internal operation, keep event kinds and field names in stable English but
+write long human-readable values in Korean by default. A team channel result
+that stops at `RESULT_READY` is not closed; the Operations Lead must post
+`ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL` before reporting completion.
 
 Discord messages are not a source of truth. They must point back to the Work
 Card, Assignment Packet, Ops Claim Ledger entry, Evidence & Result Record, or

@@ -124,6 +124,9 @@ def format_text_visibility(event: dict[str, str]) -> str:
     verification = event.get("verification")
     if verification:
         lines.append(f"Verification: {verification}")
+    public_summary = event.get("public_summary")
+    if public_summary:
+        lines.append(f"Public summary: {public_summary}")
     lines.append(f"Next: {event['next']}")
     return "\n".join(lines)
 
@@ -143,6 +146,7 @@ def visibility_from_args(args: argparse.Namespace) -> dict[str, str]:
         "summary": args.summary,
         "why": args.why,
         "verification": args.verification,
+        "public_summary": args.public_summary,
         "next": args.next,
     }
 
@@ -216,6 +220,11 @@ def build_parser() -> argparse.ArgumentParser:
     visibility.add_argument("--summary", required=True, help="Short human-readable summary")
     visibility.add_argument("--why", default="", help="Short reason for assignment or decision")
     visibility.add_argument("--verification", default="", help="Short verification summary for result events")
+    visibility.add_argument(
+        "--public-summary",
+        default="",
+        help="Optional English one-liner for public/package reuse",
+    )
     visibility.add_argument("--next", default="none", help="Expected next action")
     visibility.add_argument("--format", choices=("text", "json"), default="text")
     visibility.set_defaults(func=cmd_visibility)

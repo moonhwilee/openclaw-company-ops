@@ -47,6 +47,13 @@ Lead delegation also produces the same Discord audit-visible trail:
 - `#team-*`: detailed assignment, progress, result, and Operations Lead review
   trail for the relevant Team Lead.
 
+The team detail trail must close every Team Lead result with Operations Lead
+review. `RESULT_READY` means the Team Lead submitted a result; it is not the
+Operations Lead decision. After `RESULT_READY`, the relevant team channel must
+receive exactly one final review event: `ACCEPTED`, `REVISE`, or
+`BLOCKED_DETAIL`. The owner-facing `#ops-feed` completion or blocker summary
+does not replace that team-channel review event.
+
 There is no normal/formal Discord message-mode split. The Discord flow is the
 same for every Team Lead delegation. Only the depth of source artifacts changes
 with task risk.
@@ -59,11 +66,11 @@ Recommended `#ops-feed` assignment summary:
 ```text
 [ASSIGNED] WU-YYMMDD-001
 Surface: ops-feed
-Summary: build-lab is assigned to patch the route cost guidance.
+Summary: build-lab가 route cost guidance 보완 작업을 맡았습니다.
 Owner: build-lab
 Source: cli-direct
-Why: owner-facing delegation visibility.
-Next: Team Lead executes and returns a concise result summary.
+Why: 주인님이 위임 상태를 바로 확인할 수 있어야 합니다.
+Next: Team Lead가 실행 후 결과 요약과 검증 내역을 반환합니다.
 ```
 
 Recommended `#team-*` assignment detail:
@@ -71,11 +78,36 @@ Recommended `#team-*` assignment detail:
 ```text
 [ASSIGNED_DETAIL] WU-YYMMDD-001
 Surface: team-detail
-Summary: Patch the route cost guidance and keep the change scoped to docs and formatter smoke.
+Summary: route cost guidance를 보완하고 변경 범위는 문서와 formatter smoke로 제한합니다.
 Owner: build-lab
 Source: cli-direct
-Why: owner-facing timeline and team drill-down must stay consistent.
-Next: Team Lead executes and reports result summary, verification, changed artifacts, and next action.
+Why: 주인님용 timeline과 team drill-down 기록이 같은 위임을 가리켜야 합니다.
+Next: Team Lead가 결과 요약, 검증 내역, 변경 artifact, 다음 액션을 보고합니다.
+```
+
+Recommended `#team-*` result-ready detail:
+
+```text
+[RESULT_READY] WU-YYMMDD-001
+Surface: team-detail
+Summary: Team Lead 결과가 제출되었고 Operations Lead 검토 대기 상태입니다.
+Owner: build-lab
+Source: docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md
+Verification: Team Lead가 보고한 smoke와 diff-check가 통과했습니다.
+Next: Operations Lead가 결과를 검토하고 ACCEPTED 또는 REVISE를 남깁니다.
+```
+
+Recommended `#team-*` Operations Lead review detail:
+
+```text
+[ACCEPTED] WU-YYMMDD-001
+Surface: team-detail
+Summary: 금비 검토 결과, Team Lead 결과는 요청 범위와 검증 기준을 충족했습니다.
+Owner: Operations Lead
+Source: docs/examples/manual-dry-run/WU-YYMMDD-001/decision.md
+Verification: evidence, smoke, repo state를 확인했고 추가 수정 요구는 없습니다.
+Public summary: Operations Lead accepted the Team Lead result.
+Next: ops-feed에 주인님용 completion summary를 남깁니다.
 ```
 
 Recommended `#ops-feed` completion summary:
@@ -83,10 +115,10 @@ Recommended `#ops-feed` completion summary:
 ```text
 [COMPLETED] WU-YYMMDD-001
 Surface: ops-feed
-Summary: build-lab updated the docs and formatter smoke passed.
+Summary: build-lab 결과를 금비가 검토했고 문서 보완과 formatter smoke가 통과했습니다.
 Owner: Operations Lead
 Source: docs/operations-manual.md
-Verification: py_compile, smoke, diff-check passed.
+Verification: py_compile, smoke, diff-check를 확인했습니다.
 Next: none.
 ```
 
@@ -301,9 +333,9 @@ python3 scripts/openclaw_company_ops.py discord visibility \
   --work-unit-id WU-260606-002 \
   --owner build-lab \
   --source docs/examples/manual-dry-run/WU-260606-002/assignment.md \
-  --summary "Work Unit assigned for routing and visibility patch." \
-  --why "Owner-facing timeline must show delegated work." \
-  --next "Team Lead executes and reports result summary."
+  --summary "build-lab가 routing/visibility patch Work Unit을 맡았습니다." \
+  --why "주인님용 timeline에 위임 상태가 보여야 합니다." \
+  --next "Team Lead가 실행 후 결과 요약을 보고합니다."
 ```
 
 Use `--format json` when another publisher needs structured output. The
@@ -319,9 +351,9 @@ python3 scripts/openclaw_company_ops.py discord visibility \
   --work-unit-id WU-YYMMDD-001 \
   --owner build-lab \
   --source docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md \
-  --summary "Evidence is ready for Operations Lead review." \
-  --verification "smoke checks passed" \
-  --next "Operations Lead review."
+  --summary "Evidence가 제출되었고 Operations Lead 검토 대기 상태입니다." \
+  --verification "smoke checks가 통과했습니다." \
+  --next "Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다."
 ```
 
 Visibility formatting prints only; it does not send to Discord, mutate GitHub,
@@ -338,6 +370,13 @@ Every Discord visibility message should include:
 - Source reference.
 - Short human-readable summary.
 - Next action.
+
+Use stable English for event kinds and field names. For internal Company Ops
+operation, use Korean by default for long human-written values such as
+`Summary`, `Why`, `Verification`, and `Next`. Public/package documentation,
+CLI help text, and reusable release examples may use English. If an internal
+message may later be reused publicly, add an optional `Public summary` line in
+English instead of turning the internal body into English.
 
 Include a Work Card or deeper source artifact link when one exists. Small
 delegated tasks may use a CLI assignment reference or source path until a Work
@@ -384,10 +423,12 @@ Recommended manual format:
 ```text
 [EVENT_KIND] WU-YYMMDD-NNN
 Surface: ops-feed or team-detail.
-Summary: one short sentence.
+Summary: 내부 운영용 한글 요약 문장.
 Owner: Operations Lead or Team Lead OpenClaw Agent.
 Source: link to the relevant artifact.
-Next: expected next action or "none".
+Verification: 필요한 경우 한글 검증 요약.
+Public summary: optional English one-liner for public/package reuse.
+Next: 한글 다음 액션 또는 "none".
 ```
 
 Example:
@@ -395,10 +436,10 @@ Example:
 ```text
 [RESULT_READY] WU-260606-001
 Surface: team-detail
-Summary: Demo thread handoff evidence is ready for review.
+Summary: Demo thread handoff evidence가 제출되었고 금비 검토 대기 상태입니다.
 Owner: Operations Lead
 Source: docs/examples/manual-dry-run/WU-260606-001/evidence.md
-Next: Operations Lead decision.
+Next: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 ```
 
 ## Threaded Handoff
@@ -514,6 +555,12 @@ is accepted.
 
 The Discord visibility message may summarize the decision, but the decision
 artifact or final Operations Lead review remains the authority.
+
+Do not call a delegated task complete while its team detail trail stops at
+`RESULT_READY`. A normal successful delegation is incomplete for visibility
+until the same team channel also contains `ACCEPTED`. If the result requires
+changes, post `REVISE`; if a blocker prevents review or continuation, post
+`BLOCKED_DETAIL`.
 
 Accepted decisions can lead to Work Card closure only after both the Evidence &
 Result Record and Operations Lead Decision are linked from the Work Card.
