@@ -16,6 +16,7 @@ ROUTES = {
     "daemon": ("pulse_daemon.py", True),
     "discord": ("discord_ops.py", False),
     "dashboard": ("dashboard_snapshot.py", True),
+    "status": ("work_unit_status.py", True),
     "smoke": ("company_ops_smoke.py", False),
 }
 
@@ -29,6 +30,7 @@ def print_help() -> None:
     print("examples:")
     print("  python3 scripts/openclaw_company_ops.py work-unit create --help")
     print("  python3 scripts/openclaw_company_ops.py claim status --help")
+    print("  python3 scripts/openclaw_company_ops.py status work-unit --help")
     print("  python3 scripts/openclaw_company_ops.py pulse check --help")
     print("  python3 scripts/openclaw_company_ops.py smoke multi-team")
 
