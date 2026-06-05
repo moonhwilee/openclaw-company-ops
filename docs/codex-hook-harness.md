@@ -164,8 +164,10 @@ Track hook relevance through the remaining phases:
   This is now the active decision point for hooks. Implementation requires
   explicit yes/no rationale and must preserve the no-mutation boundaries in
   this document.
-- Phase 5.3-5.6: Keep hook expansion separate from dashboard, publisher,
-  scheduled monitor, and packaging decisions.
+- Phase 5.3-5.6: Keep hook expansion separate from dashboard, foreground
+  publisher, scheduled monitor, and packaging decisions. Hooks may later check
+  whether live visibility proof exists before final completion, but hooks must
+  not publish Discord progress themselves.
 - Phase 6: If hooks are kept, document install, disable, smoke-test, and
   troubleshooting instructions as part of packaging.
 - Phase 7: Cross-project adoption should be opt-in per project. Do not install
@@ -284,7 +286,9 @@ These are not part of the Phase 3.5 MVP:
 
 - Team Lead-specific scope hooks.
 - Subagent-specific hooks.
-- Discord publisher hooks.
+- Discord publisher hooks. Publishing belongs to an explicit foreground
+  publisher at the operating transition time; a Stop hook is already too late to
+  create missed mid-run visibility.
 - GitHub Project sync hooks.
 - Pulse Monitor auto-recovery hooks.
 - automatic evidence generation.

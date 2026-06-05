@@ -68,17 +68,20 @@ delegation path.
 
 The default flow is:
 
-1. Operations Lead assigns the Team Lead through CLI or a local agent session.
-2. Operations Lead posts one owner-facing `[ASSIGNED]` summary in `#ops-feed`.
-3. Operations Lead posts one `[ASSIGNED_DETAIL]` entry in the relevant
+1. Operations Lead posts one owner-facing `[ASSIGNED]` summary in `#ops-feed`.
+2. Operations Lead posts one `[ASSIGNED_DETAIL]` entry in the relevant
    `#team-*` channel.
-4. Team Lead executes through CLI and reports back to the Operations Lead.
-5. Operations Lead posts team detail entries such as `[STARTED]` and
-   `[RESULT_READY]` when the Team Lead claim or result is available.
-6. Operations Lead performs lightweight verification before final reporting.
-7. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
+3. Operations Lead assigns the Team Lead through CLI or a local agent session.
+4. Operations Lead posts `[STARTED]` when the Team Lead starts or claims the
+   work.
+5. For long `goal` work, Operations Lead posts `CHECKPOINT` entries at major
+   slice boundaries or at least every 10-15 minutes while work remains active.
+6. Operations Lead posts `[RESULT_READY]` when the Team Lead result is actually
+   available.
+7. Operations Lead performs lightweight verification before final reporting.
+8. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
    `[BLOCKED_DETAIL]` review note in the relevant `#team-*` channel.
-8. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
+9. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
    in `#ops-feed`.
 
 `[RESULT_READY]` is a Team Lead result-submission signal, not an Operations
@@ -141,6 +144,11 @@ create a fallback truth source, do not pretend Discord visibility was achieved,
 and do not route commands through another surface to compensate. The source of
 truth remains the repo artifacts, checks, and final Operations Lead report.
 
+Live visibility requires timing, not just content. A final burst of correct
+Discord cards after all work is complete is not a successful visible run. It is
+only formatter or replay proof. For long `goal` work, checkpoint messages must
+be sent and read back while the work is still active.
+
 Discord-bound execution is no longer the default path. Use it only for route
 diagnostics, owner-authored Q&A smoke tests, or a deliberate experiment where
 the team channel itself must be the execution conversation surface.
@@ -160,6 +168,8 @@ Additional default visibility cost:
   twenty to sixty seconds when manually posted.
 - Expected additional cost over the CLI-first flow: roughly thirty to ninety
   seconds while posting is manual.
+- Long `goal` checkpoint cost: roughly one short send/readback cycle per major
+  slice or every 10-15 minutes. This should not add an LLM call.
 
 Do not add a second Team Lead or LLM summarization call for visibility. Use one
 Operations Lead composition step per transition to write both the owner-facing
@@ -168,9 +178,11 @@ deterministic validator should check Work Unit id, team, decision, next action,
 team-final-review-before-ops-completion, and absence of internal fields in
 `#ops-feed`.
 
-If a future publisher is approved, it may send formatted messages only. It must
-not decide channels by reading message content, mutate state, approve results,
-or become a command router.
+If a future publisher is approved, the first acceptable shape is a foreground
+`publish-card` command. It may send one explicit formatted card, immediately
+read it back, and append local proof. It must not decide channels by reading
+message content, batch-replay a Work Unit timeline after completion, mutate
+state, approve results, or become a command router.
 
 One-time route diagnostics may still add one short Team Lead LLM response when
 testing a new Discord channel, thread, binding, agent, or suspected stale

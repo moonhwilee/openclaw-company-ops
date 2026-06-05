@@ -312,8 +312,13 @@ future review trigger.
 
 ### Phase 5.1: Visibility Contract Close
 
-Purpose: close the formatter and reporting contract as the stable owner-visible
-loop.
+Purpose: close the formatter, reporting, and transition-time visibility
+contract as the stable owner-visible loop.
+
+Phase 5.1 is not accepted by card shape alone. A Discord trail that is generated
+or sent only after all work is complete is a replay, not live visibility. It may
+prove formatting, but it does not prove that the owner could observe a long
+Work Unit while it was running.
 
 Acceptance evidence:
 
@@ -334,9 +339,21 @@ Acceptance evidence:
   summarization.
 - Normal visibility does not add another Team Lead execution call or LLM
   summarization call.
+- Long `goal` work has a transition-time visibility rule: assignment and start
+  are posted before meaningful execution continues, and `CHECKPOINT` updates
+  are posted at each major slice boundary or at least every 10-15 minutes while
+  work remains active.
+- E2E proof includes Discord readback timestamps showing that assignment,
+  start, checkpoint, result, review, and owner closeout messages were sent near
+  their operating transitions, not burst-published after completion.
+- Post-hoc burst/replay messages are invalid evidence for live visibility even
+  when the card content and final sequence are correct.
+- Visibility send/readback failure is reported as `visibility incomplete`; it
+  must not be counted as a successful visibility run.
 
 Decision output: explicit accept/revise/no-go record for the visibility
-contract.
+contract. If live timing proof is missing, the decision is `REVISE`, not
+`ACCEPT`.
 
 ### Phase 5.2: Completion / Hook Guard MVP Decision
 
@@ -350,6 +367,8 @@ Evaluate:
 
 - `ops-feed [요청]` or equivalent owner-request visibility omitted before team
   detail posting.
+- live transition proof, checkpoint proof, or Discord readback timestamps
+  omitted before final completion reporting.
 - Completion reported without evidence, decision, sequence proof, or required
   checks.
 - Dangerous commands or user-change reverts attempted during Work Unit work.
@@ -363,6 +382,16 @@ Allowed MVP shape:
 - Stop / PreToolUse / PreCompact guardrails;
 - warn/continue for non-red-line checks first;
 - hard block only clear red lines.
+
+Hook timing boundary:
+
+- Stop hooks are late safeguards. They can prevent a final completion report
+  when live visibility proof is missing, but they cannot create the missed
+  mid-run visibility after the owner has already waited through a silent run.
+- PreCompact hooks preserve handoff context such as Work Unit id, claim,
+  evidence state, last Discord checkpoint, and next expected checkpoint.
+- Hooks do not publish progress. Live progress belongs to the explicit
+  foreground publisher or operating loop at the moment the transition happens.
 
 No-go boundaries:
 
@@ -391,7 +420,13 @@ surface for v1, defer with trigger, or no-go with rationale.
 
 ### Phase 5.4: Discord Publisher Gate
 
-Purpose: decide whether to add an automatic Discord publisher.
+Purpose: decide whether to add the minimum foreground Discord publisher needed
+to prove live transition-time visibility.
+
+Phase 5.4 does not authorize a daemon, scheduler, Discord bridge, command
+router, or hidden orchestration runtime. The first acceptable shape is a
+foreground `publish-card` command that sends one explicit, already-formatted
+card at a time.
 
 Evaluate:
 
@@ -400,12 +435,19 @@ Evaluate:
 - whether an external send path can be approved narrowly;
 - whether publisher output can be generated from source-artifact-backed
   formatter output without becoming a command router.
+- whether the publisher can send, immediately read back, and append a local
+  JSONL proof row containing Work Unit id, card kind, target route,
+  transition timestamp, Discord message id, and Discord message timestamp.
+- whether retry behavior is idempotent so an old checkpoint cannot be replayed
+  as fresh progress.
 
 Decision output: accept publisher, defer with trigger, or no-go with rationale.
 
 Publisher no-go boundaries:
 
 - It may send explicitly targeted formatted messages only.
+- It sends one card per invocation; it does not batch-generate a whole Work Unit
+  timeline after completion.
 - It must not read Discord messages as commands.
 - It must not mutate source artifacts, Work Cards, claims, evidence, decisions,
   dashboard state, recovery status, or completion status.

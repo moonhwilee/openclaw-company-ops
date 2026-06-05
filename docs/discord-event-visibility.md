@@ -80,6 +80,43 @@ calls. Normal visibility must not add a second Team Lead execution call or a
 separate LLM summarization call. A second LLM review is reserved for high-risk
 work, public-facing releases, or explicit owner request.
 
+## Transition-Time Visibility Contract
+
+Discord visibility is only valid when messages are sent and read back near the
+operating transition they describe. A correct card sequence that is generated or
+posted after all work is complete is replay evidence, not live visibility.
+
+Required timing:
+
+- Before Team Lead execution starts: `#ops-feed [요청]` and the relevant
+  `#team-* [ASSIGNED_DETAIL]` are sent and read back.
+- At execution start or claim: `#team-* [STARTED]` is sent and read back before
+  meaningful work continues.
+- During long `goal` work: `#team-* [CHECKPOINT]` is sent and read back at each
+  major slice boundary or at least every 10-15 minutes, whichever comes first.
+- At result submission: `#team-* [RESULT_READY]` is sent when the Team Lead
+  result is actually ready for Operations Lead review, not after review is
+  complete.
+- At review: exactly one `#team-* [ACCEPTED|REVISE|BLOCKED_DETAIL]` is sent
+  after Operations Lead judgment.
+- At owner closeout: `#ops-feed [완료|막힘]` is sent only after the team detail
+  trail is closed.
+
+Proof requirements:
+
+- The E2E proof includes Discord readback timestamps and message ids, not just
+  local card text.
+- Checkpoint timestamps must precede `RESULT_READY`; a checkpoint created after
+  result submission is not live progress.
+- Burst-published timelines are invalid for live visibility even when the
+  messages are ordered correctly.
+- Send or readback failure means visibility is incomplete. The source artifact
+  may remain true, but the visibility gate has not passed.
+
+This contract does not make Discord authoritative. Completion still depends on
+the Assignment Packet, claim, evidence, verification, and Operations Lead
+decision.
+
 ## Message Length Budget
 
 Discord normal message `content` is limited to 2,000 characters. Company Ops uses
@@ -372,6 +409,9 @@ Use these event names consistently.
 
 - `ASSIGNED_DETAIL`: detailed Team Lead assignment and done criteria.
 - `STARTED`: Team Lead started or claimed execution.
+- `CHECKPOINT`: planned Phase 5.1/5.4 long-running progress card between
+  `STARTED` and `RESULT_READY`; not supported by the current formatter until
+  the foreground publisher slice is implemented.
 - `RESULT_READY`: Team Lead submitted result, evidence, or verification
   candidates.
 - `ACCEPTED`: Operations Lead accepted the result after review.
@@ -401,7 +441,8 @@ Default team icons:
 Default status icons:
 
 - `📌 [요청]` / `✅ [완료]` / `⛔ [막힘]`
-- `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / `📦 [RESULT_READY]`
+- `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / planned `CHECKPOINT` /
+  `📦 [RESULT_READY]`
 - `✅ [ACCEPTED]` / `🔁 [REVISE]` / `⛔ [BLOCKED_DETAIL]`
 
 Discord is the limiting surface. Visibility card output must fit into one

@@ -234,6 +234,8 @@ Recommended event types:
 - `#ops-feed`: `ASSIGNED`, `COMPLETED`, `BLOCKED`.
 - `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `RESULT_READY`, `ACCEPTED`,
   `REVISE`, `BLOCKED_DETAIL`.
+- Planned Phase 5.1/5.4 addition: `#team-* CHECKPOINT` for long-running live
+  progress between `STARTED` and `RESULT_READY`.
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 
@@ -426,10 +428,12 @@ link back to the relevant source artifact. Pulse Monitor alert JSON can be
 formatted with `scripts/discord_ops.py` before manual posting.
 
 Post-setup path: first verify manual or formatter-assisted posting in
-pre-dogfood visibility setup. Connect an automatic publisher only after the
-activation decision gate confirms that manual posting is too slow or too hidden.
-Any publisher must emit the same event shape without deciding, recovering,
-reassigning, closing, or mutating Work Units.
+pre-dogfood visibility setup. The first approved send path should be a
+foreground publisher that sends one explicit card, immediately reads it back,
+and records proof. Do not connect a daemon, scheduler, or automatic bridge until
+a later activation decision justifies that extra surface. Any publisher must
+emit the same event shape without deciding, recovering, reassigning, closing, or
+mutating Work Units.
 
 ### Company Dashboard
 

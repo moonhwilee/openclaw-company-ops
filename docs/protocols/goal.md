@@ -35,6 +35,26 @@ condition is met.
 7. Submit an Evidence & Result Record only when done criteria pass with
    evidence, or report a true blocker.
 
+## Live Visibility During Long Work
+
+`goal` is not a separate runtime, so live progress is not automatic. For long
+Work Units, the operating loop must surface progress at the time work is
+happening:
+
+- Publish assignment and start visibility before meaningful execution continues.
+- Publish a `CHECKPOINT` at each major slice boundary or at least every 10-15
+  minutes while work remains active.
+- Keep checkpoint text factual: current slice, status, elapsed time or last
+  checkpoint, next expected checkpoint, and source artifact or evidence pointer
+  when one exists.
+- Do not use an LLM call just to make a checkpoint sound polished.
+- Do not claim live visibility from messages generated after the result is
+  already ready.
+
+If a Work Unit uses a single long blocking command, that command must either be
+supervised/yielded so checkpoints can be published, or the Work Unit is not
+live-visible while the command runs.
+
 ## Stop Conditions
 
 The Team Lead may stop only on:

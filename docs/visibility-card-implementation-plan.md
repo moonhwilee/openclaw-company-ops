@@ -161,6 +161,9 @@ Implemented validation:
 - Sequence validation requires `#ops-feed [요청]` before `#team-*`
   `ASSIGNED_DETAIL`, and requires `RESULT_READY` plus the final Operations Lead
   review before owner-facing completion/blocker cards.
+- Live visibility validation requires timestamped Discord readback proof. A
+  correct sequence that is posted as a burst after completion is replay
+  evidence, not a successful live visibility run.
 
 ## Implementation Notes
 
@@ -168,5 +171,9 @@ Implemented validation:
 - Keep visible owner-facing card labels localizable.
 - Default internal operation is Korean for long human-readable text.
 - Public/package examples may use English.
-- A future Discord publisher may send the composed cards, but it must remain
-  publisher-only and must not route commands or mutate state.
+- Add `CHECKPOINT` as the long-running team-detail progress card between
+  `STARTED` and `RESULT_READY`.
+- A future Discord publisher may send the composed cards, but the first
+  acceptable implementation is a foreground `publish-card` command that sends
+  one explicit card at a time, reads it back, records proof, and remains
+  publisher-only. It must not route commands or mutate state.
