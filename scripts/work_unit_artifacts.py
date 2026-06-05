@@ -191,7 +191,7 @@ The Team Lead should report:
 
 Discord generation budget:
 
-- Keep Discord-facing result text within 1,200 characters.
+- Keep Discord-facing result text within 1,500 characters.
 - Put detailed logs, diffs, and long findings in the Evidence & Result Record or
   another source artifact.
 - If the result needs more room, report the artifact path plus a short decision

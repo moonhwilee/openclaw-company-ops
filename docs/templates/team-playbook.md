@@ -133,7 +133,7 @@ This report is not the owner-facing `#ops-feed` card. The Operations Lead uses
 it as input to write a separate owner briefing card and a separate team review
 message from the same facts.
 
-For Discord-facing handoff, keep the result report within 1,200 characters. Do
+For Discord-facing handoff, keep the result report within 1,500 characters. Do
 not paste long logs, raw diffs, or exhaustive analysis into Discord; store those
 in the Evidence & Result Record or another source artifact and reference the
 path.

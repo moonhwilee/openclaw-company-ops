@@ -80,7 +80,7 @@ TEAM_FINAL_REVIEW_EVENTS = {
 }
 
 DISCORD_MESSAGE_LIMIT = 2000
-DISCORD_GENERATION_TARGET_CHARS = 1200
+DISCORD_GENERATION_TARGET_CHARS = 1500
 DISCORD_MESSAGE_TARGET_CHARS = 1800
 DISCORD_COMPACTION_SUFFIX = "… (일부 생략됨; 상세 내용은 source artifact 또는 team result 원문을 확인하세요.)"
 
@@ -210,11 +210,30 @@ def team_display(team: str) -> str:
     return f"{TEAM_ICONS.get(team, DEFAULT_TEAM_ICON)} {team}"
 
 
+def discord_content_units(text: str) -> int:
+    """Return a conservative Discord content length using UTF-16 code units."""
+    return len(text.encode("utf-16-le")) // 2
+
+
+def truncate_to_discord_units(text: str, limit: int) -> str:
+    if discord_content_units(text) <= limit:
+        return text
+    units = 0
+    result: list[str] = []
+    for char in text:
+        char_units = discord_content_units(char)
+        if units + char_units > limit:
+            break
+        result.append(char)
+        units += char_units
+    return "".join(result)
+
+
 def compact_discord_text(text: str, limit: int = DISCORD_MESSAGE_TARGET_CHARS) -> str:
     """Keep Discord visibility text inside one message while preserving the header."""
     if limit > DISCORD_MESSAGE_LIMIT:
         raise ValueError(f"Discord guard limit must be <= {DISCORD_MESSAGE_LIMIT}")
-    if len(text) <= limit:
+    if discord_content_units(text) <= limit:
         return text
 
     lines = text.splitlines()
@@ -234,13 +253,16 @@ def compact_discord_text(text: str, limit: int = DISCORD_MESSAGE_TARGET_CHARS) -
     fixed_parts = [header, DISCORD_COMPACTION_SUFFIX]
     if tail:
         fixed_parts.append(tail)
-    fixed_len = sum(len(part) for part in fixed_parts) + max(0, len(fixed_parts) - 1)
+    fixed_len = sum(discord_content_units(part) for part in fixed_parts) + max(
+        0,
+        len(fixed_parts) - 1,
+    )
     body_budget = limit - fixed_len
     if body_budget < 80:
         raise ValueError("Discord guard limit leaves no room for message body")
 
     body = "\n".join(body_lines)
-    compacted_body = body[:body_budget].rstrip()
+    compacted_body = truncate_to_discord_units(body, body_budget).rstrip()
     compacted_lines = [header]
     if compacted_body:
         compacted_lines.append(compacted_body)
@@ -248,9 +270,12 @@ def compact_discord_text(text: str, limit: int = DISCORD_MESSAGE_TARGET_CHARS) -
     if tail:
         compacted_lines.append(tail)
     compacted = "\n".join(compacted_lines)
-    overflow = len(compacted) - limit
+    overflow = discord_content_units(compacted) - limit
     if overflow > 0 and compacted_body:
-        compacted_body = compacted_body[: max(0, len(compacted_body) - overflow)].rstrip()
+        compacted_body = truncate_to_discord_units(
+            compacted_body,
+            max(0, discord_content_units(compacted_body) - overflow),
+        ).rstrip()
         compacted_lines = [header]
         if compacted_body:
             compacted_lines.append(compacted_body)
@@ -258,7 +283,7 @@ def compact_discord_text(text: str, limit: int = DISCORD_MESSAGE_TARGET_CHARS) -
         if tail:
             compacted_lines.append(tail)
         compacted = "\n".join(compacted_lines)
-    if len(compacted) > limit:
+    if discord_content_units(compacted) > limit:
         raise ValueError("Discord message guard failed to compact text under limit")
     return compacted
 
@@ -662,7 +687,9 @@ def cmd_guard(args: argparse.Namespace) -> int:
                     "text": text,
                     "generation_target_chars": DISCORD_GENERATION_TARGET_CHARS,
                     "original_chars": len(original),
+                    "original_content_units": discord_content_units(original),
                     "output_chars": len(text),
+                    "output_content_units": discord_content_units(text),
                     "compacted": text != original,
                     "limit": args.limit,
                 },

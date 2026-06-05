@@ -132,7 +132,7 @@ Supported local card families:
   to the same single-message budget. Use it before manually posting Team Lead
   output that did not come from `discord card`.
 - Team Lead and Operations Lead prompt/template output should stay within a
-  1,200-character Discord generation budget before formatter guard runs. This is
+  1,500-character Discord generation budget before formatter guard runs. This is
   the first defense; the formatter guard remains the fallback.
 
 The legacy `discord visibility` command remains available as the generic
@@ -154,8 +154,10 @@ Implemented validation:
   partially omitted. This is deterministic compaction, not semantic LLM
   summarization. Detailed evidence belongs in the source artifact, not inside a
   long Discord post.
-- Discord-bound LLM-generated handoff text has a 1,200-character prompt budget
+- Discord-bound LLM-generated handoff text has a 1,500-character prompt budget
   so most messages fit before deterministic compaction is needed.
+- Formatter guard uses UTF-16 content units so Korean Hangul syllables count as
+  one unit while supplementary emoji are counted conservatively.
 - Sequence validation requires `#ops-feed [요청]` before `#team-*`
   `ASSIGNED_DETAIL`, and requires `RESULT_READY` plus the final Operations Lead
   review before owner-facing completion/blocker cards.

@@ -87,7 +87,7 @@ three layers so normal visibility stays readable without adding another LLM
 call:
 
 1. Generation budget: ask Team Lead and Operations Lead outputs that will be
-   pasted or transformed into Discord to stay within 1,200 characters.
+   pasted or transformed into Discord to stay within 1,500 characters.
 2. Formatter target: keep generated Discord cards under 1,800 characters so
    headers, Korean text, links, and emoji have margin below Discord's hard
    limit.
@@ -99,6 +99,12 @@ The first layer is a prompt and template constraint, not semantic summarization.
 Long logs, raw diffs, and exhaustive findings belong in the Evidence & Result
 Record or another source artifact. The Discord message should carry the decision
 summary and artifact path.
+
+The formatter counts output using UTF-16 content units as a conservative proxy
+for Discord validation. Korean Hangul syllables count as one unit in this model,
+while many emoji and supplementary characters count as two. The generation
+budget stays below the formatter target so emoji headers, links, newlines, and
+labels still have margin.
 
 The internal fact packet keeps stable facts aligned:
 
