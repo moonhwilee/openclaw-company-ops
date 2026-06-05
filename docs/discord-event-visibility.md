@@ -42,7 +42,9 @@ visibility:
 
 - `cli-direct`: the Team Lead is invoked directly through a CLI or local agent
   session. This route does not target Discord and does not create a
-  team-channel execution record.
+  team-channel execution record. It is suitable for internal repo-local work
+  only when the Operations Lead accepts that the team conversation itself will
+  not be visible in Discord.
 - `discord-bound`: the Team Lead is invoked from a bound Discord team channel
   or thread. This route should leave a team-channel or thread record because
   Discord was the execution conversation surface.
@@ -55,9 +57,30 @@ For `cli-direct` execution, do not pretend that `#team-build-lab` or another
 team channel has an execution record. The required owner-visible trail is
 source-artifact-backed lifecycle events in `#ops-feed`.
 
+Known limitation: a successful `cli-direct` agent run may still fail to return a
+clean final text response to the caller's terminal even when the agent session
+itself ended successfully and the final assistant message exists in the session
+store. Treat this as a runner/output-plumbing risk. Before relying on a
+`cli-direct` result, verify at least one of:
+
+- structured CLI output such as `--json`, when available and known to return;
+- a session-store readback showing the final assistant message and successful
+  session end;
+- source artifacts, evidence, and checks produced by the Team Lead.
+
+Do not use plain `cli-direct` as the owner-visible path for real Team Lead
+delegation. If the owner should be able to watch Operations Lead to Team Lead
+communication, use `discord-bound`.
+
 For `discord-bound` execution, team-channel records are expected for the
 Discord conversation itself. They are still not source of truth and must point
 back to the source artifacts.
+
+Before Phase 4 or any other real delegation that is meant to be owner-visible,
+run a route validation: send a small assignment or status handoff through the
+selected team channel or Work Unit thread, confirm the matching Team Lead
+responds there, and read the message back. If this validation fails, do not
+claim that Discord-visible delegation has been proven.
 
 ## Recommended Channels
 

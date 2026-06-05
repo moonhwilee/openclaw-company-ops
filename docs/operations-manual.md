@@ -55,7 +55,8 @@ matter.
 - `cli-direct`: the Team Lead runs through a direct CLI or local agent session.
   This route does not create a Discord team-channel execution record. It must be
   made owner-visible through source-artifact-backed lifecycle events in
-  `#ops-feed`.
+  `#ops-feed`. Use it for internal repo-local execution only when a visible
+  team-channel conversation is not required.
 - `discord-bound`: the Team Lead runs through a bound Discord team channel or
   thread. A team-channel or thread record is expected because Discord is the
   conversation surface.
@@ -63,6 +64,13 @@ matter.
 Team-channel records are also expected for explicit owner or Operations Lead
 Q&A in a team channel. They are not expected for `cli-direct` execution by
 itself.
+
+Do not treat a successful `cli-direct` session as owner-visible delegation by
+default. The agent may finish and store a final response while the caller's
+terminal does not receive a clean final text response. When using `cli-direct`,
+the Operations Lead must verify completion through session readback, source
+artifacts, evidence, and checks. When the owner needs to inspect Team Lead
+communication in Discord, use `discord-bound` instead.
 
 For both routes, Discord is visibility-only and publisher-only. It must not
 create, mutate, approve, close, reassign, recover, or complete Work Units.
@@ -97,7 +105,8 @@ Evidence & Result Record, and Operations Lead Decision.
 6. Operations Lead records an initial Ops Claim Ledger Entry.
 7. Operations Lead emits an `ASSIGNED` visibility event when Discord visibility
    is active.
-8. Operations Lead assigns one Team Lead OpenClaw Agent.
+8. Operations Lead records the execution route before assigning one Team Lead
+   OpenClaw Agent.
 9. Team Lead executes the Work Unit and manages its own subagents.
 10. Team Lead updates the claim when state changes.
 11. Team Lead emits visibility events for started, blocked, and result-ready

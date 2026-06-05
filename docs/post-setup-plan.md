@@ -203,6 +203,21 @@ Acceptance gate:
 
 Purpose: prove the team-lead model, not just the Operations Lead loop.
 
+Route gate:
+
+- Phase 4 should default to `discord-bound`, not plain `cli-direct`, because
+  this phase is meant to prove that the owner can watch Operations Lead to Team
+  Lead communication in the relevant `#team-*` channel or Work Unit thread.
+- Before the real assignment starts, validate the selected Discord route with a
+  small handoff/readback in the target team channel or thread.
+- If `discord-bound` validation fails, either block Phase 4 or explicitly
+  downgrade the run to `cli-direct` and record that team-channel conversation
+  visibility was not proven.
+- Do not rely on plain `cli-direct` final terminal output as the only Team Lead
+  result signal. Prior dogfood showed successful Team Lead sessions whose final
+  assistant text existed in session storage but did not cleanly return to the
+  caller's terminal.
+
 Scope:
 
 - Choose the correct standing role agent for one real assignment:
@@ -218,6 +233,12 @@ Scope:
 Acceptance gate:
 
 - The Team Lead can execute without hidden Operations Lead intervention.
+- The route is recorded as `discord-bound` or `cli-direct`.
+- For `discord-bound`, the target team channel or Work Unit thread contains the
+  assignment/handoff and Team Lead response, and that record is read back.
+- For `cli-direct`, the run is not counted as proving Discord-visible Team Lead
+  communication; `#ops-feed` lifecycle events plus source artifacts are required
+  instead.
 - Subagent output is treated as input, not completion truth.
 - Evidence and decision are sufficient for an independent audit.
 - Discord visibility shows what happened without becoming the operating record.
