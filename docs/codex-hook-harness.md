@@ -12,27 +12,32 @@ the operating model.
 
 ## Current Decision
 
-Do not implement the full hook harness before Phase 1, Phase 2, or the Phase 3
-friction patch.
+The full hook harness remains unimplemented. The earlier rule was to avoid a
+full harness before Phase 1, Phase 2, or the Phase 3 friction patch so those
+phases could reveal real operating risks first.
 
-Introduce a small repo-local hook MVP after Phase 3 and before Phase 4, unless
-Phase 1 or Phase 2 reveals a specific safety issue that justifies an earlier
-small spike.
+Phase 3.5 was the optional insertion point after Phase 3 and before Phase 4.
+Phase 4 has now completed without opening that MVP, so the current hook
+decision point has moved to Phase 5.2 in `docs/post-setup-plan.md`.
 
-The intended implementation point is:
+The historical insertion point remains:
 
 ```text
 Phase 3.5: Hook Harness MVP
 ```
 
-This timing is deliberate:
+That timing was deliberate:
 
 - Phase 1 should prove Discord visibility without adding a new moving part.
 - Phase 2 should run one real dogfood Work Unit manually so real failure modes
   are observed instead of imagined.
 - Phase 3 should patch the concrete friction from dogfood.
-- Phase 4 should not begin real Team Lead delegation until completion and
-  red-line guardrails exist.
+- Phase 4 should have used the MVP if real Team Lead delegation otherwise
+  depended too much on manual completion and red-line discipline.
+
+Because Phase 4 proceeded without the hook MVP, do not reopen Phase 3.5 as a
+parallel active phase. Reconsider a small repo-local hook guard under Phase 5.2
+using the observed risks from Phase 4 and Phase 5.
 
 ## Design Principle
 
@@ -150,14 +155,17 @@ Track hook relevance through the remaining phases:
   compaction, or completion-report problems observed during real dogfood.
 - Phase 3: Patch concrete friction first. Decide whether the observed issues
   justify the Phase 3.5 MVP.
-- Phase 3.5: Implement the repo-local hook MVP if Phase 2/3 evidence supports
-  it or if Phase 4 delegation would otherwise create unacceptable completion
-  risk.
-- Phase 4: Run first Team Lead delegation with the Operations Lead hook active.
-  Observe whether Team Lead-specific hooks are needed.
-- Phase 5: Evaluate hook expansion alongside Discord publisher, GitHub Project
-  sync, scheduled Pulse Monitor, and packaging. Expansion requires explicit
-  yes/no rationale.
+- Phase 3.5: Historical optional insertion point. It was not opened before
+  Phase 4; keep its scope and boundaries as implementation reference.
+- Phase 4: Run first Team Lead delegation. If Phase 3.5 was accepted, run with
+  the Operations Lead hook active; otherwise record observed completion,
+  sequence, and handoff risks for Phase 5.2.
+- Phase 5.2: Reconsider the small repo-local Completion / Hook Guard MVP.
+  This is now the active decision point for hooks. Implementation requires
+  explicit yes/no rationale and must preserve the no-mutation boundaries in
+  this document.
+- Phase 5.3-5.6: Keep hook expansion separate from dashboard, publisher,
+  scheduled monitor, and packaging decisions.
 - Phase 6: If hooks are kept, document install, disable, smoke-test, and
   troubleshooting instructions as part of packaging.
 - Phase 7: Cross-project adoption should be opt-in per project. Do not install
@@ -166,7 +174,7 @@ Track hook relevance through the remaining phases:
 
 ## MVP Implementation Shape
 
-The Phase 3.5 MVP should be repo-local.
+Any Phase 3.5 or Phase 5.2 hook MVP should be repo-local.
 
 Recommended files:
 
@@ -255,7 +263,7 @@ should prompt for handoff or validate that it exists.
 
 ## Implementation Work Unit Acceptance Gate
 
-When Phase 3.5 is opened as a Work Unit, it is accepted only if:
+When Phase 3.5 or Phase 5.2 opens a hook MVP Work Unit, it is accepted only if:
 
 - hook files are repo-local and easy to disable;
 - simple non-Work-Unit requests no-op;

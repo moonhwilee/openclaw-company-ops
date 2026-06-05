@@ -458,25 +458,31 @@ Pulse Monitor checks, a bounded multi-team smoke, Discord alert formatting,
 dashboard snapshots, a non-installing pulse daemon runner, and a repo-local
 entrypoint.
 
-The active remaining order is documented in `docs/post-setup-plan.md`:
+The active remaining order is documented in `docs/post-setup-plan.md`. Phases
+1-4 have been exercised; the current work is Phase 5 activation sub-gates:
 
-1. Pre-dogfood visibility setup.
-2. Real dogfood Work Unit.
-3. Dogfood friction patch.
-4. First real Team Lead delegation.
-5. Activation decision gates.
-6. Packaging / public v1.
-7. Cross-project adoption.
+1. Visibility contract close.
+2. Completion / Hook Guard MVP decision.
+3. Dashboard gate.
+4. Discord publisher gate.
+5. Scheduled Pulse / daemon gate.
+6. Packaging readiness decision.
 
-Do not activate optional automation until the dogfood and delegation phases
-prove that the manual/repo-local operating loop works and remains auditable.
+After Phase 5:
+
+- Phase 6: Packaging / public v1.
+- Phase 7: Cross-project adoption.
+
+Do not activate optional automation unless the relevant Phase 5 sub-gate has an
+explicit yes/no/defer decision with rationale and preserves the source-artifact
+model.
 
 ## Open Decisions
 
 These decisions are not blockers for the architecture:
 
 - When to install or schedule the Pulse Monitor daemon runner.
-- When to automate Discord Ops publishing after pre-dogfood visibility works.
+- When to automate Discord Ops publishing after the Phase 5.4 publisher gate.
 - When to create or sync a GitHub Project dashboard.
 - Whether the first public package is a CLI, OpenClaw skill, setup script, or a
   combination.

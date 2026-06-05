@@ -21,9 +21,10 @@ projects are reference material only and are not compatibility targets.
 Current internal architecture version: v1.
 
 Most operating elements now have either documented manual practices or
-repo-local support scripts. The remaining work is to prove the operating loop
-with owner-visible dogfood, decide which visibility/automation gates to
-activate, and package only the stable surface.
+repo-local support scripts. The owner-visible dogfood, friction patch, and
+first real Team Lead delegation phases have been exercised. The remaining
+internal work is to close the Phase 5 activation sub-gates, then package only
+the stable surface.
 
 Owner-visible dogfood uses `#ops-feed` as the owner-facing request/result
 briefing timeline and `#team-*` as the detailed Team Lead execution trail.
@@ -64,13 +65,13 @@ python3 scripts/openclaw_company_ops.py --help
 
 ## Planned Work
 
-- Follow the post-setup realization plan: first make orchestration observable
-  through `#ops-feed` owner summaries, `#team-*` detail trails, and direct Team
-  Lead Q&A, then run a real dogfood Work Unit, patch friction, delegate to a
-  real Team Lead, decide activation gates, package the stable surface, and only
+- Follow the post-setup realization plan from the current Phase 5 activation
+  sub-gates: close the visibility contract, decide the hook/dashboard/publisher
+  and scheduled-monitor gates, lock the Phase 6 packaging surface, and only
   then adopt it across product repos.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.
 - Turn the repo-local entrypoint into a small reproducible package only after
-  dogfood, delegation, and activation gates pass.
+  the Phase 5 activation sub-gates pass or record explicit no-go/defer
+  rationale.

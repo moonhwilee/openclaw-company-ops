@@ -898,19 +898,19 @@ artifacts.
 
 Status: Active plan
 
-After the base setup and repo-local scripts exist, continue with
-`docs/post-setup-plan.md`:
+After the base setup and repo-local scripts exist, continue tracking
+implementation status in `docs/post-setup-plan.md`. Phases 1-4 have been
+exercised; current work is Phase 5:
 
-1. Pre-dogfood Discord visibility setup.
-2. Real dogfood Work Unit.
-3. Dogfood friction patch.
-4. First real Team Lead delegation.
-5. Activation decision gates.
-6. Packaging / public v1.
-7. Cross-project adoption.
+1. Visibility contract close.
+2. Completion / Hook Guard MVP decision.
+3. Dashboard gate.
+4. Discord publisher gate.
+5. Scheduled Pulse / daemon gate.
+6. Packaging readiness decision.
 
-This ordering keeps the original architecture intact while making the owner
-able to observe orchestration before dogfood results are accepted.
+This keeps the original architecture intact while ensuring optional automation
+is explicitly accepted, deferred, or rejected before packaging.
 
 Final completion requires GitHub Project or equivalent dashboard visibility
 unless the owner explicitly records a no-go decision with rationale.

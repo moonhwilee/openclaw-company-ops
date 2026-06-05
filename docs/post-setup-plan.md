@@ -106,9 +106,9 @@ Task: Company Ops Setup (Phase 1/7)
 Slice: Discord visibility setup | Next: connect Discord and verify routing
 ```
 
-Use the seven primary phases in this document for progress reporting. If the
-optional Phase 3.5 hook MVP runs, report it as `Phase 3.5/7` and then return to
-`Phase 4/7`.
+Use the seven primary phases in this document for progress reporting. Phase
+3.5 is a historical optional insertion point, not a new primary phase. Current
+hook activation decisions are handled under Phase 5.2.
 
 ## Phase 2: Real Dogfood Work Unit
 
@@ -165,11 +165,15 @@ Acceptance gate:
 
 ## Phase 3.5: Hook Harness MVP
 
-Purpose: add only the minimum Codex hook guardrails needed before scaling to
-real Team Lead delegation.
+Status: optional pre-Phase-4 insertion point, not executed before Phase 4.
+Current hook activation is reconsidered under Phase 5.2 based on observed
+completion, sequence, and handoff risks.
 
-This phase is optional until Phase 2/3 evidence justifies it, but it should be
-completed before Phase 4 if the next delegation would otherwise rely too much
+Purpose: record the optional minimum Codex hook guardrails that could have been
+added before scaling to real Team Lead delegation.
+
+This phase was optional until Phase 2/3 evidence justified it. It would have
+been completed before Phase 4 if the next delegation otherwise relied too much
 on manual completion discipline.
 
 Implementation reference: `docs/codex-hook-harness.md`.
@@ -198,6 +202,14 @@ Acceptance gate:
 - The hook can be disabled or bypassed deliberately for troubleshooting.
 - No hook behavior creates hidden orchestration, automatic recovery,
   reassignment, completion, or fallback truth.
+
+Current state:
+
+- Phase 4 completed without opening this MVP.
+- The relevant hook decision is now Phase 5.2, not a return to a pre-Phase-4
+  branch.
+- If Phase 5.2 accepts a hook MVP, reuse this section's boundaries and
+  `docs/codex-hook-harness.md` as the implementation policy.
 
 ## Phase 4: First Real Team Delegation
 
@@ -290,53 +302,150 @@ Observed Phase 4 result:
 
 ## Phase 5: Activation Decision Gates
 
-Purpose: decide which optional automation is ready to activate.
+Purpose: decide which optional automation is ready to activate before packaging.
 
 Phase 4 changed the priority from "enable more automation" to "simplify the
-default visible delegation path." Evaluate in this order:
+default visible delegation path." Phase 5 is therefore split into narrow
+decision gates. Each gate either accepts a small surface, rejects it, or records
+why it remains deferred. Defer is valid only when it includes rationale and a
+future review trigger.
 
-1. Visibility formatter/reporting contract: first activation candidate.
-   Standardize `#ops-feed` owner briefing cards and `#team-*` detail trail
-   messages from one Operations Lead composition step per transition. The
-   messages share facts but are written separately for their readers. The
-   contract must include the team-channel close invariant: `RESULT_READY` is
-   followed by `ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL` before a completion is
-   reported.
-2. Discord publisher: enable only if manual visibility posting remains
-   repetitive after formatter standardization. It may send explicitly targeted
-   formatted messages only and must not become a command router or source of
-   truth.
-3. GitHub Project sync: defer unless Work Card volume or cross-repo tracking
-   makes issue labels plus source artifacts too slow to scan.
-4. Scheduled Pulse Monitor: defer until stale-claim risk appears in repeated
-   real Work Units. Even alert-only scheduling can add operational noise and
-   false positives.
-5. Hook expansion: enable only for a concrete skipped-evidence, unsafe-command,
-   or compaction-handoff risk observed in real runs.
-6. Packaging/public v1: keep behind the activation gates. A reproducible public
-   surface is useful only after the internal owner-visible loop is stable.
+### Phase 5.1: Visibility Contract Close
 
-Evaluate each gate independently:
+Purpose: close the formatter and reporting contract as the stable owner-visible
+loop.
 
-- Visibility formatter/reporting contract: accept when owner summaries and team
-  detail messages can be generated locally without sending or mutating state,
-  when `#ops-feed` uses owner-friendly card labels instead of internal
-  formatter fields, when internal examples use Korean long-form operating text
-  by default, and when normal visibility does not add another Team Lead or LLM
+Acceptance evidence:
+
+- `discord card` can generate owner-facing `#ops-feed` briefing cards and
+  `#team-*` detail trail cards locally without sending or mutating state.
+- Headers include canonical state icons and team icons.
+- `#ops-feed` uses owner-friendly labels such as `[요청]`, `[완료]`, and
+  `[막힘]` instead of internal field dumps.
+- Team detail trails close each `RESULT_READY` with exactly one Operations Lead
+  review: `ACCEPTED`, `REVISE`, or `BLOCKED_DETAIL`.
+- `discord card-sequence` detects missing `#ops-feed [요청]`, missing
+  `RESULT_READY`, and missing final review before owner completion.
+- Discord-facing generation budget is 1,600 characters, final formatter target
+  is 1,800 content units, and the guard counts UTF-16 content units so Korean
+  complete syllables count as one unit while supplementary characters are not
+  undercounted.
+- Deterministic compaction is labeled as partial omission, not semantic LLM
+  summarization.
+- Normal visibility does not add another Team Lead execution call or LLM
   summarization call.
-- Discord publisher: enable only if repeated manual posting is still too slow
-  after the visibility formatter exists.
-- GitHub Project sync: enable only if there are enough Work Cards or repos to
-  make a dashboard useful.
-- Scheduled Pulse Monitor: enable only if manual pulse checks reveal real stale
-  claim risk.
-- Hook expansion: enable only if Phase 3.5 and Phase 4 show that additional
-  Team Lead, packaging, or cross-project hooks reduce real risk without adding
-  hidden orchestration.
-- Packaging/public v1: enable only if the repo-local commands are stable enough
-  for another user or agent to reproduce.
 
-Acceptance gate:
+Decision output: explicit accept/revise/no-go record for the visibility
+contract.
+
+### Phase 5.2: Completion / Hook Guard MVP Decision
+
+Purpose: decide whether to implement a small repo-local hook guard now.
+
+Phase 3.5 was the optional pre-Phase-4 hook insertion point. Because Phase 4
+completed without that MVP, current hook activation is reconsidered here based
+on observed completion, sequence, and handoff risks.
+
+Evaluate:
+
+- `ops-feed [요청]` or equivalent owner-request visibility omitted before team
+  detail posting.
+- Completion reported without evidence, decision, sequence proof, or required
+  checks.
+- Dangerous commands or user-change reverts attempted during Work Unit work.
+- Compaction or handoff risk that can lose Work Unit id, claim, evidence,
+  decision, blocker, or next action.
+
+Allowed MVP shape:
+
+- repo-local `.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`, or
+  the current Codex-equivalent local hook shape at implementation time;
+- Stop / PreToolUse / PreCompact guardrails;
+- warn/continue for non-red-line checks first;
+- hard block only clear red lines.
+
+No-go boundaries:
+
+- No hook mutates GitHub, Discord, claim state, Work Cards, evidence,
+  decisions, dashboard state, recovery status, or completion status.
+- No hook replaces Operations Lead judgment.
+- No Team Lead-specific scope hook is added unless concrete Phase 4/5 evidence
+  shows the common guard is insufficient.
+
+Decision output: implement MVP now, defer with trigger, or no-go with rationale.
+
+### Phase 5.3: Dashboard Gate
+
+Purpose: decide whether v1 needs GitHub Project sync or whether the repo-local
+dashboard surface is enough.
+
+Evaluate:
+
+- current Work Card volume;
+- whether issue labels, source artifacts, and `dashboard_snapshot.py` are still
+  easy to scan;
+- whether cross-repo tracking is already creating owner-visible ambiguity.
+
+Decision output: accept GitHub Project sync, accept an equivalent dashboard
+surface for v1, defer with trigger, or no-go with rationale.
+
+### Phase 5.4: Discord Publisher Gate
+
+Purpose: decide whether to add an automatic Discord publisher.
+
+Evaluate:
+
+- whether manual posting remains repetitive after `discord card` and guard
+  standardization;
+- whether an external send path can be approved narrowly;
+- whether publisher output can be generated from source-artifact-backed
+  formatter output without becoming a command router.
+
+Decision output: accept publisher, defer with trigger, or no-go with rationale.
+
+Publisher no-go boundaries:
+
+- It may send explicitly targeted formatted messages only.
+- It must not read Discord messages as commands.
+- It must not mutate source artifacts, Work Cards, claims, evidence, decisions,
+  dashboard state, recovery status, or completion status.
+
+### Phase 5.5: Scheduled Pulse / Daemon Gate
+
+Purpose: decide whether to install or schedule alert-only monitoring.
+
+Evaluate:
+
+- whether manual pulse checks reveal repeated stale-claim risk;
+- whether alert noise and false positives are acceptable;
+- whether a foreground/manual runner is enough for public v1.
+
+Decision output: accept scheduled install, keep manual/foreground only, defer
+with trigger, or no-go with rationale.
+
+No-go boundaries:
+
+- Pulse Monitor remains alert-only.
+- No daemon restarts, reassigns, recovers, cancels, or completes work.
+
+### Phase 5.6: Packaging Readiness Decision
+
+Purpose: lock the surface that is allowed to enter Phase 6.
+
+Candidate Phase 6 surface:
+
+- Work Unit artifact generator;
+- Ops Claim Ledger CLI;
+- alert-only pulse check and any accepted manual runner;
+- dashboard snapshot;
+- Discord card composer, guard, JSON output, and sequence validator;
+- smoke tests and setup docs;
+- optional hook guard only if Phase 5.2 accepts it.
+
+Decision output: a Phase 6 scope record that lists included surfaces, deferred
+surfaces, and no-go surfaces.
+
+Phase 5 acceptance gate:
 
 - Each activation has an explicit yes/no decision with rationale.
 - Final Company Ops completion requires GitHub Project or equivalent dashboard
