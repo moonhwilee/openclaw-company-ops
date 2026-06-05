@@ -21,6 +21,11 @@ The target behavior remains:
 - There is no hidden orchestrator, fallback truth source, command router, or
   automatic recovery/reassignment/completion.
 
+Codex hooks are tracked as an optional guardrail layer, not as an operating
+state owner. The hook policy and future implementation reference is
+`docs/codex-hook-harness.md`. Use that document at implementation time rather
+than relying on conversation memory.
+
 ## Phase 1: Pre-Dogfood Visibility Setup
 
 Purpose: make orchestration observable before asking whether it works.
@@ -64,6 +69,8 @@ Scope:
   the matching Team Lead can answer without mutating official operating state.
 - Confirm that no Discord message can mutate GitHub, mutate the claim ledger,
   close work, approve completion, reassign work, or recover agents.
+- Observe whether Phase 1 reveals a concrete need for an early safety-only
+  hook spike. Do not install the full hook harness in Phase 1.
 
 Acceptance gate:
 
@@ -80,6 +87,8 @@ Acceptance gate:
   not create, close, reassign, approve, or mutate Work Units by themselves.
 - Discord remains visibility-only plus direct human/agent Q&A. It is not an
   operating-state authority.
+- Any early hook work, if performed, is limited to narrow red-line safety
+  checks and is recorded as a spike, not as the Company Ops hook harness.
 
 ## Phase 2: Real Dogfood Work Unit
 
@@ -98,6 +107,8 @@ Scope:
 - Produce an Evidence & Result Record.
 - Record an Operations Lead Decision.
 - Emit Discord visibility events for the major transitions.
+- Record any missing evidence, stale claim, compaction, unsafe-command, or
+  premature-completion friction that a future hook could prevent.
 
 Acceptance gate:
 
@@ -105,6 +116,8 @@ Acceptance gate:
 - Discord events point to the source artifacts.
 - Evidence maps back to done criteria and verification criteria.
 - Only an Operations Lead `accept` decision can close the Work Card.
+- Hook observations are captured for later evaluation, but the full hook
+  harness remains off during this first real dogfood run.
 
 ## Phase 3: Dogfood Friction Patch
 
@@ -117,6 +130,8 @@ Scope:
 - Keep fixes narrow and repo-local unless a broader package boundary is clearly
   justified.
 - Preserve all no-fallback and visibility-only rules.
+- Decide whether the concrete Phase 2 friction justifies the Phase 3.5 hook
+  MVP described in `docs/codex-hook-harness.md`.
 
 Acceptance gate:
 
@@ -125,6 +140,44 @@ Acceptance gate:
 - Existing setup smokes still pass.
 - The owner can still audit the Work Unit trail through artifacts plus
   visibility events.
+- Any hook decision has a yes/no rationale. If hooks are still not justified,
+  record why and proceed without them.
+
+## Phase 3.5: Hook Harness MVP
+
+Purpose: add only the minimum Codex hook guardrails needed before scaling to
+real Team Lead delegation.
+
+This phase is optional until Phase 2/3 evidence justifies it, but it should be
+completed before Phase 4 if the next delegation would otherwise rely too much
+on manual completion discipline.
+
+Implementation reference: `docs/codex-hook-harness.md`.
+
+Scope:
+
+- Implement a repo-local hook MVP, not a user-global workflow platform.
+- Prefer `.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`.
+- Add a narrow `PreToolUse` red-line guard for clearly dangerous commands.
+- Add an Operations Lead `Stop` completion gate for Work Unit evidence,
+  decision, and check omissions.
+- Add `PreCompact` / `PostCompact` handoff validation or reminders.
+- Start non-red-line checks in warn/continue mode.
+- Keep Team Lead-specific hooks deferred unless Phase 4 risk is already clear.
+- Do not mutate GitHub, Discord, claim state, Work Cards, or decisions from the
+  hook.
+
+Acceptance gate:
+
+- Simple non-Work-Unit requests no-op.
+- Dangerous-command fixtures are blocked.
+- Normal repo inspection, artifact reads, and smoke commands are not blocked.
+- A seeded missing-evidence completion case is caught.
+- A seeded valid blocked or hold case is allowed.
+- Existing setup smokes still pass.
+- The hook can be disabled or bypassed deliberately for troubleshooting.
+- No hook behavior creates hidden orchestration, automatic recovery,
+  reassignment, completion, or fallback truth.
 
 ## Phase 4: First Real Team Delegation
 
@@ -139,6 +192,8 @@ Scope:
 - Let the Team Lead use subagents directly if useful.
 - Keep Operations Lead review and decision separate from Team Lead execution.
 - Emit Discord visibility events for owner observability.
+- Run delegation with the Operations Lead hook gate active if Phase 3.5 was
+  accepted. Observe whether Team Lead-specific scope hooks are actually needed.
 
 Acceptance gate:
 
@@ -146,6 +201,8 @@ Acceptance gate:
 - Subagent output is treated as input, not completion truth.
 - Evidence and decision are sufficient for an independent audit.
 - Discord visibility shows what happened without becoming the operating record.
+- Team Lead-specific hooks are either explicitly deferred or proposed with
+  evidence from this delegation.
 
 ## Phase 5: Activation Decision Gates
 
@@ -159,6 +216,9 @@ Evaluate each gate independently:
   make a dashboard useful.
 - Scheduled Pulse Monitor: enable only if manual pulse checks reveal real stale
   claim risk.
+- Hook expansion: enable only if Phase 3.5 and Phase 4 show that additional
+  Team Lead, packaging, or cross-project hooks reduce real risk without adding
+  hidden orchestration.
 - Packaging/public v1: enable only if the repo-local commands are stable enough
   for another user or agent to reproduce.
 
@@ -170,6 +230,7 @@ Acceptance gate:
   rationale.
 - No activation introduces command routing, hidden truth, automatic recovery,
   automatic reassignment, or automatic completion.
+- No hook activation mutates operating state or replaces source artifacts.
 - Any external send or scheduled job has explicit owner approval before it is
   enabled.
 
@@ -183,6 +244,9 @@ Scope:
 - Keep command names aligned with the supported scripts.
 - Replace manual setup-guide blocks only where supported commands exist.
 - Include smoke tests and clear install/usage instructions.
+- If hooks are retained, document install, disable, smoke-test, and
+  troubleshooting instructions. Hooks remain optional guardrails around source
+  artifacts, not required state storage.
 
 Acceptance gate:
 
@@ -190,6 +254,8 @@ Acceptance gate:
   local memory.
 - Public docs do not mention private nicknames or internal-only state.
 - Package behavior matches the artifacts-and-visibility model.
+- Packaged hook behavior, if included, is reproducible and does not interfere
+  with simple non-Work-Unit requests.
 
 ## Phase 7: Cross-Project Adoption
 
@@ -205,6 +271,8 @@ Scope:
   product code.
 - Reuse Discord visibility and dashboard rules only after their earlier gates
   pass.
+- Apply hooks to product repos only as an explicit opt-in after project-local
+  source artifacts, checks, and no-go boundaries are documented.
 
 Acceptance gate:
 
@@ -212,6 +280,8 @@ Acceptance gate:
 - Project repos keep their own code, tests, PRs, and release/apply policies.
 - Company Ops gives visibility and coordination without replacing project
   ownership.
+- Hook usage in project repos remains guardrail-only and can be audited against
+  `docs/codex-hook-harness.md`.
 
 ## Cold Review
 
@@ -227,9 +297,13 @@ Current assessment after reordering:
   source artifacts.
 - The remaining risk is setup availability: channel ids, permissions, and send
   credentials must be verified before Phase 1 can be called complete.
+- Hooks can reduce completion and safety drift later, but they should not be
+  used to compensate for an unproven operating loop.
 
 If all phases pass, the desired behavior is achievable: a Work Unit can be
 assigned to a Team Lead, observed in Discord, discussed directly with the
 appropriate Team Lead, tracked through a claim ledger, verified through
 evidence, decided by the Operations Lead, and surfaced in a GitHub Project or
 equivalent dashboard without creating hidden automation or fallback truth.
+Hook guardrails, if accepted, make those existing source-artifact requirements
+harder to skip; they do not replace any of them.
