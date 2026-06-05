@@ -21,10 +21,15 @@ projects are reference material only and are not compatibility targets.
 Current internal architecture version: v1.
 
 Most operating elements now have either documented manual practices or
-repo-local support scripts. The owner-visible dogfood, friction patch, and
-first real Team Lead delegation phases have been exercised. The remaining
-internal work is to close the Phase 5 activation sub-gates, then package only
-the stable surface.
+repo-local support scripts. The owner-visible dogfood, friction patch, first
+real Team Lead delegation, and Phase 5.1 visibility contract close have been
+exercised. The remaining internal work is to complete the later Phase 5
+activation sub-gates, then package only the stable surface.
+
+Phase 5.1 has accepted the visibility contract: `discord card`, foreground
+`discord publish-card`, and `discord proof-validate` are the stable live
+visibility path. Remaining Phase 5 work is limited to the later activation
+decisions before packaging.
 
 Owner-visible dogfood uses `#ops-feed` as the owner-facing request/result
 briefing timeline and `#team-*` as the detailed Team Lead execution trail.
@@ -66,9 +71,9 @@ python3 scripts/openclaw_company_ops.py --help
 ## Planned Work
 
 - Follow the post-setup realization plan from the current Phase 5 activation
-  sub-gates: close the visibility contract, decide the hook/dashboard/publisher
-  and scheduled-monitor gates, lock the Phase 6 packaging surface, and only
-  then adopt it across product repos.
+  sub-gates: decide the hook/dashboard/publisher-hardening and
+  scheduled-monitor gates, lock the Phase 6 packaging surface, and only then
+  adopt it across product repos.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.

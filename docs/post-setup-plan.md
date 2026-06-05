@@ -312,15 +312,17 @@ future review trigger.
 
 ### Phase 5.1: Visibility Contract Close
 
+Status: Accepted on 2026-06-06.
+
 Purpose: close the formatter, reporting, and transition-time visibility
 contract as the stable owner-visible loop.
 
-Phase 5.1 is not accepted by card shape alone. A Discord trail that is generated
+Phase 5.1 was not accepted by card shape alone. A Discord trail that is generated
 or sent only after all work is complete is a replay, not live visibility. It may
 prove formatting, but it does not prove that the owner could observe a long
 Work Unit while it was running.
 
-Acceptance evidence:
+Accepted evidence:
 
 - `discord card` can generate owner-facing `#ops-feed` briefing cards and
   `#team-*` detail trail cards locally without sending or mutating state.
@@ -355,7 +357,32 @@ Decision output: explicit accept/revise/no-go record for the visibility
 contract. If live timing proof is missing, the decision is `REVISE`, not
 `ACCEPT`.
 
+Decision record:
+
+- Decision: `ACCEPT`.
+- Evidence:
+  - `discord card`, `discord publish-card`, and `discord proof-validate` are
+    the active visibility path.
+  - Active legacy `discord visibility` generic formatting was removed from the
+    CLI surface.
+  - `WU-260606-LIVE-P0` proved live timed Discord send/readback with
+    assignment, start, checkpoint, result, review, and owner closeout.
+  - `WU-260606-CONVERGE-P0` repeated the timed live proof after convergence and
+    no-legacy cleanup.
+  - Smoke coverage rejects missing `STARTED`, `CHECKPOINT` after
+    `RESULT_READY`, replay/burst proof, dry-run proof, send/readback failure,
+    and duplicate card ids.
+- Rationale: the owner can observe the stable CLI-first delegation loop through
+  source artifacts plus live Discord readback proof without adding a second
+  Team Lead execution call, LLM summarization call, hidden command router, or
+  fallback truth source.
+- Remaining caveat: CHECKPOINTs remain explicit operator/agent publications.
+  No automatic checkpoint-needed guard, yieldable long-work runner, or daemon is
+  accepted as part of Phase 5.1.
+
 ### Phase 5.2: Completion / Hook Guard MVP Decision
+
+Status: Preparing decision and possible narrow implementation.
 
 Purpose: decide whether to implement a small repo-local hook guard now.
 
@@ -393,6 +420,19 @@ Hook timing boundary:
 - Hooks do not publish progress. Live progress belongs to the explicit
   foreground publisher or operating loop at the moment the transition happens.
 
+Checkpoint automation boundary:
+
+- Do not implement `checkpoint-needed` as a user-facing Phase 5.2 feature.
+  It adds little owner value after `proof-validate` and cannot solve silent
+  blocking work by itself.
+- Do not add a yieldable long-work runner or foreground monitor in Phase 5.2.
+  That would increase harness complexity and introduce new error surfaces
+  before there is concrete evidence that the cost is justified.
+- If repeated silent-agent incidents appear later, evaluate a separate
+  `stale-agent audit` surface that joins OpenClaw session state, claim ledger,
+  and live proof timestamps. That audit may alert Operations Lead attention,
+  but it must not publish semantic CHECKPOINTs or mutate work state.
+
 No-go boundaries:
 
 - No hook mutates GitHub, Discord, claim state, Work Cards, evidence,
@@ -418,30 +458,25 @@ Evaluate:
 Decision output: accept GitHub Project sync, accept an equivalent dashboard
 surface for v1, defer with trigger, or no-go with rationale.
 
-### Phase 5.4: Discord Publisher Gate
+### Phase 5.4: Discord Publisher Hardening Gate
 
-Purpose: decide whether to add the minimum foreground Discord publisher needed
-to prove live transition-time visibility.
+Purpose: decide whether the accepted foreground Discord publisher needs
+additional hardening before packaging.
 
 Phase 5.4 does not authorize a daemon, scheduler, Discord bridge, command
-router, or hidden orchestration runtime. The P0 shape is the foreground
-`publish-card` command that sends one explicit, already-formatted card at a
-time.
+router, or hidden orchestration runtime. The accepted P0 shape is the
+foreground `publish-card` command that sends one explicit, already-formatted
+card at a time.
 
 Evaluate:
 
-- whether manual posting remains repetitive after `discord card` and guard
-  standardization;
-- whether an external send path can be approved narrowly;
-- whether publisher output can be generated from source-artifact-backed
-  formatter output without becoming a command router.
-- whether the publisher can send, immediately read back, and append a local
-  JSONL proof row containing Work Unit id, card kind, target route,
-  transition timestamp, Discord message id, and Discord message timestamp.
-- whether retry behavior is idempotent so an old checkpoint cannot be replayed
-  as fresh progress.
+- whether retry/idempotency behavior needs more hardening before public v1;
+- whether proof logs need a stable artifact location convention;
+- whether target route validation should be stricter;
+- whether the current one-card foreground publisher is enough for v1.
 
-Decision output: accept publisher, defer with trigger, or no-go with rationale.
+Decision output: accept current P0 publisher as v1-ready, implement narrow
+hardening, defer hardening with trigger, or no-go with rationale.
 
 Publisher no-go boundaries:
 

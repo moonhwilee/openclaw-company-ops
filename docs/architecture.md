@@ -459,14 +459,14 @@ dashboard snapshots, a non-installing pulse daemon runner, and a repo-local
 entrypoint.
 
 The active remaining order is documented in `docs/post-setup-plan.md`. Phases
-1-4 have been exercised; the current work is Phase 5 activation sub-gates:
+1-4 and Phase 5.1 have been exercised; the current work is the remaining Phase
+5 activation sub-gates:
 
-1. Visibility contract close.
-2. Completion / Hook Guard MVP decision.
-3. Dashboard gate.
-4. Discord publisher gate.
-5. Scheduled Pulse / daemon gate.
-6. Packaging readiness decision.
+1. Completion / Hook Guard MVP decision.
+2. Dashboard gate.
+3. Discord publisher hardening gate.
+4. Scheduled Pulse / daemon gate.
+5. Packaging readiness decision.
 
 After Phase 5:
 

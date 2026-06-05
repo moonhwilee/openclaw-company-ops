@@ -902,15 +902,14 @@ artifacts.
 Status: Active plan
 
 After the base setup and repo-local scripts exist, continue tracking
-implementation status in `docs/post-setup-plan.md`. Phases 1-4 have been
-exercised; current work is Phase 5:
+implementation status in `docs/post-setup-plan.md`. Phases 1-4 and Phase 5.1
+have been exercised; current work is the remaining Phase 5 gates:
 
-1. Visibility contract close.
-2. Completion / Hook Guard MVP decision.
-3. Dashboard gate.
-4. Discord publisher gate.
-5. Scheduled Pulse / daemon gate.
-6. Packaging readiness decision.
+1. Completion / Hook Guard MVP decision.
+2. Dashboard gate.
+3. Discord publisher hardening gate.
+4. Scheduled Pulse / daemon gate.
+5. Packaging readiness decision.
 
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.

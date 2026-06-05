@@ -1,6 +1,6 @@
 # Visibility Card Implementation Plan
 
-Status: Initial implementation complete
+Status: Active surface complete; Phase 5.1 accepted
 
 This plan describes the first repo-local implementation pass for user-friendly
 Company Ops Discord visibility.
@@ -71,13 +71,13 @@ and high-contrast for quick Discord scanning.
 
 ## Composer Boundary
 
-Add a higher-level composer on top of the existing generic visibility formatter
-instead of deleting the generic formatter immediately.
+The active visibility surface is intentionally narrow.
 
-The existing command can remain useful for machine-readable JSON, alerts, and
-backward-compatible manual formatting. The new card composer should be the
-preferred interface for normal owner-facing and team-detail delegation
-visibility.
+Use `discord card` to compose purpose-specific cards, `discord publish-card` to
+send one prepared card and record readback proof, and `discord proof-validate`
+to validate the live trail. Do not keep a generic compatibility formatter as a
+parallel operating path. Machine-readable state belongs in source artifacts and
+proof JSONL, not in an alternate Discord formatting command.
 
 ## Validation Rules
 
@@ -138,8 +138,8 @@ Supported local card families:
 
 The active visibility surface is intentionally narrow: compose with
 `discord card`, publish one prepared card with `discord publish-card`, and
-validate final live proof with `discord proof-validate`. Do not keep a generic
-compatibility formatter as a legacy operating path.
+validate final live proof with `discord proof-validate`. Do not keep any
+parallel Discord formatting command in normal operations.
 
 Implemented validation:
 

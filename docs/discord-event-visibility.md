@@ -281,19 +281,22 @@ Compare against the baseline of CLI-first execution.
 Activation priority after Phase 4 follows the Phase 5 sub-gates in
 `docs/post-setup-plan.md`:
 
-1. Phase 5.1 closes the visibility contract: card composer, header icons,
-   sequence guard, UTF-16 length guard, 1,600-character generation budget, and
-   no extra Team Lead or LLM summarization call for normal visibility.
+1. Phase 5.1 accepted the visibility contract: card composer, header icons,
+   sequence guard, UTF-16 length guard, 1,600-character generation budget,
+   foreground `publish-card`, live `proof-validate`, and no extra Team Lead or
+   LLM summarization call for normal visibility.
 2. Phase 5.2 decides whether a small repo-local Completion / Hook Guard MVP is
    needed. Phase 3.5 was the earlier optional insertion point; current hook
    activation is reconsidered here based on observed sequence, completion, and
-   handoff risks.
+   handoff risks. Checkpoint-needed automation and yieldable long-work runners
+   are not part of this gate unless later evidence reopens them.
 3. Phase 5.3 decides whether GitHub Project sync is needed or whether
    Work Cards, source artifacts, issue labels, and `dashboard_snapshot.py` are
    enough as the v1 dashboard surface.
-4. Phase 5.4 considers a Discord publisher only if manual visibility posting
-   remains repetitive. The publisher may send explicitly targeted formatted
-   messages only.
+4. Phase 5.4 now considers whether the foreground Discord publisher needs
+   hardening beyond the accepted P0 `publish-card` proof. It must remain an
+   explicit one-card publisher, not a daemon, command router, or timeline
+   replay tool.
 5. Phase 5.5 keeps scheduled daemon or Pulse Monitor activation deferred unless
    real stale-claim risk outweighs alert noise and false positives.
 6. Phase 5.6 locks the surfaces allowed to enter packaging/public v1.

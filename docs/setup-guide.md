@@ -560,7 +560,8 @@ exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
 `scripts/dashboard_snapshot.py`. The first non-installing Pulse Monitor daemon
 runner exists as `scripts/pulse_daemon.py`.
 
-The next recommended step is still not packaging. It is the Phase 5 activation
-sub-gate sequence in `docs/post-setup-plan.md`: close the visibility contract,
-decide the hook/dashboard/publisher/scheduled-monitor gates, lock the Phase 6
-surface, then proceed to packaging/public v1 and cross-project adoption.
+The next recommended step is still not packaging. Phase 5.1 has accepted the
+visibility contract; continue the remaining activation gates in
+`docs/post-setup-plan.md`: decide the hook/dashboard/publisher-hardening and
+scheduled-monitor gates, lock the Phase 6 surface, then proceed to
+packaging/public v1 and cross-project adoption.
