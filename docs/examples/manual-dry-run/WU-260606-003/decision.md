@@ -1,6 +1,6 @@
 # Operations Lead Decision
 
-Status: Pending
+Status: Accepted
 
 The Operations Lead decision records whether the submitted result satisfies the
 Assignment Packet and evidence requirements.
@@ -19,20 +19,35 @@ Assignment Packet and evidence requirements.
 
 ## Decision
 
-Choose one:
-
 - `accept`
-- `revise`
-- `hold`
-- `reject`
 
 ## Rationale
 
-Explain the decision using the Assignment Packet and Evidence & Result Record.
+The evidence satisfies the Assignment Packet.
+
+The patch adds source-artifact-backed execution route visibility to the
+read-only Work Unit status helper without changing Discord, GitHub, dashboard,
+claim, evidence, decision, hook, daemon, or routing behavior.
+
+Verification confirms:
+
+- `WU-260606-003` status text displays `discord-bound` from `claim.md`.
+- `WU-260606-003` JSON status includes `execution_route.value` as
+  `discord-bound`.
+- `WU-260606-002` status displays `cli-direct` from its existing artifact note.
+- `WU-260606-001` still summarizes successfully with route `unknown`.
+- Existing setup smokes and Python compilation pass.
+
+This also proves the Phase 4 `#team-build-lab` delegation path: the owner-authored
+Discord inbound route validation passed, the assignment handoff was visible in
+the team channel, and build-lab returned its result in the same channel.
 
 ## Required Follow-up
 
--
+- Keep route parsing intentionally narrow. If future artifacts need route
+  visibility, record an explicit `Execution route:` field rather than relying on
+  prose.
+- Continue using `discord-bound` for owner-visible Team Lead delegation phases.
 
 ## Closure Instruction
 

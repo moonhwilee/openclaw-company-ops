@@ -1,6 +1,6 @@
 # Ops Claim Ledger Entry
 
-Status: Result Ready
+Status: Done
 
 The Ops Claim Ledger records expected responsibility. It is not runtime truth,
 progress history, evidence storage, a dashboard database, or a recovery system.
@@ -18,11 +18,10 @@ progress history, evidence storage, a dashboard database, or a recovery system.
 
 ## Expected Responsibility
 
-- Expected state: `result_ready`
+- Expected state: `done`
 - Expected until: `2026-06-06T04:00:00+09:00`
-- Last claim: Team Lead implementation and verification completed through the
-  validated Discord-bound `#team-build-lab` route; evidence is ready for
-  Operations Lead review.
+- Last claim: Operations Lead accepted the execution-route status summary
+  patch after verifying evidence and checks.
 - Last seen compaction count: `unknown`
 
 Allowed expected states:
