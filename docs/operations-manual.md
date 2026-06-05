@@ -178,11 +178,11 @@ deterministic validator should check Work Unit id, team, decision, next action,
 team-final-review-before-ops-completion, and absence of internal fields in
 `#ops-feed`.
 
-If a future publisher is approved, the first acceptable shape is a foreground
-`publish-card` command. It may send one explicit formatted card, immediately
-read it back, and append local proof. It must not decide channels by reading
-message content, batch-replay a Work Unit timeline after completion, mutate
-state, approve results, or become a command router.
+The approved P0 publisher shape is the foreground `publish-card` command. It
+sends one explicit formatted card, immediately reads it back, and appends local
+proof. It must not decide channels by reading message content, batch-replay a
+Work Unit timeline after completion, mutate state, approve results, or become a
+command router.
 
 One-time route diagnostics may still add one short Team Lead LLM response when
 testing a new Discord channel, thread, binding, agent, or suspected stale

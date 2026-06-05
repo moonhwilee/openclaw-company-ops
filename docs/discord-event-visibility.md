@@ -409,9 +409,9 @@ Use these event names consistently.
 
 - `ASSIGNED_DETAIL`: detailed Team Lead assignment and done criteria.
 - `STARTED`: Team Lead started or claimed execution.
-- `CHECKPOINT`: planned Phase 5.1/5.4 long-running progress card between
-  `STARTED` and `RESULT_READY`; not supported by the current formatter until
-  the foreground publisher slice is implemented.
+- `CHECKPOINT`: long-running progress card between `STARTED` and
+  `RESULT_READY`, used at slice boundaries or the 10-15 minute checkpoint
+  interval.
 - `RESULT_READY`: Team Lead submitted result, evidence, or verification
   candidates.
 - `ACCEPTED`: Operations Lead accepted the result after review.
@@ -441,7 +441,7 @@ Default team icons:
 Default status icons:
 
 - `📌 [요청]` / `✅ [완료]` / `⛔ [막힘]`
-- `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / planned `CHECKPOINT` /
+- `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / `⏱️ [CHECKPOINT]` /
   `📦 [RESULT_READY]`
 - `✅ [ACCEPTED]` / `🔁 [REVISE]` / `⛔ [BLOCKED_DETAIL]`
 
@@ -517,6 +517,25 @@ python3 scripts/openclaw_company_ops.py discord card \
 
 Visibility card composition prints only; it does not send to Discord, mutate GitHub,
 update claims, or change execution state.
+
+To publish one prepared card and record timestamped readback proof:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord publish-card \
+  --card-json team-checkpoint.json \
+  --target channel:<discord-channel-id> \
+  --proof-log artifacts/WU-YYMMDD-001/discord-live-proof.jsonl
+```
+
+Validate live proof before accepting a long-running visibility flow:
+
+```bash
+python3 scripts/openclaw_company_ops.py discord proof-validate \
+  --proof-log artifacts/WU-YYMMDD-001/discord-live-proof.jsonl \
+  --work-unit-id WU-YYMMDD-001 \
+  --require-checkpoint \
+  --min-live-span-seconds 60
+```
 
 ## Required Message Content
 

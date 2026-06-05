@@ -35,6 +35,14 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
 def create_artifacts(args: argparse.Namespace, work_dir: Path, work_unit_id: str, team_lead: str) -> Path:
     output_root = work_dir / "artifacts"
     command = [
@@ -350,6 +358,40 @@ def run_discord_card_smoke() -> None:
     if "▶️ [STARTED] WU-260605-903 · 🧱 build-pq" not in build_pq_started.stdout:
         raise RuntimeError("build-pq card did not include canonical team icon")
 
+    checkpoint = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "CHECKPOINT",
+            "--work-unit-id",
+            "WU-260605-903",
+            "--team",
+            "build-pq",
+            "--current-slice",
+            "Phase 1 data inspection",
+            "--status",
+            "Inspecting source artifacts before implementation.",
+            "--elapsed",
+            "12m",
+            "--next-checkpoint",
+            "within 10m or at next slice boundary",
+            "--source",
+            "local-smoke://checkpoint",
+            "--next",
+            "Continue current slice.",
+        ]
+    )
+    require_success(checkpoint, "discord team checkpoint card")
+    if "⏱️ [CHECKPOINT] WU-260605-903 · 🧱 build-pq" not in checkpoint.stdout:
+        raise RuntimeError("checkpoint card did not include expected header")
+    for expected in ("Slice:", "Status:", "Next checkpoint:", "Next:"):
+        if expected not in checkpoint.stdout:
+            raise RuntimeError(f"checkpoint card missing {expected}")
+
     market_blocked = run_command(
         [
             sys.executable,
@@ -541,6 +583,8 @@ def run_discord_card_smoke() -> None:
         pair_dir = Path(pair_dir_raw)
         request_card_json = pair_dir / "request-card.json"
         assigned_card_json = pair_dir / "assigned-card.json"
+        started_card_json = pair_dir / "started-card.json"
+        checkpoint_card_json = pair_dir / "checkpoint-card.json"
         result_card_json = pair_dir / "result-card.json"
         ops_card_json = pair_dir / "ops-card.json"
         team_card_json = pair_dir / "team-card.json"
@@ -600,6 +644,54 @@ def run_discord_card_smoke() -> None:
             ]
         )
         require_success(assigned_json, "discord team assigned detail card JSON")
+        started_json = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card",
+                "--surface",
+                "team-detail",
+                "--kind",
+                "STARTED",
+                "--work-unit-id",
+                "WU-260605-901",
+                "--team",
+                "build-lab",
+                "--status",
+                "Team Lead has started the bounded smoke slice.",
+                "--next",
+                "Publish checkpoint before RESULT_READY if work runs long.",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(started_json, "discord team started card JSON")
+        checkpoint_json = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card",
+                "--surface",
+                "team-detail",
+                "--kind",
+                "CHECKPOINT",
+                "--work-unit-id",
+                "WU-260605-901",
+                "--team",
+                "build-lab",
+                "--current-slice",
+                "formatter smoke execution",
+                "--status",
+                "Card sequence fixture is still in progress.",
+                "--next-checkpoint",
+                "before RESULT_READY",
+                "--next",
+                "Return RESULT_READY.",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(checkpoint_json, "discord team checkpoint card JSON")
         result_json = run_command(
             [
                 sys.executable,
@@ -628,6 +720,8 @@ def run_discord_card_smoke() -> None:
         require_success(result_json, "discord team result ready card JSON")
         request_card_json.write_text(request_json.stdout, encoding="utf-8")
         assigned_card_json.write_text(assigned_json.stdout, encoding="utf-8")
+        started_card_json.write_text(started_json.stdout, encoding="utf-8")
+        checkpoint_card_json.write_text(checkpoint_json.stdout, encoding="utf-8")
         result_card_json.write_text(result_json.stdout, encoding="utf-8")
         ops_card_json.write_text(completion.stdout, encoding="utf-8")
         team_card_json.write_text(accepted.stdout, encoding="utf-8")
@@ -656,6 +750,10 @@ def run_discord_card_smoke() -> None:
                 "--card-json",
                 str(assigned_card_json),
                 "--card-json",
+                str(started_card_json),
+                "--card-json",
+                str(checkpoint_card_json),
+                "--card-json",
                 str(result_card_json),
                 "--card-json",
                 str(team_card_json),
@@ -664,7 +762,7 @@ def run_discord_card_smoke() -> None:
             ]
         )
         require_success(sequence_result, "discord card sequence validation")
-        if "OK visibility card sequence: WU-260605-901 · build-lab · 5 cards" not in sequence_result.stdout:
+        if "OK visibility card sequence: WU-260605-901 · build-lab · 7 cards" not in sequence_result.stdout:
             raise RuntimeError("card sequence validation did not include expected result")
 
         missing_request_result = run_command(
@@ -684,6 +782,125 @@ def run_discord_card_smoke() -> None:
         )
         if missing_request_result.returncode == 0:
             raise RuntimeError("card sequence passed without an ops-feed request card")
+
+        late_checkpoint_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card-sequence",
+                "--card-json",
+                str(request_card_json),
+                "--card-json",
+                str(assigned_card_json),
+                "--card-json",
+                str(started_card_json),
+                "--card-json",
+                str(result_card_json),
+                "--card-json",
+                str(checkpoint_card_json),
+                "--card-json",
+                str(team_card_json),
+                "--card-json",
+                str(ops_card_json),
+            ]
+        )
+        if late_checkpoint_result.returncode == 0:
+            raise RuntimeError("card sequence accepted CHECKPOINT after RESULT_READY")
+
+        proof_log = pair_dir / "live-proof.jsonl"
+        base_proof = {
+            "proof_version": 1,
+            "work_unit_id": "WU-260605-901",
+            "team": "build-lab",
+            "target": "channel:local-smoke",
+            "channel": "discord",
+            "thread_id": "",
+            "readback_ok": True,
+            "dry_run": False,
+            "error": "",
+            "send_result": {},
+            "readback_result": {},
+        }
+        proof_events = [
+            ("ops-feed", "ASSIGNED", "card-001", "2026-06-05T21:00:00Z"),
+            ("team-detail", "ASSIGNED_DETAIL", "card-002", "2026-06-05T21:00:05Z"),
+            ("team-detail", "STARTED", "card-003", "2026-06-05T21:00:10Z"),
+            ("team-detail", "CHECKPOINT", "card-004", "2026-06-05T21:10:10Z"),
+            ("team-detail", "RESULT_READY", "card-005", "2026-06-05T21:20:15Z"),
+            ("team-detail", "ACCEPTED", "card-006", "2026-06-05T21:20:45Z"),
+            ("ops-feed", "COMPLETED", "card-007", "2026-06-05T21:21:00Z"),
+        ]
+        write_jsonl(
+            proof_log,
+            [
+                {
+                    **base_proof,
+                    "proof_id": f"WU-260605-901:{surface}:{kind}:{card_id}",
+                    "card_id": card_id,
+                    "surface": surface,
+                    "kind": kind,
+                    "transition_at": timestamp,
+                    "sent_at": timestamp,
+                    "readback_at": timestamp,
+                    "discord_timestamp": timestamp,
+                    "discord_message_id": f"msg-{card_id}",
+                }
+                for surface, kind, card_id, timestamp in proof_events
+            ],
+        )
+        proof_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "proof-validate",
+                "--proof-log",
+                str(proof_log),
+                "--work-unit-id",
+                "WU-260605-901",
+                "--require-checkpoint",
+                "--min-live-span-seconds",
+                "60",
+            ]
+        )
+        require_success(proof_result, "discord live proof validation")
+        if "OK live visibility proof: WU-260605-901" not in proof_result.stdout:
+            raise RuntimeError("live proof validation did not include expected result")
+
+        replay_proof_log = pair_dir / "replay-proof.jsonl"
+        write_jsonl(
+            replay_proof_log,
+            [
+                {
+                    **base_proof,
+                    "proof_id": f"WU-260605-901:{surface}:{kind}:replay-{index}",
+                    "card_id": f"replay-{index}",
+                    "surface": surface,
+                    "kind": kind,
+                    "transition_at": f"2026-06-05T21:30:0{index}Z",
+                    "sent_at": f"2026-06-05T21:30:0{index}Z",
+                    "readback_at": f"2026-06-05T21:30:0{index}Z",
+                    "discord_timestamp": f"2026-06-05T21:30:0{index}Z",
+                    "discord_message_id": f"msg-replay-{index}",
+                }
+                for index, (surface, kind, _card_id, _timestamp) in enumerate(proof_events, start=1)
+            ],
+        )
+        replay_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "proof-validate",
+                "--proof-log",
+                str(replay_proof_log),
+                "--work-unit-id",
+                "WU-260605-901",
+                "--require-checkpoint",
+                "--min-live-span-seconds",
+                "60",
+            ]
+        )
+        if replay_result.returncode == 0:
+            raise RuntimeError("live proof validation accepted a burst/replay proof")
 
     long_result = run_command(
         [
@@ -785,7 +1002,8 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
-        "discord visibility formatting, purpose-specific visibility card composition, "
+        "discord visibility formatting, purpose-specific visibility card/checkpoint composition, "
+        "live proof validation with burst replay rejection, "
         "and one result_ready update"
     )
     return 0

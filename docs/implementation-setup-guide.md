@@ -705,10 +705,10 @@ Next action: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 Recommended visibility kinds:
 
 - `#ops-feed`: `ASSIGNED`, `COMPLETED`, `BLOCKED`.
-- `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `RESULT_READY`, `ACCEPTED`,
-  `REVISE`, `BLOCKED_DETAIL`.
-- Planned Phase 5.1/5.4 addition: `#team-* CHECKPOINT` for long-running live
-  progress between `STARTED` and `RESULT_READY`.
+- `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `CHECKPOINT`, `RESULT_READY`,
+  `ACCEPTED`, `REVISE`, `BLOCKED_DETAIL`.
+- `CHECKPOINT` is for long-running live progress between `STARTED` and
+  `RESULT_READY`.
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 
@@ -763,14 +763,13 @@ does not post to Discord:
 python3 scripts/openclaw_company_ops.py discord card --surface team-detail --kind RESULT_READY --work-unit-id <id> ...
 ```
 
-Future automation can add an explicit foreground publisher around the same
-visibility shape only after the activation decision gate. The first acceptable
-shape sends one card at a time, immediately reads it back, and records local
-proof; it does not batch-replay a Work Unit timeline after completion.
+The foreground `publish-card` publisher sends one card at a time, immediately
+reads it back, and records local proof; it does not batch-replay a Work Unit
+timeline after completion.
 
-Do not add a Discord command router. The first acceptable implementation is a
-publisher-only path that posts source-artifact-backed visibility messages and
-cannot mutate GitHub, claims, decisions, assignments, or execution state.
+Do not add a Discord command router. The implementation is a publisher-only path
+that posts source-artifact-backed visibility messages and cannot mutate GitHub,
+claims, decisions, assignments, or execution state.
 
 ## Team Lead Execution Setup
 

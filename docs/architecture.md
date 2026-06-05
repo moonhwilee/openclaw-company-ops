@@ -482,8 +482,8 @@ model.
 These decisions are not blockers for the architecture:
 
 - When to install or schedule the Pulse Monitor daemon runner.
-- When to add a foreground Discord `publish-card` path after the Phase 5.4
-  publisher gate.
+- When to promote the foreground Discord `publish-card` path beyond P0 proof
+  into a broader operating surface.
 - When to create or sync a GitHub Project dashboard.
 - Whether the first public package is a CLI, OpenClaw skill, setup script, or a
   combination.

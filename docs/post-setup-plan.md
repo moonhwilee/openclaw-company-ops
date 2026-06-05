@@ -424,9 +424,9 @@ Purpose: decide whether to add the minimum foreground Discord publisher needed
 to prove live transition-time visibility.
 
 Phase 5.4 does not authorize a daemon, scheduler, Discord bridge, command
-router, or hidden orchestration runtime. The first acceptable shape is a
-foreground `publish-card` command that sends one explicit, already-formatted
-card at a time.
+router, or hidden orchestration runtime. The P0 shape is the foreground
+`publish-card` command that sends one explicit, already-formatted card at a
+time.
 
 Evaluate:
 

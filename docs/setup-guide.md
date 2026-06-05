@@ -232,10 +232,10 @@ state, such as `/done`, `/assign`, `/reassign`, or `/recover`.
 Recommended event types:
 
 - `#ops-feed`: `ASSIGNED`, `COMPLETED`, `BLOCKED`.
-- `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `RESULT_READY`, `ACCEPTED`,
-  `REVISE`, `BLOCKED_DETAIL`.
-- Planned Phase 5.1/5.4 addition: `#team-* CHECKPOINT` for long-running live
-  progress between `STARTED` and `RESULT_READY`.
+- `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `CHECKPOINT`, `RESULT_READY`,
+  `ACCEPTED`, `REVISE`, `BLOCKED_DETAIL`.
+- `CHECKPOINT` is for long-running live progress between `STARTED` and
+  `RESULT_READY`.
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 

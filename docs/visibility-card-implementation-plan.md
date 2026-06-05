@@ -171,9 +171,8 @@ Implemented validation:
 - Keep visible owner-facing card labels localizable.
 - Default internal operation is Korean for long human-readable text.
 - Public/package examples may use English.
-- Add `CHECKPOINT` as the long-running team-detail progress card between
+- `CHECKPOINT` is the long-running team-detail progress card between
   `STARTED` and `RESULT_READY`.
-- A future Discord publisher may send the composed cards, but the first
-  acceptable implementation is a foreground `publish-card` command that sends
-  one explicit card at a time, reads it back, records proof, and remains
-  publisher-only. It must not route commands or mutate state.
+- The first publisher surface is the foreground `publish-card` command. It
+  sends one explicit card at a time, reads it back, records JSONL proof, and
+  remains publisher-only. It must not route commands or mutate state.

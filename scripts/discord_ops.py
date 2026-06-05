@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Format OpenClaw Company Ops visibility events without sending them."""
+"""Compose, publish, and validate OpenClaw Company Ops Discord visibility."""
 
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,6 +33,7 @@ OPS_FEED_EVENTS = {
 TEAM_DETAIL_EVENTS = {
     "ASSIGNED_DETAIL",
     "STARTED",
+    "CHECKPOINT",
     "RESULT_READY",
     "ACCEPTED",
     "REVISE",
@@ -51,6 +55,7 @@ OPS_FEED_CARD_STATUS_ICONS = {
 TEAM_DETAIL_STATUS_ICONS = {
     "ASSIGNED_DETAIL": "📋",
     "STARTED": "▶️",
+    "CHECKPOINT": "⏱️",
     "RESULT_READY": "📦",
     "ACCEPTED": "✅",
     "REVISE": "🔁",
@@ -83,6 +88,7 @@ DISCORD_MESSAGE_LIMIT = 2000
 DISCORD_GENERATION_TARGET_CHARS = 1600
 DISCORD_MESSAGE_TARGET_CHARS = 1800
 DISCORD_COMPACTION_SUFFIX = "… (일부 생략됨; 상세 내용은 source artifact 또는 team result 원문을 확인하세요.)"
+PROOF_TIMESTAMP_FIELDS = ("transition_at", "sent_at", "readback_at", "discord_timestamp")
 
 
 def read_json(path: str) -> dict[str, Any]:
@@ -116,6 +122,169 @@ def read_card_json(path: str) -> dict[str, str]:
     normalized = {str(key): "" if value is None else str(value) for key, value in card.items()}
     validate_card(normalized)
     return normalized
+
+
+def utc_now_iso() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def parse_timestamp(value: str, field: str) -> datetime:
+    if not value:
+        raise ValueError(f"proof row missing timestamp: {field}")
+    raw = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(f"invalid {field} timestamp: {value}") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{field} timestamp must include timezone: {value}")
+    return parsed.astimezone(UTC)
+
+
+def read_jsonl(path: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    source_path = Path(path).expanduser()
+    for line_number, raw in enumerate(source_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not raw.strip():
+            continue
+        try:
+            row = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{source_path}:{line_number}: invalid JSONL row: {exc}") from exc
+        if not isinstance(row, dict):
+            raise ValueError(f"{source_path}:{line_number}: proof row must be a JSON object")
+        rows.append(row)
+    return rows
+
+
+def append_jsonl(path: str, row: dict[str, Any]) -> None:
+    output = Path(path).expanduser()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+
+
+def stable_card_id(card: dict[str, str], text: str) -> str:
+    payload = json.dumps(card, sort_keys=True, ensure_ascii=False) + "\n" + text
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def find_values(data: Any, keys: set[str]) -> list[str]:
+    found: list[str] = []
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in keys and isinstance(value, (str, int)):
+                found.append(str(value))
+            found.extend(find_values(value, keys))
+    elif isinstance(data, list):
+        for item in data:
+            found.extend(find_values(item, keys))
+    return found
+
+
+def find_message_objects(data: Any) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    if isinstance(data, dict):
+        text = data.get("message") or data.get("content") or data.get("text") or data.get("body")
+        message_id = data.get("messageId") or data.get("message_id") or data.get("id")
+        if isinstance(text, str) and message_id is not None:
+            messages.append(data)
+        for value in data.values():
+            messages.extend(find_message_objects(value))
+    elif isinstance(data, list):
+        for item in data:
+            messages.extend(find_message_objects(item))
+    return messages
+
+
+def message_text(message: dict[str, Any]) -> str:
+    for key in ("message", "content", "text", "body"):
+        value = message.get(key)
+        if isinstance(value, str):
+            return value
+    return ""
+
+
+def message_id(message: dict[str, Any]) -> str:
+    for key in ("messageId", "message_id", "id"):
+        value = message.get(key)
+        if value is not None:
+            return str(value)
+    return ""
+
+
+def message_timestamp(message: dict[str, Any]) -> str:
+    for key in ("createdAt", "created_at", "timestamp", "date", "sentAt", "sent_at"):
+        value = message.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def first_sent_message_id(data: dict[str, Any]) -> str:
+    values = find_values(data, {"messageId", "message_id", "id"})
+    return values[0] if values else ""
+
+
+def result_summary(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "message_id_candidates": find_values(data, {"messageId", "message_id", "id"})[:5],
+        "handled_by": data.get("handledBy", ""),
+        "action": data.get("action", ""),
+        "dry_run": data.get("dryRun", False),
+    }
+
+
+def run_openclaw_message(command: list[str]) -> tuple[int, dict[str, Any], str, str]:
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    data: dict[str, Any] = {}
+    if result.stdout.strip():
+        try:
+            parsed = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            parsed = {}
+        if isinstance(parsed, dict):
+            data = parsed
+    return result.returncode, data, result.stdout, result.stderr
+
+
+def readback_match(
+    args: argparse.Namespace,
+    text: str,
+    sent_message_id: str,
+) -> tuple[bool, str, str, dict[str, Any], str]:
+    command = [
+        "openclaw",
+        "message",
+        "read",
+        "--channel",
+        args.channel,
+        "--target",
+        args.target,
+        "--limit",
+        str(args.readback_limit),
+        "--json",
+    ]
+    if args.account:
+        command.extend(["--account", args.account])
+    if args.thread_id:
+        command.extend(["--thread-id", args.thread_id])
+    if sent_message_id:
+        command.extend(["--message-id", sent_message_id])
+
+    code, data, stdout, stderr = run_openclaw_message(command)
+    if code != 0:
+        return False, "", "", data, stderr.strip() or stdout.strip()
+
+    expected_header = text.splitlines()[0] if text else ""
+    for candidate in find_message_objects(data):
+        candidate_id = message_id(candidate)
+        candidate_text = message_text(candidate)
+        if sent_message_id and candidate_id == sent_message_id:
+            return True, candidate_id, message_timestamp(candidate), data, ""
+        if candidate_text == text or (expected_header and expected_header in candidate_text):
+            return True, candidate_id, message_timestamp(candidate), data, ""
+    return False, "", "", data, "sent message was not found in readback"
 
 
 def normalize_alerts(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -340,6 +509,10 @@ def card_from_args(args: argparse.Namespace) -> dict[str, str]:
         "risks": args.risks,
         "reason": args.reason,
         "status": args.status,
+        "current_slice": args.current_slice,
+        "elapsed": args.elapsed,
+        "next_checkpoint": args.next_checkpoint,
+        "source": args.source,
         "team_final_review_kind": args.team_final_review_kind,
     }
     validate_card(card)
@@ -372,6 +545,8 @@ def validate_card(card: dict[str, str]) -> None:
         require_fields(card, ("goal", "scope", "criteria", "report"), "team assignment detail")
     elif card["kind"] == "STARTED":
         require_fields(card, ("status",), "team started card")
+    elif card["kind"] == "CHECKPOINT":
+        require_fields(card, ("status", "current_slice"), "team checkpoint card")
     elif card["kind"] == "RESULT_READY":
         require_fields(card, ("result", "evidence", "verification"), "team result ready card")
     elif card["kind"] in {"ACCEPTED", "REVISE"}:
@@ -437,6 +612,17 @@ def format_team_detail_card(card: dict[str, str]) -> str:
         lines.append(f"Report: {card['report']}")
     elif card["kind"] == "STARTED":
         lines.append(f"Status: {card['status']}")
+    elif card["kind"] == "CHECKPOINT":
+        lines.extend(
+            [
+                f"Slice: {card['current_slice']}",
+                f"Status: {card['status']}",
+            ]
+        )
+        append_line(lines, "Elapsed", card.get("elapsed"))
+        append_line(lines, "Next checkpoint", card.get("next_checkpoint"))
+        append_line(lines, "Evidence", card.get("evidence"))
+        append_line(lines, "Source", card.get("source"))
     elif card["kind"] == "RESULT_READY":
         lines.extend(
             [
@@ -498,6 +684,17 @@ def validate_card_sequence(cards: list[dict[str, str]]) -> dict[str, str]:
         raise ValueError("card sequence requires team-detail ASSIGNED_DETAIL")
     if events.index(("team-detail", "ASSIGNED_DETAIL")) < ops_assigned_index:
         raise ValueError("team-detail ASSIGNED_DETAIL must not precede ops-feed ASSIGNED")
+
+    checkpoint_indexes = [
+        index for index, event in enumerate(events) if event == ("team-detail", "CHECKPOINT")
+    ]
+    for checkpoint_index in checkpoint_indexes:
+        if ("team-detail", "STARTED") not in events:
+            raise ValueError("team-detail CHECKPOINT requires prior team-detail STARTED")
+        if events.index(("team-detail", "STARTED")) > checkpoint_index:
+            raise ValueError("team-detail STARTED must precede team-detail CHECKPOINT")
+        if ("team-detail", "RESULT_READY") in events and events.index(("team-detail", "RESULT_READY")) < checkpoint_index:
+            raise ValueError("team-detail CHECKPOINT must not follow team-detail RESULT_READY")
 
     if ("ops-feed", "COMPLETED") in events:
         completed_index = events.index(("ops-feed", "COMPLETED"))
@@ -672,6 +869,280 @@ def cmd_card_sequence(args: argparse.Namespace) -> int:
     return 0
 
 
+def proof_row_from_card(
+    card: dict[str, str],
+    text: str,
+    args: argparse.Namespace,
+    send_result: dict[str, Any],
+    readback_result: dict[str, Any],
+    sent_message_id: str,
+    readback_message_id: str,
+    discord_timestamp: str,
+    transition_at: str,
+    sent_at: str,
+    readback_at: str,
+    readback_ok: bool,
+    error: str = "",
+) -> dict[str, Any]:
+    card_id = stable_card_id(card, text)
+    return {
+        "proof_version": 1,
+        "proof_id": f"{card['work_unit_id']}:{card['surface']}:{card['kind']}:{card_id}",
+        "card_id": card_id,
+        "work_unit_id": card["work_unit_id"],
+        "team": card["team"],
+        "surface": card["surface"],
+        "kind": card["kind"],
+        "target": args.target,
+        "channel": args.channel,
+        "thread_id": args.thread_id or "",
+        "transition_at": transition_at,
+        "sent_at": sent_at,
+        "readback_at": readback_at,
+        "discord_message_id": readback_message_id or sent_message_id,
+        "discord_timestamp": discord_timestamp or readback_at,
+        "readback_ok": readback_ok,
+        "dry_run": bool(args.dry_run),
+        "error": error,
+        "send_result": result_summary(send_result),
+        "readback_result": {
+            **result_summary(readback_result),
+            "matched": readback_ok,
+            "matched_message_id": readback_message_id,
+        },
+    }
+
+
+def cmd_publish_card(args: argparse.Namespace) -> int:
+    try:
+        card = read_card_json(args.card_json)
+        text = format_text_card(card)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    transition_at = args.transition_at or utc_now_iso()
+    sent_at = utc_now_iso()
+
+    if args.dry_run:
+        readback_at = utc_now_iso()
+        row = proof_row_from_card(
+            card,
+            text,
+            args,
+            {"dryRun": True},
+            {"dryRun": True},
+            "dry-run",
+            "dry-run",
+            readback_at,
+            transition_at,
+            sent_at,
+            readback_at,
+            True,
+        )
+        append_jsonl(args.proof_log, row)
+        if args.format == "json":
+            print(json.dumps({"publish": row, "text": text}, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(f"DRY-RUN publish-card proof recorded: {row['proof_id']}")
+        return 0
+
+    command = [
+        "openclaw",
+        "message",
+        "send",
+        "--channel",
+        args.channel,
+        "--target",
+        args.target,
+        "--message",
+        text,
+        "--json",
+    ]
+    if args.account:
+        command.extend(["--account", args.account])
+    if args.thread_id:
+        command.extend(["--thread-id", args.thread_id])
+
+    code, send_result, stdout, stderr = run_openclaw_message(command)
+    sent_at = utc_now_iso()
+    if code != 0:
+        row = proof_row_from_card(
+            card,
+            text,
+            args,
+            send_result,
+            {},
+            "",
+            "",
+            "",
+            transition_at,
+            sent_at,
+            "",
+            False,
+            stderr.strip() or stdout.strip() or "send failed",
+        )
+        append_jsonl(args.proof_log, row)
+        print(f"error: Discord publish send failed; proof recorded as incomplete: {row['error']}", file=sys.stderr)
+        return 1
+
+    sent_message_id = first_sent_message_id(send_result)
+    readback_ok, readback_message_id, discord_timestamp, readback_result, readback_error = readback_match(
+        args, text, sent_message_id
+    )
+    readback_at = utc_now_iso()
+    row = proof_row_from_card(
+        card,
+        text,
+        args,
+        send_result,
+        readback_result,
+        sent_message_id,
+        readback_message_id,
+        discord_timestamp,
+        transition_at,
+        sent_at,
+        readback_at,
+        readback_ok,
+        readback_error,
+    )
+    append_jsonl(args.proof_log, row)
+
+    if not readback_ok:
+        print(f"error: Discord publish readback failed; proof recorded as incomplete: {readback_error}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(json.dumps({"publish": row}, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(
+            "OK published visibility card: "
+            f"{card['work_unit_id']} · {card['team']} · {card['surface']} {card['kind']} · "
+            f"{row['discord_message_id']}"
+        )
+    return 0
+
+
+def validate_proof_rows(
+    rows: list[dict[str, Any]],
+    work_unit_id: str,
+    require_checkpoint: bool,
+    min_live_span_seconds: int,
+) -> dict[str, Any]:
+    filtered = [row for row in rows if str(row.get("work_unit_id")) == work_unit_id]
+    if not filtered:
+        raise ValueError(f"proof log contains no rows for Work Unit id: {work_unit_id}")
+
+    failed = [row for row in filtered if not row.get("readback_ok")]
+    if failed:
+        kinds = ", ".join(f"{row.get('surface')} {row.get('kind')}" for row in failed)
+        raise ValueError(f"proof log contains incomplete send/readback rows: {kinds}")
+    if any(row.get("dry_run") for row in filtered):
+        raise ValueError("dry-run rows cannot satisfy live visibility proof")
+
+    seen_card_ids: set[str] = set()
+    for row in filtered:
+        card_id = str(row.get("card_id") or "")
+        if not card_id:
+            raise ValueError("proof row missing card_id")
+        if card_id in seen_card_ids:
+            raise ValueError(f"duplicate proof card_id cannot count as fresh progress: {card_id}")
+        seen_card_ids.add(card_id)
+        for field in PROOF_TIMESTAMP_FIELDS:
+            parse_timestamp(str(row.get(field) or ""), field)
+
+    events = [(str(row.get("surface")), str(row.get("kind"))) for row in filtered]
+    required = [
+        ("ops-feed", "ASSIGNED"),
+        ("team-detail", "ASSIGNED_DETAIL"),
+        ("team-detail", "STARTED"),
+        ("team-detail", "RESULT_READY"),
+    ]
+    for event in required:
+        if event not in events:
+            raise ValueError(f"proof log missing required live event: {event[0]} {event[1]}")
+
+    def event_time(surface: str, kind: str) -> datetime:
+        return min(
+            parse_timestamp(str(row["discord_timestamp"]), "discord_timestamp")
+            for row in filtered
+            if row.get("surface") == surface and row.get("kind") == kind
+        )
+
+    if event_time("ops-feed", "ASSIGNED") > event_time("team-detail", "ASSIGNED_DETAIL"):
+        raise ValueError("ops-feed ASSIGNED must be read back before team-detail ASSIGNED_DETAIL")
+    if event_time("team-detail", "ASSIGNED_DETAIL") > event_time("team-detail", "STARTED"):
+        raise ValueError("team-detail ASSIGNED_DETAIL must be read back before STARTED")
+    if event_time("team-detail", "STARTED") > event_time("team-detail", "RESULT_READY"):
+        raise ValueError("team-detail STARTED must be read back before RESULT_READY")
+
+    result_ready_time = event_time("team-detail", "RESULT_READY")
+    checkpoint_rows = [
+        row for row in filtered if row.get("surface") == "team-detail" and row.get("kind") == "CHECKPOINT"
+    ]
+    if require_checkpoint and not checkpoint_rows:
+        raise ValueError("live proof requires at least one team-detail CHECKPOINT")
+    for checkpoint in checkpoint_rows:
+        checkpoint_time = parse_timestamp(str(checkpoint["discord_timestamp"]), "discord_timestamp")
+        if checkpoint_time >= result_ready_time:
+            raise ValueError("team-detail CHECKPOINT must have a Discord timestamp before RESULT_READY")
+
+    first_time = min(parse_timestamp(str(row["discord_timestamp"]), "discord_timestamp") for row in filtered)
+    last_time = max(parse_timestamp(str(row["discord_timestamp"]), "discord_timestamp") for row in filtered)
+    live_span_seconds = int((last_time - first_time).total_seconds())
+    if min_live_span_seconds and live_span_seconds < min_live_span_seconds:
+        raise ValueError(
+            "live proof span is too short; possible burst/replay: "
+            f"{live_span_seconds}s < {min_live_span_seconds}s"
+        )
+
+    final_reviews = [event for event in events if event in {("team-detail", "ACCEPTED"), ("team-detail", "REVISE"), ("team-detail", "BLOCKED_DETAIL")}]
+    if len(final_reviews) != 1:
+        raise ValueError("proof log must contain exactly one team-detail final review")
+    final_surface, final_kind = final_reviews[0]
+    if event_time(final_surface, final_kind) < result_ready_time:
+        raise ValueError("team-detail final review must follow RESULT_READY")
+
+    closeouts = [event for event in events if event in {("ops-feed", "COMPLETED"), ("ops-feed", "BLOCKED")}]
+    if len(closeouts) != 1:
+        raise ValueError("proof log must contain exactly one owner closeout")
+    closeout_surface, closeout_kind = closeouts[0]
+    if event_time(closeout_surface, closeout_kind) < event_time(final_surface, final_kind):
+        raise ValueError("owner closeout must follow team-detail final review")
+
+    return {
+        "work_unit_id": work_unit_id,
+        "rows": len(filtered),
+        "checkpoints": len(checkpoint_rows),
+        "live_span_seconds": str(live_span_seconds),
+        "status": "ok",
+    }
+
+
+def cmd_proof_validate(args: argparse.Namespace) -> int:
+    try:
+        result = validate_proof_rows(
+            read_jsonl(args.proof_log),
+            args.work_unit_id,
+            args.require_checkpoint,
+            args.min_live_span_seconds,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(json.dumps({"proof": result}, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+
+    print(
+        "OK live visibility proof: "
+        f"{result['work_unit_id']} · {result['rows']} rows · "
+        f"{result['checkpoints']} checkpoints · {result['live_span_seconds']}s"
+    )
+    return 0
+
+
 def cmd_guard(args: argparse.Namespace) -> int:
     try:
         original = read_text(args.message_file)
@@ -706,7 +1177,7 @@ def cmd_guard(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Format Company Ops Discord visibility events without sending them."
+        description="Compose, publish, and validate Company Ops Discord visibility events."
     )
     subparsers = parser.add_subparsers(dest="resource")
 
@@ -730,7 +1201,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "Visibility kind. ops-feed: ASSIGNED, COMPLETED, BLOCKED. "
-            "team-detail: ASSIGNED_DETAIL, STARTED, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
+            "team-detail: ASSIGNED_DETAIL, STARTED, CHECKPOINT, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
         ),
     )
     visibility.add_argument("--work-unit-id", required=True, help="Work Unit id or task id")
@@ -763,7 +1234,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "Card kind. ops-feed: ASSIGNED, COMPLETED, BLOCKED. "
-            "team-detail: ASSIGNED_DETAIL, STARTED, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
+            "team-detail: ASSIGNED_DETAIL, STARTED, CHECKPOINT, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
         ),
     )
     card.add_argument("--work-unit-id", required=True, help="Work Unit id or task id")
@@ -787,6 +1258,10 @@ def build_parser() -> argparse.ArgumentParser:
     card.add_argument("--risks", default="", help="Remaining risks")
     card.add_argument("--reason", default="", help="Operations Lead review reason")
     card.add_argument("--status", default="", help="Team execution status")
+    card.add_argument("--current-slice", default="", help="Current long-running slice for CHECKPOINT")
+    card.add_argument("--elapsed", default="", help="Elapsed time or progress age for CHECKPOINT")
+    card.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
+    card.add_argument("--source", default="", help="Source artifact or local proof reference")
     card.add_argument(
         "--team-final-review-kind",
         default="",
@@ -817,6 +1292,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     card_sequence.add_argument("--format", choices=("text", "json"), default="text")
     card_sequence.set_defaults(func=cmd_card_sequence)
+
+    publish_card = subparsers.add_parser(
+        "publish-card",
+        help="Send one composed Discord card, read it back, and append JSONL proof",
+    )
+    publish_card.add_argument("--card-json", required=True, help="Card JSON path")
+    publish_card.add_argument("--target", required=True, help="Discord target, for example channel:<id>")
+    publish_card.add_argument("--proof-log", required=True, help="JSONL proof log path to append")
+    publish_card.add_argument("--channel", default="discord", help="OpenClaw message channel")
+    publish_card.add_argument("--account", default="", help="OpenClaw channel account id")
+    publish_card.add_argument("--thread-id", default="", help="Optional Discord thread id")
+    publish_card.add_argument("--transition-at", default="", help="UTC ISO timestamp for the operating transition")
+    publish_card.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
+    publish_card.add_argument("--dry-run", action="store_true", help="Record dry-run proof without sending")
+    publish_card.add_argument("--format", choices=("text", "json"), default="text")
+    publish_card.set_defaults(func=cmd_publish_card)
+
+    proof_validate = subparsers.add_parser(
+        "proof-validate",
+        help="Validate timestamped publish-card JSONL proof for one Work Unit",
+    )
+    proof_validate.add_argument("--proof-log", required=True, help="JSONL proof log path")
+    proof_validate.add_argument("--work-unit-id", required=True, help="Work Unit id to validate")
+    proof_validate.add_argument(
+        "--require-checkpoint",
+        action="store_true",
+        help="Require at least one CHECKPOINT before RESULT_READY",
+    )
+    proof_validate.add_argument(
+        "--min-live-span-seconds",
+        type=int,
+        default=0,
+        help="Fail if Discord timestamps span less than this many seconds",
+    )
+    proof_validate.add_argument("--format", choices=("text", "json"), default="text")
+    proof_validate.set_defaults(func=cmd_proof_validate)
 
     guard = subparsers.add_parser(
         "guard",
