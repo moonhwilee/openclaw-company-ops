@@ -644,6 +644,8 @@ observe orchestration events directly.
 
 Recommended channels:
 
+- `#ops-lead`: direct owner-to-Operations-Lead planning, phase decisions, and
+  handoff preparation.
 - `#ops-feed`: assignments, starts, blockers, results, and decisions.
 - `#ops-alerts`: stale claims, suspected session mismatch, and suspected
   compaction recovery.
@@ -660,6 +662,7 @@ state.
 
 Bind routing deliberately:
 
+- one default Operations Lead binding for `#ops-lead`;
 - one default Team Lead per team channel;
 - no general discussion in `#ops-feed`;
 - no assumption that OpenClaw answers unless an agent is bound to the channel;

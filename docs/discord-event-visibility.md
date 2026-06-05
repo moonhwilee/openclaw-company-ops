@@ -37,7 +37,14 @@ Those judgments stay in the Assignment Packet, Ops Claim Ledger entry, Evidence
 
 ## Recommended Channels
 
-Use two channels for Manual Day-0 operation:
+Use seven channels for Phase 1 operation.
+
+Use one Operations Lead channel for owner-to-Operations-Lead discussion:
+
+- `#ops-lead`: Company Ops planning, scope alignment, phase decisions, and
+  handoff preparation. This channel should route to the Operations Lead only.
+
+Use two channels for event and alert visibility:
 
 - `#ops-feed`: assignment, started, blocked, result-ready, and decision events.
 - `#ops-alerts`: claim stale, session mismatch, and suspected compaction
@@ -55,8 +62,12 @@ default. If no agent is bound to a channel, a response should not be assumed. If
 multiple agents answer the same team channel by default, fix routing before
 dogfood because the channel is no longer auditable.
 
-Do not create extra channels until the event or direct-question volume proves
-they are needed.
+Telegram direct chat remains the fallback and private control plane for
+sensitive setup, credentials locations, Discord outage, and recovery. It should
+not broadcast normal Discord requests back into Discord by default.
+
+Do not create extra channels beyond these seven until the event or
+direct-question volume proves they are needed.
 
 ## Response Trigger Policy
 
@@ -64,7 +75,10 @@ Use explicit routing instead of broad "answer every message" behavior.
 
 Phase 1 default:
 
+- `#ops-lead` has exactly one default Operations Lead binding.
 - Each team channel has exactly one default Team Lead binding.
+- The Operations Lead may answer owner-authored messages in `#ops-lead` by
+  default.
 - The matching Team Lead may answer owner-authored messages in that team
   channel by default.
 - Non-owner chatter should not trigger agent responses unless the agent is

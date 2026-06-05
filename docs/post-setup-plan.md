@@ -35,6 +35,9 @@ state changes and alerts without relying only on Operations Lead summaries.
 
 Scope:
 
+- Select or create the main Operations Lead channel:
+  - `#ops-lead` for owner-to-Operations-Lead planning, scope alignment, phase
+    decisions, and handoff preparation before Team Lead delegation.
 - Select or create the visibility channels:
   - `#ops-feed` for assignment, started, blocked, result-ready, and decision
     events.
@@ -46,6 +49,7 @@ Scope:
   - `#team-market` for market, positioning, and content questions.
   - `#team-revenue` for customer, proposal, payment, and delivery questions.
 - Bind direct team channels deliberately:
+  - `#ops-lead` should route to the Operations Lead only;
   - only the matching Team Lead should answer by default;
   - the matching Team Lead may answer owner-authored messages in that team
     channel;
@@ -74,6 +78,8 @@ Scope:
 
 Acceptance gate:
 
+- Owner can ask the Operations Lead in `#ops-lead`, or fall back to the
+  existing private Telegram direct chat for sensitive setup and recovery.
 - Owner can open the Discord channel and see an event with Work Unit id, source
   artifact link, owner/next-action owner, and next action.
 - Owner can directly ask a Team Lead a status or clarification question in the
@@ -89,6 +95,20 @@ Acceptance gate:
   operating-state authority.
 - Any early hook work, if performed, is limited to narrow red-line safety
   checks and is recorded as a spike, not as the Company Ops hook harness.
+
+## Progress Reporting
+
+Company Ops setup reports should include the current phase in the visible
+header, for example:
+
+```text
+Task: Company Ops Setup (Phase 1/7)
+Slice: Discord visibility setup | Next: connect Discord and verify routing
+```
+
+Use the seven primary phases in this document for progress reporting. If the
+optional Phase 3.5 hook MVP runs, report it as `Phase 3.5/7` and then return to
+`Phase 4/7`.
 
 ## Phase 2: Real Dogfood Work Unit
 

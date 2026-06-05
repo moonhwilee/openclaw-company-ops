@@ -185,6 +185,8 @@ only on Operations Lead summaries.
 
 Recommended channels:
 
+- `#ops-lead`: owner-to-Operations-Lead planning, scope alignment, phase
+  decisions, and handoff preparation.
 - `#ops-feed`: high-level assignment, blocker, result, and decision events.
 - `#ops-alerts`: stale claim, suspected session mismatch, and suspected
   compaction recovery alerts.
@@ -200,7 +202,10 @@ create, close, approve, reassign, recover, or mutate Work Units.
 
 Routing rules:
 
+- Bind `#ops-lead` to the Operations Lead only.
 - Bind one default Team Lead per team channel.
+- Let the Operations Lead answer owner-authored messages in `#ops-lead` by
+  default.
 - Let the matching Team Lead answer owner-authored messages in that team
   channel by default.
 - Require an explicit mention or address before an agent answers non-owner

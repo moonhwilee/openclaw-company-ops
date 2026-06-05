@@ -30,9 +30,12 @@ pre-dogfood visibility before a real dogfood Work Unit can be accepted.
 The current documented v1 design is:
 
 - Discord is visibility plus direct Q&A, not source of truth.
+- `#ops-lead` is the owner-to-Operations-Lead channel for planning, phase
+  decisions, and handoff preparation.
 - `#ops-feed` and `#ops-alerts` are event/alert channels.
 - `#team-build-pq`, `#team-build-lab`, `#team-market`, and `#team-revenue`
   are direct owner-to-Team-Lead Q&A channels.
+- `#ops-lead` has one default Operations Lead responder.
 - Team channels start with exactly one default Team Lead responder.
 - No Discord command router, hidden orchestrator, automatic recovery,
   automatic reassignment, or automatic completion is allowed.
@@ -51,6 +54,7 @@ What the team lead should do:
 - Confirm the actual Discord setup mechanism available in the current
   OpenClaw install.
 - Select or create the minimum channel map:
+  - ops lead channel;
   - ops feed channel;
   - ops alerts channel;
   - one team channel for each standing Team Lead.
@@ -107,6 +111,7 @@ The Work Unit can be considered ready for review when:
 - Discord setup status is recorded: installed/configured/enabled/probed or
   blocked with the missing credential/setup step named.
 - Actual channel names or channel ids are recorded for:
+  - ops lead;
   - ops feed;
   - ops alerts;
   - build-pq;
