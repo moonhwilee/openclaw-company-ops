@@ -287,7 +287,7 @@ def run_discord_card_smoke() -> None:
         ]
     )
     require_success(request_result, "discord ops-feed request card")
-    if "[요청] WU-260605-901 · build-lab" not in request_result.stdout:
+    if "📌 [요청] WU-260605-901 · 🧪 build-lab" not in request_result.stdout:
         raise RuntimeError("ops-feed request card did not include expected header")
     for expected in ("문제:", "요청:", "기준:", "다음:"):
         if expected not in request_result.stdout:
@@ -322,7 +322,7 @@ def run_discord_card_smoke() -> None:
         ]
     )
     require_success(assigned_detail, "discord team assigned detail card")
-    if "[ASSIGNED_DETAIL] WU-260605-901 · build-lab" not in assigned_detail.stdout:
+    if "📋 [ASSIGNED_DETAIL] WU-260605-901 · 🧪 build-lab" not in assigned_detail.stdout:
         raise RuntimeError("team assignment card did not include expected header")
     if "Goal:" not in assigned_detail.stdout or "Report:" not in assigned_detail.stdout:
         raise RuntimeError("team assignment card missing expected detail fields")
@@ -353,7 +353,7 @@ def run_discord_card_smoke() -> None:
         ]
     )
     require_success(result_ready, "discord team result ready card")
-    if "[RESULT_READY] WU-260605-901 · build-lab" not in result_ready.stdout:
+    if "📦 [RESULT_READY] WU-260605-901 · 🧪 build-lab" not in result_ready.stdout:
         raise RuntimeError("team result card did not include expected header")
     if "Evidence:" not in result_ready.stdout or "Verification:" not in result_ready.stdout:
         raise RuntimeError("team result card missing expected fields")
@@ -386,7 +386,7 @@ def run_discord_card_smoke() -> None:
     require_success(accepted, "discord team accepted card")
     accepted_parsed = json.loads(accepted.stdout)
     accepted_text = accepted_parsed.get("text", "")
-    if "[ACCEPTED] WU-260605-901 · build-lab" not in accepted_text:
+    if "✅ [ACCEPTED] WU-260605-901 · 🧪 build-lab" not in accepted_text:
         raise RuntimeError("team accepted card did not include expected header")
 
     blocked_completion = run_command(
@@ -453,7 +453,7 @@ def run_discord_card_smoke() -> None:
     text = parsed.get("text", "")
     if parsed.get("card", {}).get("kind") != "COMPLETED":
         raise RuntimeError("completion card JSON did not include COMPLETED kind")
-    if "[완료] WU-260605-901 · build-lab" not in text:
+    if "✅ [완료] WU-260605-901 · 🧪 build-lab" not in text:
         raise RuntimeError("ops-feed completion card did not include expected header")
     for expected in ("결과:", "기준 대비:", "금비 판정:", "확인:", "다음:"):
         if expected not in text:

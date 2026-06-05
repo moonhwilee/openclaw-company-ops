@@ -42,6 +42,30 @@ OPS_FEED_CARD_LABELS = {
     "BLOCKED": "막힘",
 }
 
+OPS_FEED_CARD_STATUS_ICONS = {
+    "ASSIGNED": "📌",
+    "COMPLETED": "✅",
+    "BLOCKED": "⛔",
+}
+
+TEAM_DETAIL_STATUS_ICONS = {
+    "ASSIGNED_DETAIL": "📋",
+    "STARTED": "▶️",
+    "RESULT_READY": "📦",
+    "ACCEPTED": "✅",
+    "REVISE": "🔁",
+    "BLOCKED_DETAIL": "⛔",
+}
+
+TEAM_ICONS = {
+    "build-pq": "📈",
+    "build-lab": "🧪",
+    "market": "🔎",
+    "revenue": "💰",
+}
+
+DEFAULT_TEAM_ICON = "👥"
+
 OPS_FEED_FORBIDDEN_LABELS = (
     "Surface:",
     "Owner:",
@@ -171,6 +195,10 @@ def append_line(lines: list[str], label: str, value: str | None) -> None:
         lines.append(f"{label}: {value}")
 
 
+def team_display(team: str) -> str:
+    return f"{TEAM_ICONS.get(team, DEFAULT_TEAM_ICON)} {team}"
+
+
 def validate_ops_feed_text(text: str) -> None:
     for label in OPS_FEED_FORBIDDEN_LABELS:
         if label in text:
@@ -265,7 +293,8 @@ def validate_card(card: dict[str, str]) -> None:
 
 def format_ops_feed_card(card: dict[str, str]) -> str:
     label = OPS_FEED_CARD_LABELS[card["kind"]]
-    lines = [f"[{label}] {card['work_unit_id']} · {card['team']}"]
+    status_icon = OPS_FEED_CARD_STATUS_ICONS[card["kind"]]
+    lines = [f"{status_icon} [{label}] {card['work_unit_id']} · {team_display(card['team'])}"]
 
     if card["kind"] == "ASSIGNED":
         lines.extend(
@@ -304,7 +333,8 @@ def format_ops_feed_card(card: dict[str, str]) -> str:
 
 
 def format_team_detail_card(card: dict[str, str]) -> str:
-    lines = [f"[{card['kind']}] {card['work_unit_id']} · {card['team']}"]
+    status_icon = TEAM_DETAIL_STATUS_ICONS[card["kind"]]
+    lines = [f"{status_icon} [{card['kind']}] {card['work_unit_id']} · {team_display(card['team'])}"]
 
     if card["kind"] == "ASSIGNED_DETAIL":
         lines.extend(

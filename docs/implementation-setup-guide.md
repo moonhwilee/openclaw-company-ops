@@ -694,7 +694,7 @@ messages or mutate state.
 Manual team-detail event format:
 
 ```text
-[RESULT_READY] WU-YYMMDD-001
+📦 [RESULT_READY] WU-YYMMDD-001 · <team-icon> <team>
 Work Card: <GitHub Issue URL>
 Assignment: <Assignment Packet ref>
 Claim: <Claim ref>
@@ -720,7 +720,7 @@ Owner-facing `#ops-feed` cards should use reader-friendly labels instead of
 generic formatter fields:
 
 ```text
-[요청] WU-YYMMDD-001 · <team>
+📌 [요청] WU-YYMMDD-001 · <team-icon> <team>
 문제: 무엇이 불확실하거나 막혀 있는가.
 요청: 누구에게 무엇을 맡겼는가.
 기준: 어떤 조건이면 성공 또는 실패로 볼 것인가.
@@ -729,7 +729,7 @@ generic formatter fields:
 ```
 
 ```text
-[완료] WU-YYMMDD-001 · <team>
+✅ [완료] WU-YYMMDD-001 · <team-icon> <team>
 결과: 팀장이 확인, 생성, 수정, 또는 판단한 핵심 결과.
 기준 대비: 요청 기준을 충족했는가.
 금비 판정: ACCEPTED, REVISE, or BLOCKED.

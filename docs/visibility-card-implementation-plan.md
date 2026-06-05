@@ -18,19 +18,54 @@ that the Operations Lead composes from the same facts in one transition.
 
 `#ops-feed` cards:
 
-- Request card: `[요청]`, with `문제`, `요청`, `기준`, optional `주의`,
+- Request card: `📌 [요청]`, with `문제`, `요청`, `기준`, optional `주의`,
   optional human-readable `근거`, and `다음`.
-- Completion card: `[완료]`, with `결과`, `기준 대비`, `금비 판정`, `확인`,
+- Completion card: `✅ [완료]`, with `결과`, `기준 대비`, `금비 판정`, `확인`,
   optional human-readable `근거`, and `다음`.
-- Blocker card: `[막힘]`, with `문제`, `원인`, `필요`, optional
+- Blocker card: `⛔ [막힘]`, with `문제`, `원인`, `필요`, optional
   human-readable `근거`, and `다음`.
 
 `#team-*` trail messages:
 
-- `[ASSIGNED_DETAIL]`: goal, scope, criteria, cautions, and report format.
-- `[RESULT_READY]`: result, evidence, verification, risks, and next action.
-- `[ACCEPTED|REVISE|BLOCKED_DETAIL]`: decision, reason, evidence or blocker,
+- `📋 [ASSIGNED_DETAIL]`: goal, scope, criteria, cautions, and report format.
+- `📦 [RESULT_READY]`: result, evidence, verification, risks, and next action.
+- `✅ [ACCEPTED]`, `🔁 [REVISE]`, or `⛔ [BLOCKED_DETAIL]`: decision, reason, evidence or blocker,
   and next action.
+
+## Header Icon Policy
+
+Visibility card headers must make both status and target easy to scan.
+
+Header shape:
+
+```text
+<status-icon> [<status-label>] <work-unit-id> · <team-icon> <team>
+```
+
+Default team icons:
+
+- `📈 build-pq`: quant platform / production build work.
+- `🧪 build-lab`: experiments, product/tooling, and smoke/prototype work.
+- `🔎 market`: market research and external signal work.
+- `💰 revenue`: monetization, pricing, and revenue model work.
+- `👥 <team>`: fallback for an unmapped team.
+
+Default status icons:
+
+- `📌 [요청]`: owner-visible assignment/request.
+- `✅ [완료]`: owner-visible completion after an accepted team review.
+- `⛔ [막힘]`: owner-visible blocker.
+- `📋 [ASSIGNED_DETAIL]`: detailed team assignment.
+- `▶️ [STARTED]`: team execution has started.
+- `📦 [RESULT_READY]`: team result is ready for Operations Lead review.
+- `✅ [ACCEPTED]`: Operations Lead accepted the team result.
+- `🔁 [REVISE]`: Operations Lead requests revision.
+- `⛔ [BLOCKED_DETAIL]`: detailed team blocker.
+
+Alternatives considered: request can use `📝` or `➡️`; completion can use `🟢`
+or `🏁`; blocker can use `🛑` or `⚠️`; result-ready can use `📤` or `🔎`;
+revision can use `🛠️` or `✏️`. The defaults above are intentionally compact
+and high-contrast for quick Discord scanning.
 
 ## Composer Boundary
 
