@@ -80,6 +80,7 @@ TEAM_FINAL_REVIEW_EVENTS = {
 }
 
 DISCORD_MESSAGE_LIMIT = 2000
+DISCORD_GENERATION_TARGET_CHARS = 1200
 DISCORD_MESSAGE_TARGET_CHARS = 1800
 DISCORD_COMPACTION_SUFFIX = "… (일부 생략됨; 상세 내용은 source artifact 또는 team result 원문을 확인하세요.)"
 
@@ -659,6 +660,7 @@ def cmd_guard(args: argparse.Namespace) -> int:
             json.dumps(
                 {
                     "text": text,
+                    "generation_target_chars": DISCORD_GENERATION_TARGET_CHARS,
                     "original_chars": len(original),
                     "output_chars": len(text),
                     "compacted": text != original,

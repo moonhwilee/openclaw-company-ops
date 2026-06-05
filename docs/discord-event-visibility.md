@@ -80,6 +80,26 @@ calls. Normal visibility must not add a second Team Lead execution call or a
 separate LLM summarization call. A second LLM review is reserved for high-risk
 work, public-facing releases, or explicit owner request.
 
+## Message Length Budget
+
+Discord normal message `content` is limited to 2,000 characters. Company Ops uses
+three layers so normal visibility stays readable without adding another LLM
+call:
+
+1. Generation budget: ask Team Lead and Operations Lead outputs that will be
+   pasted or transformed into Discord to stay within 1,200 characters.
+2. Formatter target: keep generated Discord cards under 1,800 characters so
+   headers, Korean text, links, and emoji have margin below Discord's hard
+   limit.
+3. Fallback compaction: if a message still exceeds the formatter target, preserve
+   the header and next action, omit middle body content, and mark it as partially
+   omitted.
+
+The first layer is a prompt and template constraint, not semantic summarization.
+Long logs, raw diffs, and exhaustive findings belong in the Evidence & Result
+Record or another source artifact. The Discord message should carry the decision
+summary and artifact path.
+
 The internal fact packet keeps stable facts aligned:
 
 - Work Unit id.

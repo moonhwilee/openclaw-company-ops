@@ -248,6 +248,11 @@ summarization call. The Operations Lead should use one composition step per
 transition to write a purpose-built `#ops-feed` card and a separate
 purpose-built `#team-*` detail message from the same facts.
 
+Before formatter guard runs, ask Team Lead and Operations Lead Discord-facing
+handoff text to stay within 1,200 characters. Discord content has a 2,000
+character hard limit; Company Ops formatter output targets 1,800 characters as
+the fallback margin.
+
 Discord messages are not a source of truth. They must point back to the Work
 Card, Assignment Packet, Ops Claim Ledger entry, Evidence & Result Record, or
 Operations Lead decision.

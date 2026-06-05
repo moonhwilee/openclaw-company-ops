@@ -128,6 +128,14 @@ enough to support one Operations Lead composition step for both the owner-facing
 `#ops-feed` result card and the detailed `#team-*` review trail. Do not ask for
 or create a separate LLM summarization call just for visibility.
 
+Discord generation budget:
+
+- Keep the Discord-facing result text within 1,200 characters.
+- Put detailed logs, diffs, and long findings in the Evidence & Result Record or
+  another source artifact.
+- If the result needs more room, report the artifact path plus a short decision
+  summary instead of pasting the full detail into Discord.
+
 ## Blocked Rule
 
 If a required input or artifact is missing, report `blocked`. Do not substitute

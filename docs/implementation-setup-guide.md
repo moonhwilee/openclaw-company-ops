@@ -742,6 +742,11 @@ summarization call. Use one Operations Lead composition step per transition to
 write the `#ops-feed` card and the `#team-*` detail message from the same facts,
 then validate that they do not contradict each other.
 
+Before deterministic formatter guard runs, keep Team Lead and Operations Lead
+Discord-facing handoff text within 1,200 characters. Discord content has a
+2,000-character hard limit; Company Ops formatter output targets 1,800
+characters to leave margin for headers, links, Korean text, and emoji.
+
 Every Discord visibility message must link back to the real artifact or source
 reference. Discord must not accept commands that mutate Work Units in v1.
 
