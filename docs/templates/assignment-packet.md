@@ -16,6 +16,9 @@ summary, dashboard note, or Discord message cannot replace this packet.
 - Work Card:
 - Operations Lead:
 - Assigned Team Lead OpenClaw Agent:
+- Execution route: <cli-direct|cli-delivered|discord-bound>
+- Main session behavior: detached after handoff for sizeable `goal` or `verify`
+  work.
 - Created at:
 - Updated at:
 
@@ -127,6 +130,10 @@ The Team Lead report is input for Operations Lead review. It should be concise
 enough to support one Operations Lead composition step for both the owner-facing
 `#ops-feed` result card and the detailed `#team-*` review trail. Do not ask for
 or create a separate LLM summarization call just for visibility.
+
+Returning this report does not complete the Work Unit. It moves the Work Unit
+to result-ready review. The Operations Lead must reread the source artifacts,
+verify the evidence, and record `accept`, `revise`, `hold`, or `reject`.
 
 Discord generation budget:
 

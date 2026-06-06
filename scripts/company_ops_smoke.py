@@ -21,6 +21,7 @@ PULSE = SCRIPT_DIR / "pulse_monitor.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
 PROJECT_SYNC = SCRIPT_DIR / "project_sync.py"
 HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
+REPO_ROOT = SCRIPT_DIR.parent
 
 
 def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -1261,6 +1262,34 @@ def run_hook_guard_smoke() -> None:
     )
 
 
+def run_async_work_unit_policy_smoke() -> None:
+    checks = {
+        "docs/operations-manual.md": (
+            "Main Session Nonblocking Rule",
+            "Result Ready Inbox Rule",
+            "Process pending Team Lead results one at a time in a deterministic order",
+            "Only the Operations Lead may record `ACCEPTED`, `REVISE`, or",
+        ),
+        "docs/protocols/README.md": (
+            "Detached Work Unit Requirement",
+            "handoff a detached Work Unit",
+        ),
+        "docs/templates/assignment-packet.md": (
+            "Execution route: <cli-direct|cli-delivered|discord-bound>",
+            "Main session behavior: detached after handoff",
+            "Returning this report does not complete the Work Unit.",
+        ),
+        "README.md": (
+            "Sizeable `goal` and `verify` work is detached Work Unit work.",
+        ),
+    }
+    for relative_path, required_phrases in checks.items():
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        for phrase in required_phrases:
+            if phrase not in text:
+                raise RuntimeError(f"{relative_path} missing async Work Unit policy phrase: {phrase}")
+
+
 def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str) -> None:
     field_map = artifact_root.parent / "project-field-map.json"
     write_json(
@@ -1821,6 +1850,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         )
         run_pulse_ok(args, ledger, snapshot)
         run_hook_guard_smoke()
+        run_async_work_unit_policy_smoke()
         run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         run_project_sync_smoke(ledger, work_dir / "artifacts", "WU-260605-901")
@@ -1841,6 +1871,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
         "repo-local hook guard fixtures, "
+        "async Work Unit policy docs, "
         "purpose-specific Discord card/checkpoint composition, "
         "thin handoff dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "

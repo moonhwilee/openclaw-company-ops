@@ -13,6 +13,19 @@ These protocols apply only to delegated Work Units. Simple direct questions,
 quick lookups, and conversational requests should not be promoted into Work Unit
 protocol unless the Operations Lead explicitly assigns them that way.
 
+## Detached Work Unit Requirement
+
+`goal` and standalone `verify` are delegated Work Unit protocols for sizeable
+work. When either mode needs a Team Lead, subagents, code changes, external
+mutation, live visibility, or multi-step verification, the Operations Lead must
+handoff a detached Work Unit instead of waiting in the main session.
+
+The main session may continue serving the owner after source-backed handoff.
+Team Lead results return through the Work Unit artifacts, claim state, and
+proof/progress trail. The Operations Lead later rereads those sources and makes
+the decision. The Team Lead must not assume that returning a result directly to
+the current chat completes the Work Unit.
+
 ## Protocol Set
 
 - [goal](goal.md): complete the Work Unit through an initial plan followed by

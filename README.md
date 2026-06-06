@@ -13,6 +13,12 @@ The Operations Lead defines work, assigns team leads, reviews evidence, and
 makes final decisions. Each team lead owns one Work Unit and directly manages
 its own subagents.
 
+Sizeable `goal` and `verify` work is detached Work Unit work. The Operations
+Lead should not leave the main session idle while a Team Lead executes; source
+artifacts, claim state, proof/progress logs, and the dashboard mirror carry the
+recoverable state until the Team Lead result is ready for Operations Lead
+review.
+
 ## Current Status
 
 This project is the new source for OpenClaw Company Ops. Earlier experimental

@@ -25,6 +25,76 @@ Owner -> Operations Lead -> Team Lead OpenClaw Agent -> Subagents
 
 A Work Unit is not an actor. It is the task unit owned by a Team Lead session.
 
+## Main Session Nonblocking Rule
+
+The Operations Lead main session must not sit idle waiting for sizeable Team
+Lead work.
+
+Any owner request that uses a `goal` protocol, a standalone `verify` protocol
+with Team Lead or subagent work, or any other multi-step delegated execution
+must be converted into a detached Work Unit before the Team Lead starts. The
+handoff must leave enough source-backed state for the Operations Lead to resume
+without relying on chat memory:
+
+- Work Card or explicit Work Card plan.
+- Assignment Packet with done and verification criteria.
+- Ops Claim Ledger entry or claim artifact with expected state.
+- Owner-facing and team-detail assignment visibility when the Work Unit is
+  live-visible.
+- Dashboard mirror sync when configured.
+
+After that handoff, the main session may handle other owner requests. A
+detached Work Unit remains owned by the assigned Team Lead until the Operations
+Lead later reviews the submitted evidence and records a decision.
+
+The only routine exception is a small direct task that does not need Team Lead
+ownership, does not need subagents, and can finish inside the current turn
+without leaving durable state. If a `verify` or `goal` request needs a Team
+Lead, subagent delegation, live visibility, code changes, external mutation, or
+more than a tiny bounded check, treat it as a detached Work Unit.
+
+Do not use a hidden background orchestrator to satisfy this rule. The detached
+state is the Work Unit source artifacts, proof/progress logs, claim state, and
+dashboard mirror.
+
+## Result Ready Inbox Rule
+
+Team Lead results are inputs for Operations Lead review, not automatic
+completion.
+
+If a Team Lead result arrives while the main session is handling another owner
+request, finish or pause the active owner request first, then process ready
+results from the source-backed inbox. The inbox is the set of Work Units whose
+claim or evidence state is `result_ready` and whose team-detail trail has a
+valid `RESULT_READY` proof when live visibility is required.
+
+Process pending Team Lead results one at a time in a deterministic order:
+
+1. Earliest valid `RESULT_READY` proof timestamp.
+2. Then claim `updated_at` timestamp when proof time is unavailable.
+3. Then Work Unit id as a final tie-breaker.
+
+Before closing any result, the Operations Lead must reread the Assignment
+Packet, evidence, claim, proof/progress logs, and current dashboard dry-run.
+Never decide from the remembered chat transcript alone.
+
+Race control:
+
+- Only the Operations Lead may record `ACCEPTED`, `REVISE`, or
+  `BLOCKED_DETAIL` and owner-facing `COMPLETED`, `NEEDS_REVISION`, or
+  `BLOCKED`.
+- Team Lead result arrival must not mutate GitHub Project, close Work Cards,
+  publish owner completion, or overwrite decisions by itself.
+- Run one closeout at a time. Project sync already uses a lock; source decision
+  artifacts should be treated as single-writer Operations Lead outputs.
+- If a duplicate or stale Team Lead result arrives after a decision exists,
+  compare it to the existing source artifacts and report it as stale or a
+  revision request. Do not reopen or overwrite accepted work automatically.
+- If two results race for different Work Units, process both through the same
+  deterministic inbox order. If two results race for the same Work Unit, the
+  first valid Operations Lead decision wins until the owner explicitly asks for
+  a revision or reopen.
+
 ## Operating Surfaces
 
 Use the smallest surface that preserves truth and visibility.
