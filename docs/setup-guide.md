@@ -108,6 +108,9 @@ small:
   work so Discord `CHECKPOINT`, source-backed progress, and optional Project
   mirror sync use the same payload. Do not manually backfill Progress from
   Project edits or Discord text.
+- `Last proof or last source update` is a dashboard text mirror. Keep source
+  artifact timestamps in UTC, but let `project-sync` display the value in the
+  runner machine's local timezone with the UTC reference retained.
 
 Recommended issue labels:
 

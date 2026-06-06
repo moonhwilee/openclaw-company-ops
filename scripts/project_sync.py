@@ -97,6 +97,33 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def parse_source_timestamp(value: str) -> datetime | None:
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if "T" not in cleaned and not re.search(r"\d{1,2}:\d{2}", cleaned):
+        return None
+    if cleaned.endswith("Z"):
+        cleaned = f"{cleaned[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(cleaned)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def format_dashboard_timestamp(value: str) -> str:
+    parsed = parse_source_timestamp(value)
+    if parsed is None:
+        return value
+    local = parsed.astimezone()
+    utc = parsed.astimezone(timezone.utc)
+    local_zone = local.tzname() or local.strftime("%z")
+    return f"{local:%Y-%m-%d %H:%M} {local_zone} · UTC {utc:%Y-%m-%d %H:%M}"
+
+
 def normalize_field_entry(value: Any) -> dict[str, Any]:
     if isinstance(value, str):
         return {"id": value, "type": "text", "options": {}}
@@ -253,7 +280,9 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
         "Blocker": derive_blocker(summary, status, reason),
         "Evidence present": "yes" if evidence["exists"] and has_real_ref(evidence["ref"]) else "no",
         "Decision": decision_value(summary),
-        "Last proof or last source update": progress.get("updated_at") or summary["next_review"],
+        "Last proof or last source update": format_dashboard_timestamp(
+            progress.get("updated_at") or summary["next_review"]
+        ),
         "Assignment Packet reference": summary["assignment_packet"],
         "Ops Claim Ledger reference": claim["claim_ref"],
         "Evidence & Result Record reference": evidence["ref"],

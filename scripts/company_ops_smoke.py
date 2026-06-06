@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import shutil
 import subprocess
@@ -44,6 +45,14 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
         encoding="utf-8",
     )
+
+
+def expected_dashboard_timestamp(value: str) -> str:
+    parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    local = parsed.astimezone()
+    utc = parsed.astimezone(dt.timezone.utc)
+    local_zone = local.tzname() or local.strftime("%z")
+    return f"{local:%Y-%m-%d %H:%M} {local_zone} · UTC {utc:%Y-%m-%d %H:%M}"
 
 
 def create_artifacts(args: argparse.Namespace, work_dir: Path, work_unit_id: str, team_lead: str) -> Path:
@@ -1344,7 +1353,8 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError(
             f"project sync dry-run did not derive Progress from progress artifact: {fields.get('Progress')}"
         )
-    if fields.get("Last proof or last source update") != "2026-06-06T12:00:00Z":
+    expected_last_update = expected_dashboard_timestamp("2026-06-06T12:00:00Z")
+    if fields.get("Last proof or last source update") != expected_last_update:
         raise RuntimeError("project sync dry-run did not use progress timestamp as last source update")
     if not planned.get("mutation_ready"):
         raise RuntimeError("project sync dry-run did not validate complete field map")

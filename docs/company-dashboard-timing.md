@@ -203,6 +203,11 @@ Start with a small field set:
 Avoid adding fields just because GitHub Projects allows them. Add fields only
 when they support actual review or coordination.
 
+`Last proof or last source update` is a GitHub Project text field. Source
+artifacts keep UTC timestamps for audit stability, while `project-sync` formats
+the dashboard mirror using the machine's local timezone and keeps the UTC
+reference in the same string.
+
 Long-running Work Units should keep `Status` coarse and put progress detail in
 separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 3`; those are progress metadata, not lifecycle states. The recommended shape is:
