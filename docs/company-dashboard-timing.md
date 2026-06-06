@@ -189,7 +189,7 @@ Start with a small field set:
 - Status. Use GitHub's built-in `Status` field as the dashboard status field,
   with Company Ops options: `Assigned`, `In Progress`, `Result Ready`,
   `Accepted`, `Revise`, and `Blocked`.
-- Phase.
+- Progress.
 - Priority.
 - Blocker.
 - Evidence present.
@@ -208,13 +208,13 @@ separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 3`; those are progress metadata, not lifecycle states. The recommended shape is:
 
 - `Status`: lifecycle state such as `In Progress`, `Result Ready`, or `Revise`.
-- `Phase`: current phase or slice label from a source-backed progress artifact
+- `Progress`: current phase, round, or slice label from a source-backed progress artifact
   or checkpoint.
 - optional later fields such as `Round`, `Current slice`, or `Next checkpoint`
   only if they are populated from source artifacts or proof logs.
 
 For v1, source-backed progress is recorded as optional Work Unit
-`progress.jsonl` rows. `project-sync` derives the dashboard `Phase` field from
+`progress.jsonl` rows. `project-sync` derives the dashboard `Progress` field from
 the latest valid row. A compact value such as
 `2/7 · implementation · round 1` is enough; it confirms that work is active
 without requiring a new LLM summary or expensive progress calculation.
@@ -247,7 +247,7 @@ For the primary owner-facing table view, prefer this visible field order:
 
 1. Title.
 2. Status.
-3. Phase.
+3. Progress.
 4. Priority.
 5. Team Lead.
 6. Evidence present.
@@ -393,7 +393,7 @@ Current implementation state:
 - `discord publish-card` can run a nonblocking one-shot Project sync after a
   successful visibility publish when a field map is supplied.
 - `work-unit progress` can append optional source-backed progress rows, and
-  `project-sync` derives the dashboard `Phase` field from the latest valid
+  `project-sync` derives the dashboard `Progress` field from the latest valid
   progress row.
 - The sync path performs no GitHub Issue close/open, Discord semantic publish,
   source artifact, claim, evidence, or decision mutation.

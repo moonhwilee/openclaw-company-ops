@@ -24,7 +24,7 @@ DEFAULT_FIELDS = (
     "Work Card",
     "Team Lead",
     "Status",
-    "Phase",
+    "Progress",
     "Priority",
     "Blocker",
     "Evidence present",
@@ -211,7 +211,7 @@ def derive_blocker(summary: dict[str, Any], status: str, reason: str) -> str:
     return ""
 
 
-def format_phase(progress: dict[str, Any]) -> str:
+def format_progress(progress: dict[str, Any]) -> str:
     phase = str(progress.get("phase") or "").strip()
     current_slice = str(progress.get("current_slice") or "").strip()
     round_value = str(progress.get("round") or "").strip()
@@ -245,7 +245,7 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
         "Work Card": summary["work_card"],
         "Team Lead": team_from_summary(summary),
         "Status": status,
-        "Phase": format_phase(progress),
+        "Progress": format_progress(progress),
         "Priority": "",
         "Blocker": derive_blocker(summary, status, reason),
         "Evidence present": "yes" if evidence["exists"] and has_real_ref(evidence["ref"]) else "no",

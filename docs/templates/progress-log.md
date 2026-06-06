@@ -35,5 +35,5 @@ Each row is a JSON object:
   status.
 - Do not infer progress from GitHub Project fields, GitHub comments, or
   free-form Discord text.
-- `project-sync` may derive dashboard `Phase` from the latest valid row.
+- `project-sync` may derive dashboard `Progress` from the latest valid row.
 - Missing progress rows are normal for short Work Units.

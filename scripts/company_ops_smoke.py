@@ -1113,7 +1113,7 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
                 "Work Card": "field_work_card",
                 "Team Lead": "field_team_lead",
                 "Status": "field_status",
-                "Phase": "field_phase",
+                "Progress": "field_progress",
                 "Priority": "field_priority",
                 "Blocker": "field_blocker",
                 "Evidence present": "field_evidence_present",
@@ -1186,8 +1186,10 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError(f"project sync dry-run expected Result Ready status, got {fields.get('Status')}")
     if fields.get("Evidence present") != "yes":
         raise RuntimeError("project sync dry-run did not mark evidence present")
-    if fields.get("Phase") != "2/7 · dashboard progress smoke · round 1":
-        raise RuntimeError(f"project sync dry-run did not derive Phase from progress artifact: {fields.get('Phase')}")
+    if fields.get("Progress") != "2/7 · dashboard progress smoke · round 1":
+        raise RuntimeError(
+            f"project sync dry-run did not derive Progress from progress artifact: {fields.get('Progress')}"
+        )
     if fields.get("Last proof or last source update") != "2026-06-06T12:00:00Z":
         raise RuntimeError("project sync dry-run did not use progress timestamp as last source update")
     if not planned.get("mutation_ready"):
@@ -1234,9 +1236,9 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
     )
     require_success(round_only_result, "project sync round-only progress dry-run")
     round_only_fields = json.loads(round_only_result.stdout)["work_units"][0]["desired_fields"]
-    if round_only_fields.get("Phase") != "round 2":
+    if round_only_fields.get("Progress") != "round 2":
         raise RuntimeError(
-            f"project sync dry-run did not preserve round-only progress: {round_only_fields.get('Phase')}"
+            f"project sync dry-run did not preserve round-only progress: {round_only_fields.get('Progress')}"
         )
 
     apply_guard = run_command(
