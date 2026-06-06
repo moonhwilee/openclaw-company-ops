@@ -1362,6 +1362,126 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
     if planned["planned_actions"][0].get("type") != "ensure_project_item":
         raise RuntimeError("project sync dry-run did not plan Project item membership first")
 
+    proof_only_root = artifact_root.parent / "proof-only-artifacts"
+    shutil.copytree(artifact_root / work_unit_id, proof_only_root / work_unit_id)
+    proof_only_progress = proof_only_root / work_unit_id / "progress.jsonl"
+    proof_only_progress.unlink(missing_ok=True)
+    proof_only_assignment = proof_only_root / work_unit_id / "assignment.md"
+    proof_only_assignment.write_text(
+        proof_only_assignment.read_text(encoding="utf-8").replace(
+            f"- Assigned Team Lead OpenClaw Agent: `build-lab`\n",
+            "- Assigned Team Lead OpenClaw Agent: `build-lab`\n- Mode: `verify`\n",
+        ),
+        encoding="utf-8",
+    )
+    proof_timestamp = "2026-06-06T13:04:00Z"
+    write_jsonl(
+        proof_only_root / work_unit_id / "visibility-proof.jsonl",
+        [
+            {
+                "work_unit_id": work_unit_id,
+                "surface": "team-detail",
+                "kind": "STARTED",
+                "dry_run": False,
+                "readback_ok": True,
+                "discord_timestamp": "2026-06-06T13:00:00Z",
+            },
+            {
+                "work_unit_id": work_unit_id,
+                "surface": "ops-feed",
+                "kind": "COMPLETED",
+                "dry_run": False,
+                "readback_ok": True,
+                "discord_timestamp": proof_timestamp,
+            },
+        ],
+    )
+    proof_only_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(proof_only_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(proof_only_result, "project sync proof-derived lifecycle display dry-run")
+    proof_only_fields = json.loads(proof_only_result.stdout)["work_units"][0]["desired_fields"]
+    if proof_only_fields.get("Progress") != "verify · accepted":
+        raise RuntimeError(
+            "project sync dry-run did not derive proof-backed lifecycle display: "
+            f"{proof_only_fields.get('Progress')}"
+        )
+    if proof_only_fields.get("Last proof or last source update") != expected_dashboard_timestamp(proof_timestamp):
+        raise RuntimeError("project sync dry-run did not use latest proof timestamp")
+
+    invalid_proof_root = artifact_root.parent / "invalid-proof-artifacts"
+    shutil.copytree(proof_only_root / work_unit_id, invalid_proof_root / work_unit_id)
+    write_jsonl(
+        invalid_proof_root / work_unit_id / "visibility-proof.jsonl",
+        [
+            {
+                "work_unit_id": work_unit_id,
+                "surface": "team-detail",
+                "kind": "STARTED",
+                "dry_run": True,
+                "readback_ok": True,
+                "discord_timestamp": "2026-06-06T13:10:00Z",
+            },
+            {
+                "work_unit_id": "WU-OTHER",
+                "surface": "ops-feed",
+                "kind": "COMPLETED",
+                "dry_run": False,
+                "readback_ok": True,
+                "discord_timestamp": "2026-06-06T13:11:00Z",
+            },
+            {
+                "work_unit_id": work_unit_id,
+                "surface": "ops-feed",
+                "kind": "COMPLETED",
+                "dry_run": False,
+                "readback_ok": False,
+                "discord_timestamp": "2026-06-06T13:12:00Z",
+            },
+        ],
+    )
+    with (invalid_proof_root / work_unit_id / "visibility-proof.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write("{not valid json}\n")
+    invalid_proof_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(invalid_proof_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(invalid_proof_result, "project sync invalid proof display dry-run")
+    invalid_proof_fields = json.loads(invalid_proof_result.stdout)["work_units"][0]["desired_fields"]
+    if invalid_proof_fields.get("Progress") != "":
+        raise RuntimeError("project sync dry-run used invalid proof rows for Progress")
+    if invalid_proof_fields.get("Last proof or last source update") not in {"", "pending"}:
+        raise RuntimeError("project sync dry-run used narrative or invalid proof timestamp as last update")
+
     round_only_root = artifact_root.parent / "round-only-artifacts"
     shutil.copytree(artifact_root / work_unit_id, round_only_root / work_unit_id)
     round_only_progress = round_only_root / work_unit_id / "progress.jsonl"

@@ -196,6 +196,10 @@ Additional default visibility cost:
 - Long Work Unit `Progress` dashboard cost: one small `progress.jsonl` append
   and changed-only `project-sync` update from source artifacts. This should not
   add a Team Lead, summary LLM call, daemon, or fallback state store.
+- Short Work Unit dashboard display may use proof-derived lifecycle projection
+  from local `visibility-proof.jsonl` when no `progress.jsonl` row exists. This
+  is a mirror display only, should be a compact lifecycle label, and should not
+  infer phase/round detail.
 
 Do not add a second Team Lead or LLM summarization call for visibility. Use one
 Operations Lead composition step per transition to write both the owner-facing

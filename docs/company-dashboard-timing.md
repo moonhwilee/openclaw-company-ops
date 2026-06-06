@@ -205,7 +205,8 @@ when they support actual review or coordination.
 
 `Last proof or last source update` is a GitHub Project text field. Source
 artifacts keep UTC timestamps for audit stability, while `project-sync` formats
-the dashboard mirror using the machine's local timezone.
+the dashboard mirror using the machine's local timezone. This field is
+timestamp-first only; do not place next-action prose or audit narrative in it.
 
 Long-running Work Units should keep `Status` coarse and put progress detail in
 separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
@@ -224,6 +225,14 @@ for one-pass work. When a Work Unit is `goal` or `convergence` mode, or the
 owner explicitly asks to see rounds, display the round first in compact form,
 for example `R1 · 2/7 · implementation`. This confirms that work is active
 without requiring a new LLM summary or expensive progress calculation.
+
+Short Work Units may not need a checkpoint or explicit `progress.jsonl` row.
+When no valid progress row exists, `project-sync` may display a proof-derived
+lifecycle value from the local `visibility-proof.jsonl`, such as
+`verify · started`, `verify · result ready`, or `verify · accepted`. This is a
+dashboard projection only: it must use validated local proof rows, must not
+infer phase/round/slice details, and must not read Discord/GitHub Project text
+back into source truth.
 
 The dashboard may display phase or round progress only when the value is derived
 from source-backed lifecycle updates. Manual Project edits remain visibility
@@ -403,7 +412,8 @@ Current implementation state:
   validates one payload, publishes/readbacks the team `CHECKPOINT`, appends the
   matching progress row, and can run one changed-only Project mirror sync.
 - `project-sync` derives the dashboard `Progress` field from the latest valid
-  progress row.
+  progress row, or from a proof-derived lifecycle display when no progress row
+  exists.
 - The sync path performs no GitHub Issue close/open, Discord semantic publish,
   source artifact, claim, evidence, or decision mutation.
 

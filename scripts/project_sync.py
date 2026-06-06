@@ -45,6 +45,21 @@ DEFAULT_AUDIT_LOG = Path.home() / ".openclaw" / "state" / "openclaw-company-ops"
 DEFAULT_LOCK_FILE = Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync.lock"
 PROJECT_SCOPE_HINT = "run: gh auth refresh -s project"
 GITHUB_ISSUE_OR_PR_RE = re.compile(r"^https://github\.com/[^/\s]+/[^/\s]+/(?:issues|pull)/\d+(?:[?#].*)?$")
+PROOF_LOG_NAME = "visibility-proof.jsonl"
+PROOF_TIMESTAMP_FIELDS = ("discord_timestamp", "readback_at", "sent_at", "transition_at")
+PROOF_LIFECYCLE_LABELS = {
+    "ASSIGNED": "assigned",
+    "ASSIGNED_DETAIL": "assigned",
+    "STARTED": "started",
+    "CHECKPOINT": "checkpoint",
+    "RESULT_READY": "result ready",
+    "ACCEPTED": "accepted",
+    "COMPLETED": "accepted",
+    "REVISE": "revise",
+    "NEEDS_REVISION": "revise",
+    "BLOCKED_DETAIL": "blocked",
+    "BLOCKED": "blocked",
+}
 
 
 class ProjectSyncError(RuntimeError):
@@ -121,6 +136,58 @@ def format_dashboard_timestamp(value: str) -> str:
     local = parsed.astimezone()
     local_zone = local.tzname() or local.strftime("%z")
     return f"{local:%Y-%m-%d %H:%M} {local_zone}"
+
+
+def proof_row_timestamp(row: dict[str, Any]) -> tuple[datetime, str] | None:
+    for field in PROOF_TIMESTAMP_FIELDS:
+        raw_value = str(row.get(field) or "")
+        parsed = parse_source_timestamp(raw_value)
+        if parsed is not None:
+            return parsed, raw_value
+    return None
+
+
+def proof_lifecycle_projection(summary: dict[str, Any]) -> dict[str, str]:
+    proof_path = Path(str(summary.get("artifact_dir") or "")) / PROOF_LOG_NAME
+    empty = {"progress": "", "timestamp": ""}
+    if not proof_path.exists():
+        return empty
+
+    work_unit_id = str(summary.get("work_unit_id") or "")
+    assignment_fields = summary["artifacts"]["assignment.md"]["fields"]
+    mode = str(assignment_fields.get("mode") or "").strip("`").strip().lower()
+    latest: tuple[datetime, str, str] | None = None
+
+    for line in proof_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            loaded = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(loaded, dict):
+            continue
+        if str(loaded.get("work_unit_id") or "") != work_unit_id:
+            continue
+        if loaded.get("dry_run") is True or loaded.get("readback_ok") is not True:
+            continue
+        kind = str(loaded.get("kind") or "")
+        label = PROOF_LIFECYCLE_LABELS.get(kind)
+        if not label:
+            continue
+        timestamp = proof_row_timestamp(loaded)
+        if timestamp is None:
+            continue
+        parsed, raw_value = timestamp
+        if latest is None or parsed > latest[0]:
+            latest = (parsed, raw_value, label)
+
+    if latest is None:
+        return empty
+
+    _, raw_timestamp, label = latest
+    progress = f"{mode} · {label}" if mode else label
+    return {"progress": progress, "timestamp": raw_timestamp}
 
 
 def normalize_field_entry(value: Any) -> dict[str, Any]:
@@ -268,20 +335,21 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     decision = summary["decision"]
     claim = summary["claim"]
     progress = summary.get("progress") or {}
+    lifecycle_projection = proof_lifecycle_projection(summary)
+    progress_display = format_progress(progress) or lifecycle_projection["progress"]
+    last_update = progress.get("updated_at") or lifecycle_projection["timestamp"]
     fields = {
         "Work Unit id": summary["work_unit_id"],
         "Repository": repository,
         "Work Card": summary["work_card"],
         "Team Lead": team_from_summary(summary),
         "Status": status,
-        "Progress": format_progress(progress),
+        "Progress": progress_display,
         "Priority": "",
         "Blocker": derive_blocker(summary, status, reason),
         "Evidence present": "yes" if evidence["exists"] and has_real_ref(evidence["ref"]) else "no",
         "Decision": decision_value(summary),
-        "Last proof or last source update": format_dashboard_timestamp(
-            progress.get("updated_at") or summary["next_review"]
-        ),
+        "Last proof or last source update": format_dashboard_timestamp(last_update),
         "Assignment Packet reference": summary["assignment_packet"],
         "Ops Claim Ledger reference": claim["claim_ref"],
         "Evidence & Result Record reference": evidence["ref"],
