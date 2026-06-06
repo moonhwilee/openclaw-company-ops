@@ -253,6 +253,22 @@ Evidence & Result Record, and Operations Lead Decision.
 11. Operations Lead reports the final result with lightweight verification and
    accept/revise/hold judgment.
 
+For normal official Work Units, prefer the foreground handoff command over
+manually assembling the initial assignment trail:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit handoff --spec handoff.json --dry-run
+python3 scripts/openclaw_company_ops.py work-unit handoff --spec handoff.json --publish
+```
+
+The handoff command is only an initial assignment assembler. It creates or
+verifies the Work Card, renders the Assignment Packet and source artifacts,
+prepares `#ops-feed [ASSIGNED]` plus `#team-* [ASSIGNED_DETAIL]`, publishes
+ops-feed first, then publishes team-detail only after ops readback succeeds.
+It must not infer scope from prose, execute the Team Lead's work, publish
+checkpoints/results/decisions, retry in the background, or treat Discord/GitHub
+Project as source truth.
+
 For higher-risk delegated work, also create the Work Card, Assignment Packet,
 Ops Claim Ledger entry, Evidence & Result Record, and Operations Lead Decision.
 These artifacts are required before closing a Work Card, but Discord detail

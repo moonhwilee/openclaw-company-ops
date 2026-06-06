@@ -1548,6 +1548,74 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
     if after_checkpoint != before_checkpoint:
         raise RuntimeError("checkpoint dry-run mutated progress.jsonl")
 
+    handoff_root = artifact_root.parent / "handoff-artifacts"
+    handoff_spec = artifact_root.parent / "handoff-spec.json"
+    handoff_spec_data = {
+        "work_unit_id": "WU-260606-906",
+        "title": "Smoke initial handoff bundle",
+        "work_card": "local-smoke://WU-260606-906",
+        "operations_lead": "gbee",
+        "team": "build-lab",
+        "mode": "verify",
+        "owner_request": "Verify the thin handoff bundle.",
+        "goal": "Create a deterministic initial handoff bundle without external mutation.",
+        "scope": ["Render source artifacts", "Prepare ASSIGNED Discord cards"],
+        "done_criteria": ["Artifacts and initial visibility cards are planned from one spec"],
+        "verification_criteria": ["Dry-run has no persistent artifact writes", "ops-feed ASSIGNED precedes team-detail ASSIGNED_DETAIL"],
+        "targets": {
+            "ops_feed": "channel:ops-feed-smoke",
+            "team_detail": "channel:team-build-lab-smoke",
+        },
+        "next": "Team Lead starts from the generated Assignment Packet.",
+    }
+    write_json(handoff_spec, handoff_spec_data)
+    handoff_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(handoff_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(handoff_result, "work-unit handoff dry-run")
+    handoff_payload = json.loads(handoff_result.stdout)
+    if handoff_payload.get("ops_card", {}).get("kind") != "ASSIGNED":
+        raise RuntimeError("handoff dry-run did not create ops-feed ASSIGNED card")
+    if handoff_payload.get("team_card", {}).get("kind") != "ASSIGNED_DETAIL":
+        raise RuntimeError("handoff dry-run did not create team-detail ASSIGNED_DETAIL card")
+    planned_cards = handoff_payload.get("plan", {}).get("cards") or []
+    if [card.get("kind") for card in planned_cards] != ["ASSIGNED", "ASSIGNED_DETAIL"]:
+        raise RuntimeError("handoff dry-run did not preserve initial publish order")
+    if (handoff_root / "WU-260606-906").exists():
+        raise RuntimeError("handoff dry-run wrote persistent artifacts")
+
+    bad_handoff_spec = artifact_root.parent / "bad-handoff-spec.json"
+    bad_handoff_data = dict(handoff_spec_data)
+    bad_handoff_data.pop("verification_criteria")
+    write_json(bad_handoff_spec, bad_handoff_data)
+    bad_handoff_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(bad_handoff_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+        ]
+    )
+    if bad_handoff_result.returncode == 0:
+        raise RuntimeError("handoff dry-run accepted missing verification criteria")
+
     apply_guard = run_command(
         [
             sys.executable,
@@ -1654,6 +1722,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "checked artifact generation, two independent claims, pulse no-alert check, "
         "repo-local hook guard fixtures, "
         "purpose-specific Discord card/checkpoint composition, "
+        "thin handoff dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
         "and one result_ready update"
