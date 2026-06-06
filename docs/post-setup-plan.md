@@ -557,9 +557,13 @@ Current implementation state:
   Lead`, evidence, decision, blocker, proof/update, Work Card, Work Unit id, and
   Source Repository. GitHub collaboration and source-reference fields should be
   hidden unless needed for an active Work Unit.
-- Accepted Work Units should be archived from the active dashboard after visible
-  completion reporting and accepted evidence/decision are recorded. Archiving a
-  Project item is safe because source artifacts remain the source of truth.
+- Accepted Work Units are the owner's final-review queue. Keep accepted items
+  visible until the owner has had a reasonable chance to inspect them or
+  explicitly says they can be cleared. Then archive the Project item from the
+  active dashboard and close the Work Card when the task is fully closed.
+  Immediate archive is reserved for completed samples, internal smoke tests, or
+  owner-approved cleanup. Archiving a Project item is safe because source
+  artifacts remain the source of truth.
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 

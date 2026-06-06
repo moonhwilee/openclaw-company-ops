@@ -95,6 +95,13 @@ The Discord messages are visibility only. They show the owner what was assigned,
 what changed, what result came back, and where to inspect detail, but they do
 not create, mutate, approve, close, reassign, recover, or complete Work Units.
 
+After the Operations Lead accepts a result, the matching GitHub Project item
+stays visible as `Accepted` for owner final review. Archive the Project item and
+close the Work Card only after the owner has had a reasonable chance to inspect
+it, explicitly says it can be cleared, or the item is a completed sample/internal
+smoke test. Project archive clears active dashboard clutter; it does not delete
+the source artifact trail.
+
 The expected Team Lead result should include a short result summary,
 verification summary, changed artifact list, blocker if any, and next action.
 This avoids a second Team Lead execution or LLM summarization call for normal

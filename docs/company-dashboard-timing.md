@@ -237,10 +237,13 @@ Target date available but hidden in the primary owner view unless they are
 actively used for a specific Work Unit. Keep source artifact reference fields
 hidden in the primary view; they are audit drill-down fields.
 
-Accepted Work Units do not need to stay in the active dashboard. After the
-Operations Lead has sent the visible completion report and the Work Card has an
-accepted decision/evidence trail, archive the Project item and close the Work
-Card when it is only a completed sample or fully closed internal task. Project
+Accepted Work Units are the owner's final-review queue. After the Operations
+Lead has sent the visible completion report and the Work Card has an accepted
+decision/evidence trail, keep the Project item visible as `Accepted` until the
+owner has had a reasonable chance to inspect it or explicitly says it can be
+cleared. Then archive the Project item from the active dashboard and close the
+Work Card when the task is fully closed. Immediate archive is reserved for
+completed samples, internal smoke tests, or owner-approved cleanup. Project
 archive is safe because source artifacts remain the source of truth.
 
 ## Auto-Sync Rules
