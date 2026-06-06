@@ -679,6 +679,50 @@ def run_discord_card_smoke() -> None:
         if "OK visibility card sequence: WU-260605-901 · build-lab · 7 cards" not in sequence_result.stdout:
             raise RuntimeError("card sequence validation did not include expected result")
 
+        publish_sequence_proof = pair_dir / "publish-sequence-proof.jsonl"
+        publish_sequence_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "publish-sequence",
+                "--card-target",
+                f"{request_card_json}=channel:ops-feed-smoke",
+                "--card-target",
+                f"{assigned_card_json}=channel:team-build-lab-smoke",
+                "--proof-log",
+                str(publish_sequence_proof),
+                "--dry-run",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(publish_sequence_result, "discord publish sequence dry-run")
+        published_sequence = json.loads(publish_sequence_result.stdout).get("sequence") or []
+        if len(published_sequence) != 2:
+            raise RuntimeError("publish-sequence dry-run did not publish two cards")
+        if [row.get("publish", {}).get("kind") for row in published_sequence] != [
+            "ASSIGNED",
+            "ASSIGNED_DETAIL",
+        ]:
+            raise RuntimeError("publish-sequence did not preserve card order")
+
+        bad_publish_sequence_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "publish-sequence",
+                "--card-target",
+                f"{assigned_card_json}=channel:team-build-lab-smoke",
+                "--card-target",
+                f"{request_card_json}=channel:ops-feed-smoke",
+                "--proof-log",
+                str(pair_dir / "bad-publish-sequence-proof.jsonl"),
+                "--dry-run",
+            ]
+        )
+        if bad_publish_sequence_result.returncode == 0:
+            raise RuntimeError("publish-sequence accepted team handoff before ops-feed request")
+
         missing_request_result = run_command(
             [
                 sys.executable,

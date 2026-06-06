@@ -130,6 +130,12 @@ Run one-shot sync after each source-backed lifecycle state change, such as:
   `BLOCKED_DETAIL`;
 - final closeout events.
 
+When the assignment handoff creates both owner-facing and team-detail
+visibility cards, use a validated serial publish. The owner-facing assignment
+readback must complete before team-detail handoff readback. Project one-shot
+sync may run after each successful card, but Project sync failure must not cause
+the publisher to invent or reorder source state.
+
 The lifecycle operation must not depend on Project sync success. If Project
 sync fails, the source artifact and Discord visibility result remain what they
 are; the sync failure is logged and alerted separately.
@@ -196,6 +202,20 @@ Start with a small field set:
 
 Avoid adding fields just because GitHub Projects allows them. Add fields only
 when they support actual review or coordination.
+
+Long-running Work Units should keep `Status` coarse and put progress detail in
+separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
+3`; those are progress metadata, not lifecycle states. The recommended shape is:
+
+- `Status`: lifecycle state such as `In Progress`, `Result Ready`, or `Revise`.
+- `Phase`: current phase or slice label from a source-backed progress artifact
+  or checkpoint.
+- optional later fields such as `Round`, `Current slice`, or `Next checkpoint`
+  only if they are populated from source artifacts or proof logs.
+
+The dashboard may display phase or round progress only when the value is derived
+from source-backed lifecycle updates. Manual Project edits remain visibility
+notes only and must not become operating truth.
 
 ## Views To Use
 
@@ -308,7 +328,13 @@ Implement the dashboard sync in narrow stages:
      provided.
    - Scopes to the card's Work Unit.
    - Never makes Discord publish success depend on Project sync success.
-5. Scheduled reconcile - implemented as the existing-item safety-net path
+5. Serial assignment publish - implemented for `discord publish-sequence`
+   - Validates card order before any send/readback occurs.
+   - Publishes one card at a time and stops on the first failed send/readback.
+   - Blocks team-detail handoff before owner-facing assignment visibility.
+   - Uses the same source-backed single-card publish path; it does not add a
+     legacy route, fallback store, or hidden runner.
+6. Scheduled reconcile - implemented as the existing-item safety-net path
    - `project-sync reconcile` scans Work Unit artifacts and applies changed
      Project updates only for items already present in the dashboard.
    - Skip historical or local-only Work Units whose Work Card is not a GitHub

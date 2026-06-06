@@ -119,6 +119,17 @@ These messages share a fact packet, but they are not the same event text
 rendered twice. `#ops-feed` is the owner's briefing timeline. `#team-*` is the
 Team Lead execution and review trail.
 
+When the assignment handoff requires both owner-facing and team-detail
+visibility cards, publish them as a validated serial sequence. The owner-facing
+`#ops-feed` assignment must be sent and read back before the team detail
+handoff. Do not parallelize multi-card assignment handoffs.
+
+Live dogfood and verify runs must execute from the current Company Ops
+contract: the owner request, this manual, the active protocol capsule, source
+artifacts, and deterministic scripts. Prior smoke artifacts are regression
+references only. They must not be treated as an answer key for a live operating
+test.
+
 Use stable English for event kinds and internal schema, and Korean by default
 for owner-facing `#ops-feed` card content and internal long-form
 human-readable values. Public/package documentation, CLI help text, and

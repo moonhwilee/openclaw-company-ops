@@ -224,6 +224,9 @@ Default route:
 - Operations Lead posts one owner-facing `[ASSIGNED]` summary in `#ops-feed`.
 - Operations Lead posts one `[ASSIGNED_DETAIL]` entry in the relevant
   `#team-*` channel.
+- Multi-card assignment visibility is a serial lifecycle transition: publish
+  and read back the owner-facing assignment before publishing the team-detail
+  handoff.
 - Team Lead reports back through the CLI path and includes a concise result
   summary, verification summary, changed/source artifacts, blocker if any, and
   next action.

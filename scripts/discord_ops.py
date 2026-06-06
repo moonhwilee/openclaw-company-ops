@@ -863,6 +863,17 @@ def cmd_card_sequence(args: argparse.Namespace) -> int:
     return 0
 
 
+def parse_card_target(value: str) -> tuple[str, str]:
+    if "=" not in value:
+        raise argparse.ArgumentTypeError("expected CARD_JSON=TARGET")
+    card_json, target = value.split("=", 1)
+    card_json = card_json.strip()
+    target = target.strip()
+    if not card_json or not target:
+        raise argparse.ArgumentTypeError("expected non-empty CARD_JSON and TARGET")
+    return card_json, target
+
+
 def proof_row_from_card(
     card: dict[str, str],
     text: str,
@@ -907,13 +918,12 @@ def proof_row_from_card(
     }
 
 
-def cmd_publish_card(args: argparse.Namespace) -> int:
+def perform_publish_card(args: argparse.Namespace) -> tuple[int, dict[str, Any], str]:
     try:
         card = read_card_json(args.card_json)
         text = format_text_card(card)
     except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
+        return 1, {}, f"error: {exc}"
 
     transition_at = args.transition_at or utc_now_iso()
     sent_at = utc_now_iso()
@@ -936,20 +946,7 @@ def cmd_publish_card(args: argparse.Namespace) -> int:
             True,
         )
         append_jsonl(args.proof_log, row)
-        if args.format == "json":
-            print(
-                json.dumps(
-                    {"publish": row, "text": text, "project_sync": project_sync},
-                    indent=2,
-                    sort_keys=True,
-                    ensure_ascii=False,
-                )
-            )
-        else:
-            print(f"DRY-RUN publish-card proof recorded: {row['proof_id']}")
-            if project_sync.get("enabled"):
-                print(f"DRY-RUN project one-shot sync ok: {str(project_sync.get('ok')).lower()}")
-        return 0
+        return 0, {"publish": row, "text": text, "project_sync": project_sync}, ""
 
     command = [
         "openclaw",
@@ -987,8 +984,7 @@ def cmd_publish_card(args: argparse.Namespace) -> int:
             stderr.strip() or stdout.strip() or "send failed",
         )
         append_jsonl(args.proof_log, row)
-        print(f"error: Discord publish send failed; proof recorded as incomplete: {row['error']}", file=sys.stderr)
-        return 1
+        return 1, {"publish": row}, f"error: Discord publish send failed; proof recorded as incomplete: {row['error']}"
 
     sent_message_id = first_sent_message_id(send_result)
     readback_ok, readback_message_id, discord_timestamp, readback_result, readback_error = readback_match(
@@ -1013,20 +1009,80 @@ def cmd_publish_card(args: argparse.Namespace) -> int:
     append_jsonl(args.proof_log, row)
 
     if not readback_ok:
-        print(f"error: Discord publish readback failed; proof recorded as incomplete: {readback_error}", file=sys.stderr)
-        return 1
+        return 1, {"publish": row}, f"error: Discord publish readback failed; proof recorded as incomplete: {readback_error}"
 
     project_sync = run_project_one_shot_sync(card, args)
+    return 0, {"publish": row, "project_sync": project_sync}, ""
+
+
+def cmd_publish_card(args: argparse.Namespace) -> int:
+    code, payload, error = perform_publish_card(args)
+    project_sync = payload.get("project_sync") or {}
+
+    if error:
+        print(error, file=sys.stderr)
     if project_sync.get("enabled") and not project_sync.get("ok"):
         print(f"warning: Project one-shot sync failed: {project_sync.get('error')}", file=sys.stderr)
 
     if args.format == "json":
-        print(json.dumps({"publish": row, "project_sync": project_sync}, indent=2, sort_keys=True, ensure_ascii=False))
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    elif code == 0:
+        row = payload["publish"]
+        card = read_card_json(args.card_json)
+        if args.dry_run:
+            print(f"DRY-RUN publish-card proof recorded: {row['proof_id']}")
+            if project_sync.get("enabled"):
+                print(f"DRY-RUN project one-shot sync ok: {str(project_sync.get('ok')).lower()}")
+        else:
+            print(
+                "OK published visibility card: "
+                f"{card['work_unit_id']} · {card['team']} · {card['surface']} {card['kind']} · "
+                f"{row['discord_message_id']}"
+            )
+    return code
+
+
+def cmd_publish_sequence(args: argparse.Namespace) -> int:
+    try:
+        pairs = [parse_card_target(value) for value in args.card_target]
+        cards = [read_card_json(card_json) for card_json, _target in pairs]
+        validate_card_sequence(cards)
+    except (argparse.ArgumentTypeError, OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    results: list[dict[str, Any]] = []
+    for card_json, target in pairs:
+        child_args = argparse.Namespace(**vars(args))
+        child_args.card_json = card_json
+        child_args.target = target
+        child_args.format = "json"
+        code, payload, error = perform_publish_card(child_args)
+        results.append(
+            {
+                "card_json": card_json,
+                "target": target,
+                "ok": code == 0,
+                **payload,
+            }
+        )
+        project_sync = payload.get("project_sync") or {}
+        if project_sync.get("enabled") and not project_sync.get("ok"):
+            print(f"warning: Project one-shot sync failed: {project_sync.get('error')}", file=sys.stderr)
+        if code != 0:
+            if error:
+                print(error, file=sys.stderr)
+            if args.format == "json":
+                print(json.dumps({"sequence": results}, indent=2, sort_keys=True, ensure_ascii=False))
+            return code
+
+    if args.format == "json":
+        print(json.dumps({"sequence": results}, indent=2, sort_keys=True, ensure_ascii=False))
     else:
+        first = cards[0]
         print(
-            "OK published visibility card: "
-            f"{card['work_unit_id']} · {card['team']} · {card['surface']} {card['kind']} · "
-            f"{row['discord_message_id']}"
+            "OK published visibility sequence: "
+            f"{first['work_unit_id']} · {first['team']} · {len(results)} cards"
         )
     return 0
 
@@ -1304,6 +1360,46 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_card.add_argument("--format", choices=("text", "json"), default="text")
     publish_card.set_defaults(func=cmd_publish_card)
+
+    publish_sequence = subparsers.add_parser(
+        "publish-sequence",
+        help="Validate and publish multiple Discord cards serially in operating order",
+    )
+    publish_sequence.add_argument(
+        "--card-target",
+        required=True,
+        action="append",
+        help="Ordered CARD_JSON=TARGET pair. Repeat once per card.",
+    )
+    publish_sequence.add_argument("--proof-log", required=True, help="JSONL proof log path to append")
+    publish_sequence.add_argument("--channel", default="discord", help="OpenClaw message channel")
+    publish_sequence.add_argument("--account", default="", help="OpenClaw channel account id")
+    publish_sequence.add_argument("--thread-id", default="", help="Optional Discord thread id")
+    publish_sequence.add_argument("--transition-at", default="", help="UTC ISO timestamp for the operating transition")
+    publish_sequence.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
+    publish_sequence.add_argument("--dry-run", action="store_true", help="Record dry-run proof without sending")
+    publish_sequence.add_argument(
+        "--project-sync-field-map",
+        default="",
+        help="Optional Project field-map JSON; enables one-shot sync after each successful card",
+    )
+    publish_sequence.add_argument(
+        "--project-sync-artifact-root",
+        default="docs/examples/manual-dry-run",
+        help="Artifact root passed to project-sync one-shot",
+    )
+    publish_sequence.add_argument(
+        "--project-sync-ledger",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "claims" / "ledger.json"),
+        help="Ledger passed to project-sync one-shot; empty disables ledger",
+    )
+    publish_sequence.add_argument(
+        "--project-sync-audit-log",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
+        help="Audit log for successful non-dry-run one-shot sync",
+    )
+    publish_sequence.add_argument("--format", choices=("text", "json"), default="text")
+    publish_sequence.set_defaults(func=cmd_publish_sequence)
 
     proof_validate = subparsers.add_parser(
         "proof-validate",
