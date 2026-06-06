@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "criterion/evidence mapping",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "STARTED",
+    "needed": "",
+    "next": "Run deterministic checks and return verify recommendation",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "docs/examples/manual-dry-run/WU-260607-004/assignment.md",
+    "status": "Team Lead verify-only execution started.",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260607-004"
+  }
+}

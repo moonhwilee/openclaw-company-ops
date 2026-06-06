@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "docs/examples/manual-dry-run/WU-260607-004/team-lead-result.md",
+    "goal": "",
+    "kind": "RESULT_READY",
+    "needed": "",
+    "next": "Operations Lead posts REVISE decision and keeps Work Card open",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "Verify-only result submitted. Core path works through assignment visibility, Progress, Project sync, and Team Lead verification; recommendation is revise.",
+    "risks": "No valid owner-facing closeout path currently exists for REVISE.",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "Checks passed for py_compile and smoke; Project dry-run had expected draft-state audit issues; proof needed RESULT_READY/final review.",
+    "work_unit_id": "WU-260607-004"
+  }
+}
