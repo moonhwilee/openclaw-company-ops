@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1195,6 +1196,48 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError("project sync dry-run did not plan the expected item and field updates")
     if planned["planned_actions"][0].get("type") != "ensure_project_item":
         raise RuntimeError("project sync dry-run did not plan Project item membership first")
+
+    round_only_root = artifact_root.parent / "round-only-artifacts"
+    shutil.copytree(artifact_root / work_unit_id, round_only_root / work_unit_id)
+    round_only_progress = round_only_root / work_unit_id / "progress.jsonl"
+    round_only_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "checkpoint",
+                "round": "2",
+                "transition_at": "2026-06-06T12:30:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    round_only_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(round_only_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(round_only_result, "project sync round-only progress dry-run")
+    round_only_fields = json.loads(round_only_result.stdout)["work_units"][0]["desired_fields"]
+    if round_only_fields.get("Phase") != "round 2":
+        raise RuntimeError(
+            f"project sync dry-run did not preserve round-only progress: {round_only_fields.get('Phase')}"
+        )
 
     apply_guard = run_command(
         [

@@ -219,7 +219,7 @@ def format_phase(progress: dict[str, Any]) -> str:
     total = str(progress.get("phase_total") or "").strip()
 
     label = phase or current_slice
-    if not label:
+    if not label and not round_value:
         return ""
 
     prefix = ""
