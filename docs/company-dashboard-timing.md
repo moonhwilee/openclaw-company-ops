@@ -26,8 +26,8 @@ The accepted v1 shape is:
 - a user-level or organization-level GitHub Project;
 - a small, stable field set;
 - a deterministic sync command with `--dry-run` and `--apply`;
-- a scheduled reconcile every few minutes;
-- optional one-shot sync after lifecycle events, only as an accelerator;
+- lifecycle one-shot sync as the primary update path for state changes;
+- scheduled reconcile every few minutes as a safety net;
 - no LLM calls in the sync path.
 
 The repo-local visibility snapshot remains useful for local inspection:
@@ -82,16 +82,23 @@ visible.
 
 ## Sync Interval
 
+One-shot sync should run immediately after each accepted lifecycle state change,
+so its freshness is normally the lifecycle command runtime plus GitHub API/UI
+delay.
+
 Dashboard freshness is approximately:
 
 ```text
-sync interval + sync runtime + small GitHub UI propagation delay
+one-shot runtime + small GitHub API/UI propagation delay
 ```
 
-Recommended v1 interval:
+The scheduled reconcile interval is the stale-dashboard recovery window, not the
+normal update path.
+
+Recommended v1 reconcile interval:
 
 - default: 5 minutes;
-- allowed when owner wants faster freshness: 2-3 minutes;
+- allowed when owner wants faster stale-recovery: 2-3 minutes;
 - do not go below 1 minute without evidence that the extra churn is useful.
 
 At current expected Work Unit volume, a 5-minute interval has negligible system
@@ -110,21 +117,33 @@ Required protections:
 
 ## Hybrid Sync Model
 
-Use periodic sync as the authoritative dashboard mirror.
+Use lifecycle one-shot sync as the primary dashboard update path.
 
-Optional lifecycle one-shot sync may run after a major state transition, such as
-`publish-card` or a Work Unit result event, to reduce visible latency. This
-one-shot path is only an accelerator.
+Run one-shot sync after each source-backed lifecycle state change, such as:
+
+- Work Card or Assignment Packet creation;
+- `ASSIGNED`;
+- `STARTED`;
+- `CHECKPOINT`;
+- `RESULT_READY`;
+- Operations Lead review states such as `ACCEPTED`, `REVISE`, or
+  `BLOCKED_DETAIL`;
+- final closeout events.
 
 The lifecycle operation must not depend on Project sync success. If Project
 sync fails, the source artifact and Discord visibility result remain what they
 are; the sync failure is logged and alerted separately.
 
+Use scheduled reconcile as a safety net. It should detect and repair stale
+Project state when one-shot sync was skipped, failed, or never ran because a
+source artifact changed outside the normal lifecycle command path.
+
 This gives:
 
-- normal work-path overhead: `+0s` for scheduled reconcile;
-- optional one-shot overhead: roughly `+1-3s` after selected lifecycle events;
-- dashboard freshness: typically within the chosen interval.
+- normal lifecycle overhead: roughly `+1-3s` per synced state transition;
+- dashboard freshness: usually near-immediate after lifecycle events;
+- recovery window for missed updates: typically within the scheduled reconcile
+  interval.
 
 ## Repository Strategy
 
@@ -241,13 +260,14 @@ Implement the dashboard sync in narrow stages:
    - Apply only changed Project item/field updates.
    - Record an audit log.
    - Preserve idempotency.
-3. Scheduled reconcile
-   - Run every 5 minutes by default.
+3. Lifecycle one-shot sync
+   - Run after source-backed state transitions.
+   - Scope to one Work Unit when possible.
+   - Never make lifecycle success depend on Project sync success.
+4. Scheduled reconcile
+   - Run every 5 minutes by default as stale-dashboard recovery.
    - Use a lock file to prevent overlap.
    - Alert on failure without mutating source state.
-4. Optional lifecycle one-shot
-   - Run for one Work Unit after selected lifecycle events.
-   - Never make lifecycle success depend on Project sync success.
 
 ## Creation Checklist
 
@@ -258,7 +278,8 @@ Before enabling the first Company Dashboard, confirm:
 - Project id and field ids are discoverable without storing secrets in the repo.
 - `--dry-run` shows a clear diff.
 - `--apply` is idempotent.
-- Scheduled sync has locking and logs.
+- Lifecycle one-shot sync can target one Work Unit.
+- Scheduled reconcile has locking and logs.
 - Failure alerts are visible but do not invent status.
 - No rule requires dashboard data as completion truth.
 

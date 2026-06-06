@@ -502,19 +502,23 @@ Evaluate:
 - whether status mapping from Work Cards and source artifacts is deterministic;
 - whether `project-sync --dry-run` can show planned changes without mutation;
 - whether `project-sync --apply` is idempotent and changed-only;
-- whether scheduled reconcile can run every few minutes with locking, logs, and
-  failure alerts;
-- whether optional lifecycle one-shot sync can accelerate dashboard freshness
-  without making Work Unit completion depend on Project sync.
+- whether lifecycle one-shot sync can run after source-backed state changes
+  without making Work Unit completion depend on Project sync;
+- whether scheduled reconcile can run every few minutes as stale-dashboard
+  recovery with locking, logs, and failure alerts.
 
 Accepted v1 shape:
 
-- default scheduled reconcile interval: 5 minutes;
-- allowed faster interval when owner wants tighter freshness: 2-3 minutes;
-- optional foreground one-shot sync after selected lifecycle events, adding
-  roughly 1-3 seconds only to those events;
-- normal background sync adds 0 seconds to Team Lead or Operations Lead work
-  paths;
+- lifecycle one-shot sync is the primary update path for `ASSIGNED`,
+  `STARTED`, `CHECKPOINT`, `RESULT_READY`, review, blocker, and closeout state
+  changes;
+- one-shot sync adds roughly 1-3 seconds only to state-changing lifecycle
+  events;
+- scheduled reconcile is a safety net, not the normal dashboard update path;
+- default scheduled reconcile interval: 5 minutes as the stale-dashboard
+  recovery window;
+- allowed faster reconcile interval when owner wants tighter stale-recovery:
+  2-3 minutes;
 - the Project is a visibility mirror only.
 
 No-go boundaries:
