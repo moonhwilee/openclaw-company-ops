@@ -175,10 +175,14 @@ References:
 Start with a small field set:
 
 - Work Unit id.
-- Repository.
+- Repository. Use the editable `Source Repository` field in GitHub Projects
+  field maps because GitHub's built-in `Repository` field is read-only through
+  Project item mutation APIs.
 - Work Card.
 - Team Lead.
-- Status.
+- Status. Use GitHub's built-in `Status` field as the dashboard status field,
+  with Company Ops options: `Assigned`, `In Progress`, `Result Ready`,
+  `Accepted`, `Revise`, and `Blocked`.
 - Phase.
 - Priority.
 - Blocker.
@@ -259,6 +263,8 @@ Implement the dashboard sync in narrow stages:
 2. `project-sync field-map` - implemented as the local configuration helper
    - Read an existing GitHub Project and its fields through `gh`.
    - Write a local field-id map outside repo state.
+   - Map source repository text to `Source Repository` when GitHub's built-in
+     `Repository` field is present.
    - Store no tokens.
 3. `project-sync apply` - implemented as the Project mutation path
    - Require an explicit local field map with owner, Project number, Project id,
@@ -273,9 +279,13 @@ Implement the dashboard sync in narrow stages:
      provided.
    - Scopes to the card's Work Unit.
    - Never makes Discord publish success depend on Project sync success.
-5. Scheduled reconcile - implemented as the full-workspace command path
-   - `project-sync reconcile` scans all Work Unit artifacts and applies changed
-     Project updates.
+5. Scheduled reconcile - implemented as the existing-item safety-net path
+   - `project-sync reconcile` scans Work Unit artifacts and applies changed
+     Project updates only for items already present in the dashboard.
+   - Skip historical or local-only Work Units whose Work Card is not a GitHub
+     issue or pull request.
+   - Do not add missing Project items; lifecycle one-shot sync owns active item
+     creation so archived history does not reappear.
    - Uses a lock file to prevent overlap.
    - Intended to run every 5 minutes by default as stale-dashboard recovery.
    - Alerts/logs on failure without mutating source state.

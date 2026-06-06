@@ -35,6 +35,12 @@ DEFAULT_FIELDS = (
     "Evidence & Result Record reference",
     "Operations Lead Decision reference",
 )
+FIELD_FALLBACKS = {
+    # GitHub's built-in Repository field is read-only through the Project item
+    # mutation API, so sync our source repository string into the editable
+    # project-specific field when it exists.
+    "Repository": ("Source Repository",),
+}
 DEFAULT_AUDIT_LOG = Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"
 DEFAULT_LOCK_FILE = Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync.lock"
 PROJECT_SCOPE_HINT = "run: gh auth refresh -s project"
@@ -340,6 +346,24 @@ def require_applyable_work_cards(planned: list[dict[str, Any]]) -> None:
         )
 
 
+def split_applyable_work_cards(planned: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    applyable: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    for item in planned:
+        work_card = item["work_card"] or ""
+        if GITHUB_ISSUE_OR_PR_RE.match(work_card):
+            applyable.append(item)
+        else:
+            skipped.append(
+                {
+                    "work_unit_id": item["work_unit_id"],
+                    "work_card": work_card,
+                    "reason": "non-GitHub Work Card is not Project-sync applyable",
+                }
+            )
+    return applyable, skipped
+
+
 def require_project_scope(gh_binary: str) -> None:
     result = subprocess.run([gh_binary, "auth", "status"], text=True, capture_output=True, check=False)
     output = f"{result.stdout}\n{result.stderr}"
@@ -589,7 +613,19 @@ def cmd_field_map(args: argparse.Namespace) -> int:
         name, entry = field_entry_from_project_field(field)
         if name:
             available[name] = entry
-    selected = {name: available[name] for name in DEFAULT_FIELDS if name in available}
+    selected = {}
+    aliases = {}
+    for name in DEFAULT_FIELDS:
+        for fallback in FIELD_FALLBACKS.get(name, ()):
+            if fallback in available:
+                selected[name] = available[fallback]
+                aliases[name] = fallback
+                break
+        if name in selected:
+            continue
+        if name in available:
+            selected[name] = available[name]
+            continue
     output = {
         "owner": args.owner,
         "project_number": args.project_number,
@@ -597,6 +633,8 @@ def cmd_field_map(args: argparse.Namespace) -> int:
         "fields": selected,
         "missing_fields": [name for name in DEFAULT_FIELDS if name not in selected],
     }
+    if aliases:
+        output["field_aliases"] = aliases
     if args.output:
         destination = args.output.expanduser()
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -612,7 +650,8 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
         "project_mutation": True,
         "llm_calls": 0,
         "work_units": [],
-        "summary": {"changed": 0, "unchanged": 0, "failed": 0},
+        "summary": {"changed": 0, "unchanged": 0, "failed": 0, "skipped": 0},
+        "skipped_work_units": [],
     }
     for item_plan in plan["work_units"]:
         work_card = item_plan["work_card"]
@@ -623,6 +662,16 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
         if item_node_id:
             current_values = fetch_current_field_values(args, item_node_id)
             actions.append({"type": "ensure_project_item", "result": "unchanged", "work_card": work_card})
+        elif getattr(args, "skip_missing_project_items", False):
+            result["summary"]["skipped"] += 1
+            result["skipped_work_units"].append(
+                {
+                    "work_unit_id": item_plan["work_unit_id"],
+                    "work_card": work_card,
+                    "reason": "Project item is absent; reconcile updates existing dashboard items only",
+                }
+            )
+            continue
         else:
             current_values = {}
             item_node_id = add_project_item(args, field_map, work_card)
@@ -717,17 +766,26 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 
 
 def cmd_apply(args: argparse.Namespace) -> int:
+    skipped: list[dict[str, str]] = []
     try:
         field_map = load_field_map(args.field_map)
         plan = build_plan(args, field_map, "apply", True)
         require_apply_field_map(field_map)
-        require_applyable_work_cards(plan["work_units"])
+        if getattr(args, "skip_invalid_work_cards", False):
+            plan["work_units"], skipped = split_applyable_work_cards(plan["work_units"])
+            if not plan["work_units"]:
+                raise ProjectSyncError("no applyable GitHub issue or pull request Work Cards found")
+        else:
+            require_applyable_work_cards(plan["work_units"])
         require_project_scope(args.gh_binary)
         with ProjectSyncLock(args.lock_file):
             result = apply_work_units(args, plan, field_map)
     except (subprocess.TimeoutExpired, ValueError, ProjectSyncError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    if skipped:
+        result["summary"]["skipped"] += len(skipped)
+        result["skipped_work_units"].extend(skipped)
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
@@ -742,6 +800,8 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 def cmd_reconcile(args: argparse.Namespace) -> int:
     args.work_unit_id = None
+    args.skip_invalid_work_cards = True
+    args.skip_missing_project_items = True
     return cmd_apply(args)
 
 

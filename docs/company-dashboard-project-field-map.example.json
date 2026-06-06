@@ -63,5 +63,8 @@
       "id": "PVTF_replace_with_field_id",
       "type": "text"
     }
+  },
+  "field_aliases": {
+    "Repository": "Source Repository"
   }
 }

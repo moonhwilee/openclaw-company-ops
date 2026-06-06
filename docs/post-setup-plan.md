@@ -538,12 +538,17 @@ Current implementation state:
 - `project-sync dry-run` computes desired Project fields from source artifacts
   and optional ledger state without mutation.
 - `project-sync field-map` reads an existing GitHub Project and writes local
-  field-id config without storing secrets.
+  field-id config without storing secrets. GitHub's built-in `Status` field is
+  the canonical dashboard status field; source repository text maps to the
+  editable `Source Repository` field because GitHub's built-in `Repository`
+  field is read-only through Project item mutation APIs.
 - `project-sync apply` requires an explicit local field map and `gh` auth with
   `project` scope, then adds missing Project item membership and updates changed
   fields only.
-- `project-sync reconcile` runs the same changed-only apply path across all Work
-  Unit artifacts with locking for stale-dashboard recovery.
+- `project-sync reconcile` runs the same changed-only apply path for existing
+  dashboard items with locking for stale-dashboard recovery, skipping
+  historical/local-only Work Units and absent Project items so archived history
+  does not reappear.
 - `discord publish-card` can run nonblocking one-shot sync after successful
   publish when a field map is supplied.
 - The sync path does not close/open GitHub Issues, create source artifacts,
