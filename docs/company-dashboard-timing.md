@@ -25,7 +25,7 @@ The accepted v1 shape is:
 
 - a user-level or organization-level GitHub Project;
 - a small, stable field set;
-- a deterministic sync command with `--dry-run` and `--apply`;
+- a deterministic sync command with `dry-run` and `apply` actions;
 - lifecycle one-shot sync as the primary update path for state changes;
 - scheduled reconcile every few minutes as a safety net;
 - no LLM calls in the sync path.
@@ -251,12 +251,12 @@ actually wrong and the Operations Lead records the correction.
 
 Implement the dashboard sync in narrow stages:
 
-1. `project-sync --dry-run`
+1. `project-sync dry-run` - implemented as local planner
    - Read source state.
-   - Resolve Project and field ids.
+   - Read optional local Project and field-id map.
    - Print planned item and field changes.
    - Mutate nothing.
-2. `project-sync --apply`
+2. `project-sync apply`
    - Apply only changed Project item/field updates.
    - Record an audit log.
    - Preserve idempotency.
@@ -276,8 +276,8 @@ Before enabling the first Company Dashboard, confirm:
 - Project fields and views are named.
 - GitHub auth can read Issues and write Project items/fields.
 - Project id and field ids are discoverable without storing secrets in the repo.
-- `--dry-run` shows a clear diff.
-- `--apply` is idempotent.
+- `project-sync dry-run` shows a clear diff.
+- `project-sync apply` is idempotent.
 - Lifecycle one-shot sync can target one Work Unit.
 - Scheduled reconcile has locking and logs.
 - Failure alerts are visible but do not invent status.
@@ -291,6 +291,16 @@ truth and treat the Project as stale visibility until sync is fixed.
 For `moonhwilee/openclaw-company-ops`, Phase 5.3 accepts a GitHub Project
 dashboard with bounded auto-sync.
 
-The next implementation work should prepare the Project field model and a
-deterministic `project-sync` command. Do not install a long-lived daemon or use
-LLM interpretation in the sync path.
+Current implementation state:
+
+- `python3 scripts/openclaw_company_ops.py project-sync dry-run` exists.
+- It reads Work Unit source artifacts and optional claim ledger state.
+- It derives desired Project fields deterministically.
+- It accepts an optional local JSON field map with Project and field ids.
+- It reports planned field updates, missing field ids, and mutation readiness.
+- It performs no GitHub Project, GitHub Issue, Discord, source artifact, claim,
+  evidence, or decision mutation.
+
+Next implementation work should add `project-sync apply` with changed-only
+GitHub Project item/field updates and audit logging. Do not install a
+long-lived daemon or use LLM interpretation in the sync path.

@@ -500,8 +500,8 @@ Evaluate:
 - whether Project id and field ids can be discovered or configured without
   storing secrets in the repo;
 - whether status mapping from Work Cards and source artifacts is deterministic;
-- whether `project-sync --dry-run` can show planned changes without mutation;
-- whether `project-sync --apply` is idempotent and changed-only;
+- whether `project-sync dry-run` can show planned changes without mutation;
+- whether `project-sync apply` is idempotent and changed-only;
 - whether lifecycle one-shot sync can run after source-backed state changes
   without making Work Unit completion depend on Project sync;
 - whether scheduled reconcile can run every few minutes as stale-dashboard
@@ -532,6 +532,15 @@ No-go boundaries:
   completion may be introduced.
 
 Implementation details are tracked in `docs/company-dashboard-timing.md`.
+
+Current implementation state:
+
+- `project-sync dry-run` is implemented as the first Project sync stage.
+- It computes desired Project fields from source artifacts and optional ledger
+  state.
+- It can target one Work Unit for lifecycle one-shot preparation.
+- It does not mutate GitHub Project, GitHub Issues, Discord, source artifacts,
+  claims, evidence, or decisions.
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 

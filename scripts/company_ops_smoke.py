@@ -17,6 +17,7 @@ ARTIFACTS = SCRIPT_DIR / "work_unit_artifacts.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
+PROJECT_SYNC = SCRIPT_DIR / "project_sync.py"
 HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
 
 
@@ -1053,6 +1054,111 @@ def run_hook_guard_smoke() -> None:
     )
 
 
+def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str) -> None:
+    field_map = artifact_root.parent / "project-field-map.json"
+    write_json(
+        field_map,
+        {
+            "project_id": "PVT_local_smoke",
+            "fields": {
+                "Work Unit id": "field_work_unit",
+                "Repository": "field_repository",
+                "Work Card": "field_work_card",
+                "Team Lead": "field_team_lead",
+                "Status": "field_status",
+                "Phase": "field_phase",
+                "Priority": "field_priority",
+                "Blocker": "field_blocker",
+                "Evidence present": "field_evidence_present",
+                "Decision": "field_decision",
+                "Last proof or last source update": "field_last_update",
+                "Assignment Packet reference": "field_assignment",
+                "Ops Claim Ledger reference": "field_claim",
+                "Evidence & Result Record reference": "field_evidence",
+                "Operations Lead Decision reference": "field_ops_decision",
+            },
+        },
+    )
+    result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(result, "project sync dry-run")
+    parsed = json.loads(result.stdout)
+    if parsed.get("project_mutation") is not False or parsed.get("llm_calls") != 0:
+        raise RuntimeError("project sync dry-run reported mutation or LLM usage")
+    work_units = parsed.get("work_units") or []
+    if len(work_units) != 1:
+        raise RuntimeError(f"project sync dry-run expected one Work Unit, got {len(work_units)}")
+    planned = work_units[0]
+    fields = planned.get("desired_fields") or {}
+    if fields.get("Status") != "Result Ready":
+        raise RuntimeError(f"project sync dry-run expected Result Ready status, got {fields.get('Status')}")
+    if fields.get("Evidence present") != "yes":
+        raise RuntimeError("project sync dry-run did not mark evidence present")
+    if not planned.get("mutation_ready"):
+        raise RuntimeError("project sync dry-run did not validate complete field map")
+    if len(planned.get("planned_actions") or []) != 16:
+        raise RuntimeError("project sync dry-run did not plan the expected item and field updates")
+    if planned["planned_actions"][0].get("type") != "ensure_project_item":
+        raise RuntimeError("project sync dry-run did not plan Project item membership first")
+
+    suffix_root = artifact_root.parent / "suffix-artifacts"
+    suffix_dir = suffix_root / "WU-260606-LIVE-P0"
+    suffix_dir.mkdir(parents=True)
+    (suffix_dir / "assignment.md").write_text(
+        "# Assignment Packet\n\nStatus: Assigned\n\n"
+        "## Identity\n\n"
+        "- Work Unit id: `WU-260606-LIVE-P0`\n"
+        "- Work Card: local-smoke://WU-260606-LIVE-P0\n"
+        "- Assigned Team Lead OpenClaw Agent: `build-lab`\n",
+        encoding="utf-8",
+    )
+    (suffix_dir / "claim.md").write_text(
+        "# Ops Claim Ledger Entry\n\nStatus: Working\n\n"
+        "- Claim ref: `CLAIM-WU-260606-LIVE-P0-001`\n"
+        "- Work Unit id: `WU-260606-LIVE-P0`\n"
+        "- Work Card: local-smoke://WU-260606-LIVE-P0\n"
+        "- Expected state: `working`\n",
+        encoding="utf-8",
+    )
+    suffix_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--no-ledger",
+            "--artifact-root",
+            str(suffix_root),
+            "--work-unit-id",
+            "WU-260606-LIVE-P0",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(suffix_result, "project sync suffix dry-run")
+    suffix_plan = json.loads(suffix_result.stdout)["work_units"][0]
+    if suffix_plan["desired_fields"]["Status"] != "In Progress":
+        raise RuntimeError("project sync suffix dry-run did not derive In Progress")
+    if suffix_plan["desired_fields"]["Team Lead"] != "build-lab":
+        raise RuntimeError("project sync suffix dry-run did not preserve Team Lead")
+
+
 def cmd_multi_team(args: argparse.Namespace) -> int:
     work_dir = args.work_dir or Path(tempfile.mkdtemp(prefix="openclaw-company-ops-multi-team-smoke."))
     work_dir = work_dir.expanduser()
@@ -1075,6 +1181,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_hook_guard_smoke()
         run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
+        run_project_sync_smoke(ledger, work_dir / "artifacts", "WU-260605-901")
         claims = load_claims(ledger)
     except (RuntimeError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1094,6 +1201,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "repo-local hook guard fixtures, "
         "purpose-specific Discord card/checkpoint composition, "
         "live proof validation with burst replay rejection, "
+        "Project sync dry-run planning without mutation, "
         "and one result_ready update"
     )
     return 0
