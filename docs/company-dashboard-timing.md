@@ -217,6 +217,32 @@ Optional later views:
 Do not use views to hide missing artifacts. If an artifact is missing, the Work
 Unit is blocked or stale until the source artifact is fixed.
 
+For the primary owner-facing table view, prefer this visible field order:
+
+1. Title.
+2. Status.
+3. Priority.
+4. Team Lead.
+5. Evidence present.
+6. Decision.
+7. Blocker.
+8. Last proof or last source update.
+9. Work Card.
+10. Work Unit id.
+11. Source Repository.
+
+Keep GitHub collaboration fields such as Assignees, Linked pull requests,
+Sub-issues progress, Reviewers, Milestone, Iteration, Estimate, Start date, and
+Target date available but hidden in the primary owner view unless they are
+actively used for a specific Work Unit. Keep source artifact reference fields
+hidden in the primary view; they are audit drill-down fields.
+
+Accepted Work Units do not need to stay in the active dashboard. After the
+Operations Lead has sent the visible completion report and the Work Card has an
+accepted decision/evidence trail, archive the Project item and close the Work
+Card when it is only a completed sample or fully closed internal task. Project
+archive is safe because source artifacts remain the source of truth.
+
 ## Auto-Sync Rules
 
 The sync reads:

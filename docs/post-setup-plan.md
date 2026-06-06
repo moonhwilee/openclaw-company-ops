@@ -553,6 +553,13 @@ Current implementation state:
   publish when a field map is supplied.
 - The sync path does not close/open GitHub Issues, create source artifacts,
   mutate claims/evidence/decisions, or publish semantic Discord status.
+- Primary dashboard view should emphasize `Title`, `Status`, `Priority`, `Team
+  Lead`, evidence, decision, blocker, proof/update, Work Card, Work Unit id, and
+  Source Repository. GitHub collaboration and source-reference fields should be
+  hidden unless needed for an active Work Unit.
+- Accepted Work Units should be archived from the active dashboard after visible
+  completion reporting and accepted evidence/decision are recorded. Archiving a
+  Project item is safe because source artifacts remain the source of truth.
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 
