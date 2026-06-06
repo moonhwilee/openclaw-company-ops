@@ -47,11 +47,20 @@ After that handoff, the main session may handle other owner requests. A
 detached Work Unit remains owned by the assigned Team Lead until the Operations
 Lead later reviews the submitted evidence and records a decision.
 
-The only routine exception is a small direct task that does not need Team Lead
-ownership, does not need subagents, and can finish inside the current turn
-without leaving durable state. If a `verify` or `goal` request needs a Team
-Lead, subagent delegation, live visibility, code changes, external mutation, or
-more than a tiny bounded check, treat it as a detached Work Unit.
+Route owner requests through one of three paths:
+
+- Direct Operations Lead response: use for small generic questions, tiny local
+  checks, or reversible actions where specialist continuity does not help.
+- Direct Team Lead Q&A: use for small domain-specific questions where the
+  matching Team Lead's standing persona and channel context improve judgment or
+  preserve Operations Lead context. This is advisory/status/clarification only.
+- Detached Work Unit: use for official delegated execution, `goal`, standalone
+  `verify`, subagent delegation, code changes, external mutation, live
+  visibility, multi-step verification, or anything that needs durable state.
+
+The routine exception to detached Work Unit handling is therefore not "small
+means direct." It is "small and advisory may be direct or Team Lead Q&A; official
+delegated work becomes a detached Work Unit."
 
 Do not use a hidden background orchestrator to satisfy this rule. The detached
 state is the Work Unit source artifacts, proof/progress logs, claim state, and
@@ -63,7 +72,10 @@ Team Lead results are inputs for Operations Lead review, not automatic
 completion.
 
 If a Team Lead result arrives while the main session is handling another owner
-request, finish or pause the active owner request first, then process ready
+request, OpenClaw message routing determines when that notification is delivered
+to the Operations Lead. This rule does not reorder OpenClaw inbound messages.
+It defines how the Operations Lead recovers and processes ready results after
+delivery: finish or pause the active owner request first, then process ready
 results from the source-backed inbox. The inbox is the set of Work Units whose
 claim or evidence state is `result_ready` and whose team-detail trail has a
 valid `RESULT_READY` proof when live visibility is required.
@@ -86,7 +98,9 @@ Race control:
 - Team Lead result arrival must not mutate GitHub Project, close Work Cards,
   publish owner completion, or overwrite decisions by itself.
 - Run one closeout at a time. Project sync already uses a lock; source decision
-  artifacts should be treated as single-writer Operations Lead outputs.
+  artifacts should be treated as single-writer Operations Lead outputs. A future
+  result-ready inbox or closeout command should add a Work Unit-specific
+  closeout lock and re-check whether a decision already exists before writing.
 - If a duplicate or stale Team Lead result arrives after a decision exists,
   compare it to the existing source artifacts and report it as stale or a
   revision request. Do not reopen or overwrite accepted work automatically.

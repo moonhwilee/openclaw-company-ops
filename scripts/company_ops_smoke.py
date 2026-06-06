@@ -1266,13 +1266,21 @@ def run_async_work_unit_policy_smoke() -> None:
     checks = {
         "docs/operations-manual.md": (
             "Main Session Nonblocking Rule",
+            "Direct Team Lead Q&A",
             "Result Ready Inbox Rule",
+            "This rule does not reorder OpenClaw inbound messages.",
             "Process pending Team Lead results one at a time in a deterministic order",
+            "closeout lock",
             "Only the Operations Lead may record `ACCEPTED`, `REVISE`, or",
         ),
         "docs/protocols/README.md": (
             "Detached Work Unit Requirement",
+            "Small domain-specific questions may be routed to the matching Team Lead",
             "handoff a detached Work Unit",
+        ),
+        "docs/post-setup-plan.md": (
+            "foreground result-ready inbox",
+            "closeout-lock helper",
         ),
         "docs/templates/assignment-packet.md": (
             "Execution route: <cli-direct|cli-delivered|discord-bound>",

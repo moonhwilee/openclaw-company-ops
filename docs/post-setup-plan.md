@@ -606,6 +606,10 @@ Evaluate:
 - whether manual pulse checks reveal repeated stale-claim risk;
 - whether alert noise and false positives are acceptable;
 - whether a foreground/manual runner is enough for public v1.
+- whether a foreground result-ready inbox is needed before any scheduled
+  monitoring. This inbox would list Work Units ready for Operations Lead review
+  from source artifacts/proof logs and would not reorder OpenClaw message
+  delivery.
 
 Decision output: accept scheduled install, keep manual/foreground only, defer
 with trigger, or no-go with rationale.
@@ -614,6 +618,10 @@ No-go boundaries:
 
 - Pulse Monitor remains alert-only.
 - No daemon restarts, reassigns, recovers, cancels, or completes work.
+- Result-ready inbox, if added, remains foreground/manual and source-backed. It
+  may take a Work Unit closeout lock and re-check decision artifacts before a
+  review, but it must not automatically accept, reject, reopen, or overwrite
+  work.
 
 ### Phase 5.6: Packaging Readiness Decision
 
@@ -624,6 +632,7 @@ Candidate Phase 6 surface:
 - Work Unit artifact generator;
 - Ops Claim Ledger CLI;
 - alert-only pulse check and any accepted manual runner;
+- any accepted foreground result-ready inbox or closeout-lock helper;
 - dashboard snapshot;
 - Discord card composer, guard, JSON output, and sequence validator;
 - smoke tests and setup docs;

@@ -13,6 +13,12 @@ These protocols apply only to delegated Work Units. Simple direct questions,
 quick lookups, and conversational requests should not be promoted into Work Unit
 protocol unless the Operations Lead explicitly assigns them that way.
 
+Small domain-specific questions may be routed to the matching Team Lead as
+direct Q&A when that standing persona and channel context improve judgment or
+avoid Operations Lead context pollution. That Q&A remains advisory/status/
+clarification only. If the answer becomes official delegated execution, convert
+it into a Work Unit before work starts.
+
 ## Detached Work Unit Requirement
 
 `goal` and standalone `verify` are delegated Work Unit protocols for sizeable
