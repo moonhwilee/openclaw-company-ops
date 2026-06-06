@@ -752,19 +752,79 @@ Acceptance gate:
   `detached-wu`, or `needs-ops-decision` and explains the decision with a short
   deterministic reason.
 
-Optional adjacent optimization candidate:
+### Phase 5.5a: Handoff Amendment / Replan Dry-Run Gate
 
-- Consider a foreground `work-unit amend` or `work-unit replan --dry-run`
-  helper after the inbox/closeout path is accepted. Its job would be to record a
-  source-backed amendment when execution discovers a new issue that changes
-  scope, criteria, cost, risk, or authority.
-- The helper should not overwrite the original handoff. It should point to the
-  original Assignment Packet, append an amendment/revision note, update
-  `Updated at`, optionally publish a factual CHECKPOINT/REVISE visibility note,
-  and run Project sync as a mirror.
-- This is lower priority than `work-unit inbox --result-ready` and closeout
-  locks, but it directly reduces confusion from early handoff decisions that
-  become stale during execution.
+Purpose: make post-handoff plan changes source-backed without slowing normal
+Work Units or making the Assignment Packet too rigid.
+
+This phase is accepted only after Phase 5.5's result-ready inbox and closeout
+lock path is implemented. It is not a replacement for the original handoff; it
+is a small foreground helper for the cases where execution discovers new facts.
+
+Implement:
+
+- Add a foreground `work-unit amend` or `work-unit replan --dry-run` helper.
+- The helper records a source-backed amendment when execution discovers a new
+  issue that changes scope, done criteria, verification criteria, risk, cost,
+  authority, or target artifact paths.
+- `--dry-run` is mandatory for the first implementation and must show the
+  planned amendment, affected fields, unchanged handoff facts, and optional
+  visibility/Project mirror actions without writing files or mutating external
+  systems.
+- A later non-dry-run path may append an amendment/revision note, update
+  `Updated at`, optionally publish one factual CHECKPOINT or REVISE visibility
+  note, and run Project sync as a mirror.
+
+Stable facts that must not be rewritten:
+
+- Work Unit id.
+- Work Card.
+- Original owner request and business intent.
+- Assigned Team Lead and Operations Lead.
+- Protocol mode, safety constraints, and no-go boundaries.
+- Original handoff timestamp and proof trail.
+
+No-go boundaries:
+
+- Do not overwrite the original Assignment Packet as if the earlier handoff
+  never existed.
+- Do not automatically accept, reject, close, reopen, reassign, complete, or
+  report owner completion.
+- Do not use Discord, GitHub Project, comments, Telegram, or OpenClaw session
+  history as the source of the amendment.
+- Do not add LLM calls, network reads, daemon behavior, schedulers, retries, or
+  hidden runners.
+- Do not require this helper for small findings that stay inside the existing
+  scope. Those should remain normal progress/checkpoint evidence.
+
+Acceptance gate:
+
+- Dry-run has no file writes, Discord sends, GitHub mutations, owner-facing
+  reports, or LLM calls.
+- The helper preserves a pointer to the original Assignment Packet and proof
+  trail.
+- The generated amendment names the changed fields and the reason for change.
+- Existing scope-contained findings are documented as progress/checkpoint
+  examples, not forced into amendment.
+- A smoke fixture proves the original handoff is not overwritten and only the
+  amendment/revision artifact changes.
+
+Cost/risk judgment:
+
+- Normal Work Units pay no runtime cost because the helper runs only when a
+  meaningful plan change is requested.
+- The implementation should be local-file-first and deterministic, so dry-run
+  should be near-instant and non-dry-run should be seconds plus optional
+  Discord/Project mirror time.
+- The main over-tightening risk is using amendments for every small discovery.
+  Keep the threshold limited to scope, criteria, risk, cost, authority, or
+  target-artifact changes.
+
+Future candidate, not accepted in this phase: a handoff draft/spec generator
+for the slower `owner request -> Work Card/Assignment/spec -> handoff publish`
+preparation path. Treat that as a separate Handoff Draft gate only if more live
+Work Units confirm that initial packet preparation remains a repeated UX
+bottleneck.
 
 ### Phase 5.6: Scheduled Pulse / Daemon Gate
 

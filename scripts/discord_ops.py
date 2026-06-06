@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+UTC = timezone.utc
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent

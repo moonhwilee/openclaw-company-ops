@@ -1302,8 +1302,11 @@ def run_async_work_unit_policy_smoke() -> None:
             "must not automatically accept",
             "It must not add LLM calls or network reads to list local ready Work Units.",
             "needs-ops-decision",
+            "Phase 5.5a: Handoff Amendment / Replan Dry-Run Gate",
             "work-unit amend",
-            "should not overwrite the original handoff",
+            "Do not overwrite the original Assignment Packet",
+            "Normal Work Units pay no runtime cost",
+            "Future candidate, not accepted in this phase: a handoff draft/spec generator",
         ),
         "docs/setup-guide.md": (
             "Distribution Surface",
