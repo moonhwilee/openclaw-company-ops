@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import re
 import sys
 from pathlib import Path
@@ -76,6 +77,41 @@ def create_work_unit(args: argparse.Namespace) -> int:
     print(f"created {output_dir}")
     for filename in ARTIFACTS:
         print(f"- {filename}")
+    return 0
+
+
+def append_progress(args: argparse.Namespace) -> int:
+    output_dir = args.output_root.expanduser() / args.work_unit_id
+    if not output_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {output_dir}", file=sys.stderr)
+        return 1
+    if not any((args.phase, args.current_slice, args.round, args.next_checkpoint)):
+        print(
+            "error: progress requires at least one of --phase, --current-slice, --round, or --next-checkpoint",
+            file=sys.stderr,
+        )
+        return 1
+    transition_at = args.transition_at or dt.datetime.now(dt.timezone.utc).replace(
+        microsecond=0
+    ).isoformat().replace("+00:00", "Z")
+    row = {
+        "work_unit_id": args.work_unit_id,
+        "transition_kind": args.transition_kind,
+        "phase": args.phase,
+        "phase_index": args.phase_index,
+        "phase_total": args.phase_total,
+        "round": args.round,
+        "current_slice": args.current_slice,
+        "next_checkpoint": args.next_checkpoint,
+        "source_ref": args.source_ref,
+        "proof_ref": args.proof_ref,
+        "transition_at": transition_at,
+        "recorded_by": args.recorded_by,
+    }
+    progress_path = output_dir / "progress.jsonl"
+    with progress_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+    print(f"recorded progress {args.work_unit_id}: {progress_path}")
     return 0
 
 
@@ -428,6 +464,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Replace generated artifact files in an existing output directory",
     )
     create.set_defaults(func=create_work_unit)
+
+    progress = work_unit_subparsers.add_parser(
+        "progress",
+        help="Append source-backed progress metadata for dashboard sync",
+    )
+    progress.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    progress.add_argument(
+        "--output-root",
+        required=True,
+        type=Path,
+        help="Root directory containing <work-unit-id>/",
+    )
+    progress.add_argument("--transition-kind", default="checkpoint", type=required)
+    progress.add_argument("--phase", default="", help="Current phase label")
+    progress.add_argument("--phase-index", default="", help="Current phase number or label")
+    progress.add_argument("--phase-total", default="", help="Known total phase count, if any")
+    progress.add_argument("--round", default="", help="Current convergence round, if applicable")
+    progress.add_argument("--current-slice", default="", help="Current execution slice")
+    progress.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
+    progress.add_argument("--source-ref", default="", help="Source artifact reference for this progress update")
+    progress.add_argument("--proof-ref", default="", help="Optional proof log or Discord proof reference")
+    progress.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    progress.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
+    progress.set_defaults(func=append_progress)
     return parser
 
 

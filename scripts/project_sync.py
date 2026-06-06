@@ -211,23 +211,46 @@ def derive_blocker(summary: dict[str, Any], status: str, reason: str) -> str:
     return ""
 
 
+def format_phase(progress: dict[str, Any]) -> str:
+    phase = str(progress.get("phase") or "").strip()
+    current_slice = str(progress.get("current_slice") or "").strip()
+    round_value = str(progress.get("round") or "").strip()
+    index = str(progress.get("phase_index") or "").strip()
+    total = str(progress.get("phase_total") or "").strip()
+
+    label = phase or current_slice
+    if not label:
+        return ""
+
+    prefix = ""
+    if index and total:
+        prefix = f"{index}/{total}"
+    elif index:
+        prefix = index
+    parts = [part for part in (prefix, label) if part]
+    if round_value:
+        parts.append(f"round {round_value}")
+    return " · ".join(parts)
+
+
 def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     status, reason = derive_status(summary)
     evidence = summary["evidence"]
     decision = summary["decision"]
     claim = summary["claim"]
+    progress = summary.get("progress") or {}
     fields = {
         "Work Unit id": summary["work_unit_id"],
         "Repository": repository,
         "Work Card": summary["work_card"],
         "Team Lead": team_from_summary(summary),
         "Status": status,
-        "Phase": "",
+        "Phase": format_phase(progress),
         "Priority": "",
         "Blocker": derive_blocker(summary, status, reason),
         "Evidence present": "yes" if evidence["exists"] and has_real_ref(evidence["ref"]) else "no",
         "Decision": decision_value(summary),
-        "Last proof or last source update": summary["next_review"],
+        "Last proof or last source update": progress.get("updated_at") or summary["next_review"],
         "Assignment Packet reference": summary["assignment_packet"],
         "Ops Claim Ledger reference": claim["claim_ref"],
         "Evidence & Result Record reference": evidence["ref"],

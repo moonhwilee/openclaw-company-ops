@@ -1125,6 +1125,35 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
             },
         },
     )
+    progress_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "progress",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(artifact_root),
+            "--phase-index",
+            "2",
+            "--phase-total",
+            "7",
+            "--phase",
+            "dashboard progress smoke",
+            "--round",
+            "1",
+            "--current-slice",
+            "project-sync derivation",
+            "--next-checkpoint",
+            "local-smoke://next-checkpoint",
+            "--source-ref",
+            f"{artifact_root / work_unit_id / 'progress.jsonl'}",
+            "--transition-at",
+            "2026-06-06T12:00:00Z",
+        ]
+    )
+    require_success(progress_result, "project progress artifact append")
     result = run_command(
         [
             sys.executable,
@@ -1156,6 +1185,10 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError(f"project sync dry-run expected Result Ready status, got {fields.get('Status')}")
     if fields.get("Evidence present") != "yes":
         raise RuntimeError("project sync dry-run did not mark evidence present")
+    if fields.get("Phase") != "2/7 · dashboard progress smoke · round 1":
+        raise RuntimeError(f"project sync dry-run did not derive Phase from progress artifact: {fields.get('Phase')}")
+    if fields.get("Last proof or last source update") != "2026-06-06T12:00:00Z":
+        raise RuntimeError("project sync dry-run did not use progress timestamp as last source update")
     if not planned.get("mutation_ready"):
         raise RuntimeError("project sync dry-run did not validate complete field map")
     if len(planned.get("planned_actions") or []) != 16:

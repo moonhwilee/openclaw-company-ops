@@ -15,6 +15,7 @@ from ops_claim_ledger import DEFAULT_LEDGER, get_claims, load_ledger
 
 DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
 REQUIRED_ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
+PROGRESS_ARTIFACT = "progress.jsonl"
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
 STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 WORK_UNIT_RE = re.compile(r"^WU-(?:\d{6}|\d{8})-\d{3}$")
@@ -84,6 +85,64 @@ def choose_first(*values: str) -> str:
         if value:
             return value
     return ""
+
+
+def read_progress(path: Path, work_unit_id: str) -> dict[str, Any]:
+    empty = {
+        "exists": False,
+        "ref": "",
+        "phase": "",
+        "phase_index": "",
+        "phase_total": "",
+        "round": "",
+        "current_slice": "",
+        "next_checkpoint": "",
+        "updated_at": "",
+        "source_ref": "",
+        "valid_rows": 0,
+        "invalid_rows": 0,
+    }
+    if not path.exists():
+        return empty
+
+    latest: dict[str, Any] = {}
+    valid_rows = 0
+    invalid_rows = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            invalid_rows += 1
+            continue
+        if not isinstance(row, dict):
+            invalid_rows += 1
+            continue
+        row_work_unit = str(row.get("work_unit_id") or "")
+        if row_work_unit and row_work_unit != work_unit_id:
+            invalid_rows += 1
+            continue
+        if not any(row.get(key) for key in ("phase", "current_slice", "round", "next_checkpoint")):
+            invalid_rows += 1
+            continue
+        latest = row
+        valid_rows += 1
+
+    return {
+        "exists": True,
+        "ref": str(path),
+        "phase": str(latest.get("phase") or ""),
+        "phase_index": str(latest.get("phase_index") or ""),
+        "phase_total": str(latest.get("phase_total") or ""),
+        "round": str(latest.get("round") or ""),
+        "current_slice": str(latest.get("current_slice") or ""),
+        "next_checkpoint": str(latest.get("next_checkpoint") or ""),
+        "updated_at": str(latest.get("transition_at") or latest.get("updated_at") or ""),
+        "source_ref": str(latest.get("source_ref") or latest.get("proof_ref") or ""),
+        "valid_rows": valid_rows,
+        "invalid_rows": invalid_rows,
+    }
 
 
 def clean_route_value(value: str) -> str:
@@ -171,6 +230,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     claim_fields = artifacts["claim.md"]["fields"]
     evidence_fields = artifacts["evidence.md"]["fields"]
     decision_fields = artifacts["decision.md"]["fields"]
+    progress = read_progress(artifact_dir / PROGRESS_ARTIFACT, args.work_unit_id)
 
     ledger_claim = None
     ledger_note = ""
@@ -202,6 +262,8 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         audit_problems.append(f"ledger problem: {ledger_error}")
     elif args.require_ledger and ledger_claim is None:
         audit_problems.append(f"ledger problem: {ledger_note}")
+    if progress["exists"] and progress["invalid_rows"]:
+        audit_problems.append(f"progress artifact has invalid rows: {progress['invalid_rows']}")
 
     work_card = choose_first(
         assignment_fields.get("work card", ""),
@@ -257,6 +319,7 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "status": decision_status,
             "exists": artifacts["decision.md"]["exists"],
         },
+        "progress": progress,
         "execution_route": execution_route,
         "current_state": claim_state or "unknown",
         "missing_artifacts": missing,
@@ -297,6 +360,13 @@ def print_text(summary: dict[str, Any]) -> None:
         "Decision: "
         f"{summary['decision']['ref'] or 'missing'} "
         f"status={summary['decision']['status'] or 'missing'}"
+    )
+    progress = summary["progress"]
+    print(
+        "Progress: "
+        f"{progress['ref'] or 'missing'} "
+        f"phase={progress['phase'] or progress['current_slice'] or 'unknown'} "
+        f"round={progress['round'] or 'unknown'}"
     )
     route = summary["execution_route"]
     print(

@@ -18,6 +18,8 @@ They are not an automated runtime, database, dashboard, or command router.
   review.
 - [Operations Lead Decision](operations-lead-decision.md): review decision and
   rationale.
+- [Progress Log](progress-log.md): optional source-backed long-work progress
+  metadata for dashboard `Phase`.
 - [Team Playbook](team-playbook.md): prompt/checklist
   for team lead execution.
 - [Team Lead Protocols](../protocols/README.md): canonical references for

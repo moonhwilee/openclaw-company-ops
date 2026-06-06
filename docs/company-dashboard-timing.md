@@ -213,6 +213,12 @@ separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 - optional later fields such as `Round`, `Current slice`, or `Next checkpoint`
   only if they are populated from source artifacts or proof logs.
 
+For v1, source-backed progress is recorded as optional Work Unit
+`progress.jsonl` rows. `project-sync` derives the dashboard `Phase` field from
+the latest valid row. A compact value such as
+`2/7 · implementation · round 1` is enough; it confirms that work is active
+without requiring a new LLM summary or expensive progress calculation.
+
 The dashboard may display phase or round progress only when the value is derived
 from source-backed lifecycle updates. Manual Project edits remain visibility
 notes only and must not become operating truth.
@@ -241,15 +247,16 @@ For the primary owner-facing table view, prefer this visible field order:
 
 1. Title.
 2. Status.
-3. Priority.
-4. Team Lead.
-5. Evidence present.
-6. Decision.
-7. Blocker.
-8. Last proof or last source update.
-9. Work Card.
-10. Work Unit id.
-11. Source Repository.
+3. Phase.
+4. Priority.
+5. Team Lead.
+6. Evidence present.
+7. Decision.
+8. Blocker.
+9. Last proof or last source update.
+10. Work Card.
+11. Work Unit id.
+12. Source Repository.
 
 Keep GitHub collaboration fields such as Assignees, Linked pull requests,
 Sub-issues progress, Reviewers, Milestone, Iteration, Estimate, Start date, and
@@ -385,6 +392,9 @@ Current implementation state:
 - Apply writes an audit log and uses a lock by default.
 - `discord publish-card` can run a nonblocking one-shot Project sync after a
   successful visibility publish when a field map is supplied.
+- `work-unit progress` can append optional source-backed progress rows, and
+  `project-sync` derives the dashboard `Phase` field from the latest valid
+  progress row.
 - The sync path performs no GitHub Issue close/open, Discord semantic publish,
   source artifact, claim, evidence, or decision mutation.
 
