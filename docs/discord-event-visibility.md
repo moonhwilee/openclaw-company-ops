@@ -299,9 +299,11 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    hardening beyond the accepted P0 `publish-card` proof. It must remain an
    explicit one-card publisher, not a daemon, command router, or timeline
    replay tool.
-5. Phase 5.5 keeps scheduled daemon or Pulse Monitor activation deferred unless
+5. Phase 5.5 adds the foreground result-ready inbox and closeout-lock gate for
+   multi-Work Unit review safety.
+6. Phase 5.6 keeps scheduled daemon or Pulse Monitor activation deferred unless
    real stale-claim risk outweighs alert noise and false positives.
-6. Phase 5.6 locks the surfaces allowed to enter packaging/public v1.
+7. Phase 5.7 locks the surfaces allowed to enter packaging/public v1.
 
 ## Recommended Channels
 

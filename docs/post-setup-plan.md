@@ -597,7 +597,49 @@ Publisher no-go boundaries:
 - It must not mutate source artifacts, Work Cards, claims, evidence, decisions,
   dashboard state, recovery status, or completion status.
 
-### Phase 5.5: Scheduled Pulse / Daemon Gate
+### Phase 5.5: Result Ready Inbox / Closeout Lock Gate
+
+Purpose: make more than one active Work Unit recoverable without relying on
+chat arrival order, main-session memory, or manual transcript scanning.
+
+Scope:
+
+- Add a foreground/manual result-ready inbox command, for example
+  `work-unit inbox --result-ready`, that lists Work Units ready for Operations
+  Lead review from source artifacts, claim state, and proof/progress logs.
+- Sort ready Work Units by the Operations Manual Result Ready Inbox Rule:
+  earliest valid `RESULT_READY` proof timestamp, then claim `updated_at`, then
+  Work Unit id.
+- Add a WU-scoped closeout preparation path, for example
+  `work-unit closeout --work-unit-id <id> --dry-run`, that takes a closeout lock,
+  rereads assignment/evidence/claim/proof/progress/project dry-run state, and
+  re-checks whether a decision artifact already exists before any write.
+- Preserve the canonical routing labels: `ops-direct`, `team-qna`, and
+  `detached-wu`.
+
+Decision output: accept the foreground inbox and closeout-lock path as required
+for multi-WU operation, implement a narrower version with rationale, or no-go
+with the remaining race risk stated plainly.
+
+No-go boundaries:
+
+- This phase must not create a daemon, scheduler, or hidden background runner.
+- It must not reorder OpenClaw inbound delivery. It only defines foreground
+  source-backed recovery and review order.
+- It must not automatically accept, reject, reopen, overwrite, reassign,
+  complete, or report owner completion.
+- It must not add LLM calls or network reads to list local ready Work Units.
+
+Acceptance gate:
+
+- Fixture with two ready Work Units is listed in deterministic order.
+- Duplicate ready evidence for a Work Unit with an existing decision is reported
+  as stale or blocked for manual review, not overwritten.
+- A concurrent closeout attempt for the same Work Unit fails before mutation
+  when the closeout lock already exists.
+- Dry-run mode performs no external mutation and no owner-facing completion.
+
+### Phase 5.6: Scheduled Pulse / Daemon Gate
 
 Purpose: decide whether to install or schedule alert-only monitoring.
 
@@ -606,10 +648,8 @@ Evaluate:
 - whether manual pulse checks reveal repeated stale-claim risk;
 - whether alert noise and false positives are acceptable;
 - whether a foreground/manual runner is enough for public v1.
-- whether a foreground result-ready inbox is needed before any scheduled
-  monitoring. This inbox would list Work Units ready for Operations Lead review
-  from source artifacts/proof logs and would not reorder OpenClaw message
-  delivery.
+- whether Phase 5.5's foreground result-ready inbox is enough before any
+  scheduled monitoring.
 
 Decision output: accept scheduled install, keep manual/foreground only, defer
 with trigger, or no-go with rationale.
@@ -618,12 +658,11 @@ No-go boundaries:
 
 - Pulse Monitor remains alert-only.
 - No daemon restarts, reassigns, recovers, cancels, or completes work.
-- Result-ready inbox, if added, remains foreground/manual and source-backed. It
-  may take a Work Unit closeout lock and re-check decision artifacts before a
-  review, but it must not automatically accept, reject, reopen, or overwrite
-  work.
+- Phase 5.5 result-ready inbox remains foreground/manual and source-backed.
+  Scheduled pulse may alert that review is needed, but it must not run closeout
+  or decisions.
 
-### Phase 5.6: Packaging Readiness Decision
+### Phase 5.7: Packaging Readiness Decision
 
 Purpose: lock the surface that is allowed to enter Phase 6.
 
@@ -632,7 +671,7 @@ Candidate Phase 6 surface:
 - Work Unit artifact generator;
 - Ops Claim Ledger CLI;
 - alert-only pulse check and any accepted manual runner;
-- any accepted foreground result-ready inbox or closeout-lock helper;
+- accepted foreground result-ready inbox and closeout-lock helper;
 - dashboard snapshot;
 - Discord card composer, guard, JSON output, and sequence validator;
 - smoke tests and setup docs;

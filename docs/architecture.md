@@ -465,8 +465,9 @@ The active remaining order is documented in `docs/post-setup-plan.md`. Phases
 1. Completion / Hook Guard MVP decision.
 2. Dashboard gate.
 3. Discord publisher hardening gate.
-4. Scheduled Pulse / daemon gate.
-5. Packaging readiness decision.
+4. Result-ready inbox / closeout-lock gate.
+5. Scheduled Pulse / daemon gate.
+6. Packaging readiness decision.
 
 After Phase 5:
 

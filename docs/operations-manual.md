@@ -49,18 +49,24 @@ Lead later reviews the submitted evidence and records a decision.
 
 Route owner requests through one of three paths:
 
-- Direct Operations Lead response: use for small generic questions, tiny local
+- `ops-direct`: Direct Operations Lead response. Use for small generic questions, tiny local
   checks, or reversible actions where specialist continuity does not help.
-- Direct Team Lead Q&A: use for small domain-specific questions where the
+- `team-qna`: Direct Team Lead Q&A. Use for small domain-specific questions where the
   matching Team Lead's standing persona and channel context improve judgment or
   preserve Operations Lead context. This is advisory/status/clarification only.
-- Detached Work Unit: use for official delegated execution, `goal`, standalone
+- `detached-wu`: Detached Work Unit. Use for official delegated execution, `goal`, standalone
   `verify`, subagent delegation, code changes, external mutation, live
   visibility, multi-step verification, or anything that needs durable state.
 
 The routine exception to detached Work Unit handling is therefore not "small
 means direct." It is "small and advisory may be direct or Team Lead Q&A; official
 delegated work becomes a detached Work Unit."
+
+These route labels are the canonical deployable routing surface. Tooling,
+templates, smoke tests, and future Discord/team-channel bindings should use the
+same labels instead of inventing synonyms. Routing is an Operations Lead
+decision; do not add an automatic classifier unless it is explicitly accepted in
+a later implementation phase.
 
 Do not use a hidden background orchestrator to satisfy this rule. The detached
 state is the Work Unit source artifacts, proof/progress logs, claim state, and

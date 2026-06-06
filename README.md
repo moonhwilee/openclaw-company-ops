@@ -39,7 +39,9 @@ visibility path. Phase 5.2 has accepted only a narrow repo-local hook guard:
 `.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`. The guard blocks
 clear red-line commands and checks Work Unit completion/handoff structure; it
 does not publish progress or mutate operating state. Remaining Phase 5 work is
-limited to the later activation decisions before packaging.
+limited to the later activation decisions before packaging, with the
+result-ready inbox and closeout-lock gate now treated as a required multi-Work
+Unit safety phase rather than an optional post-setup idea.
 
 Owner-visible dogfood uses `#ops-feed` as the owner-facing request/result
 briefing timeline and `#team-*` as the detailed Team Lead execution trail.
@@ -81,9 +83,9 @@ python3 scripts/openclaw_company_ops.py --help
 ## Planned Work
 
 - Follow the post-setup realization plan from the current Phase 5 activation
-  sub-gates: decide the hook/dashboard/publisher-hardening and
-  scheduled-monitor gates, lock the Phase 6 packaging surface, and only then
-  adopt it across product repos.
+  sub-gates: decide the hook/dashboard/publisher-hardening, result-ready inbox,
+  and scheduled-monitor gates, lock the Phase 6 packaging surface, and only
+  then adopt it across product repos.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.

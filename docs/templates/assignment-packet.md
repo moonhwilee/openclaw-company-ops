@@ -16,6 +16,7 @@ summary, dashboard note, or Discord message cannot replace this packet.
 - Work Card:
 - Operations Lead:
 - Assigned Team Lead OpenClaw Agent:
+- Request route: <detached-wu>
 - Execution route: <cli-direct|cli-delivered|discord-bound>
 - Main session behavior: detached after handoff for sizeable `goal` or `verify`
   work.

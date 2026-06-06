@@ -1266,6 +1266,9 @@ def run_async_work_unit_policy_smoke() -> None:
     checks = {
         "docs/operations-manual.md": (
             "Main Session Nonblocking Rule",
+            "`ops-direct`",
+            "`team-qna`",
+            "`detached-wu`",
             "Direct Team Lead Q&A",
             "Result Ready Inbox Rule",
             "This rule does not reorder OpenClaw inbound messages.",
@@ -1279,10 +1282,13 @@ def run_async_work_unit_policy_smoke() -> None:
             "handoff a detached Work Unit",
         ),
         "docs/post-setup-plan.md": (
-            "foreground result-ready inbox",
+            "Phase 5.5: Result Ready Inbox / Closeout Lock Gate",
+            "work-unit inbox --result-ready",
             "closeout-lock helper",
+            "must not automatically accept",
         ),
         "docs/templates/assignment-packet.md": (
+            "Request route: <detached-wu>",
             "Execution route: <cli-direct|cli-delivered|discord-bound>",
             "Main session behavior: detached after handoff",
             "Returning this report does not complete the Work Unit.",
