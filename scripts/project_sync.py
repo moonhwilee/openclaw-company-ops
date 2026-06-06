@@ -134,11 +134,15 @@ def load_field_map(path: Path | None) -> dict[str, Any]:
     if not isinstance(fields, dict):
         raise ValueError(f"field map fields must be a JSON object: {expanded}")
     normalized_fields = {str(key): normalize_field_entry(value) for key, value in fields.items()}
+    aliases = data.get("field_aliases") or {}
+    if not isinstance(aliases, dict):
+        raise ValueError(f"field map field_aliases must be a JSON object: {expanded}")
     return {
         "owner": str(data.get("owner") or data.get("project_owner") or ""),
         "project_number": str(data.get("project_number") or data.get("number") or ""),
         "project_id": str(data.get("project_id") or ""),
         "fields": normalized_fields,
+        "field_aliases": {str(key): str(value) for key, value in aliases.items()},
         "source": str(expanded),
     }
 
@@ -451,6 +455,13 @@ query($itemId: ID!) {
     return current
 
 
+def current_value_for_field(current_values: dict[str, str], field_map: dict[str, Any], field_name: str) -> str:
+    alias = field_map.get("field_aliases", {}).get(field_name, "")
+    if alias:
+        return current_values.get(alias, current_values.get(field_name, ""))
+    return current_values.get(field_name, "")
+
+
 def add_project_item(args: argparse.Namespace, field_map: dict[str, Any], work_card: str) -> str:
     parsed = run_json_command(
         [
@@ -496,16 +507,29 @@ def edit_project_field(
         "json",
     ]
     if field_entry["type"] == "text":
-        command.extend(["--text", desired])
+        if desired:
+            command.extend(["--text", desired])
+        else:
+            command.append("--clear")
     elif field_entry["type"] == "single_select":
+        if not desired:
+            command.append("--clear")
+            run_json_command(command, args.timeout)
+            return
         option_id = field_entry["options"].get(desired)
         if not option_id:
             raise ProjectSyncError(f"missing single_select option id for {field_name}={desired}")
         command.extend(["--single-select-option-id", option_id])
     elif field_entry["type"] == "number":
-        command.extend(["--number", desired or "0"])
+        if desired:
+            command.extend(["--number", desired])
+        else:
+            command.append("--clear")
     elif field_entry["type"] == "date":
-        command.extend(["--date", desired])
+        if desired:
+            command.extend(["--date", desired])
+        else:
+            command.append("--clear")
     else:
         raise ProjectSyncError(f"unsupported field type for {field_name}: {field_entry['type']}")
     run_json_command(command, args.timeout)
@@ -608,7 +632,7 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
 
         for field_name in DEFAULT_FIELDS:
             desired = item_plan["desired_fields"].get(field_name, "")
-            current = current_values.get(field_name, "")
+            current = current_value_for_field(current_values, field_map, field_name)
             if current == desired:
                 actions.append({"type": "set_project_field", "field": field_name, "result": "unchanged"})
                 continue

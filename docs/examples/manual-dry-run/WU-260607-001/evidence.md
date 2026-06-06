@@ -47,6 +47,13 @@ Link only real artifacts or checks that exist.
   `WU-260607-001`, `Ops Status=Assigned`, `status=Todo`,
   `Source Repository=moonhwilee/openclaw-company-ops`,
   `Blocker=evidence status is Draft; decision status is Pending`.
+- Final Project item readback after accepted decision:
+  `Ops Status=Accepted`, `Decision=Accepted`, `Blocker=null`,
+  `Evidence present=yes`.
+- Convergence fix:
+  `scripts/project_sync.py` now respects field aliases such as
+  `Status -> Ops Status` when comparing current Project values, and uses
+  `gh project item-edit --clear` when the desired value is empty.
 
 ## Verification Performed
 
@@ -59,6 +66,14 @@ Link only real artifacts or checks that exist.
   returned `changed=1`, `failed=0`.
 - PASS: `gh project item-list 1 --owner moonhwilee --limit 50 --format json`
   read back the sample item and populated Company Ops fields.
+- PASS: Final `project-sync apply` after accepted decision returned
+  `changed=1`, `failed=0` and updated `Blocker`, `Decision`, and
+  `Last proof or last source update`.
+- PASS: Re-running `project-sync apply` returned `unchanged=1`, `failed=0`,
+  proving idempotency for this sample.
+- PASS: `python3 -m py_compile scripts/*.py .codex/hooks/*.py`.
+- PASS: `python3 scripts/company_ops_smoke.py multi-team`.
+- PASS: `python3 scripts/openclaw_company_ops.py smoke multi-team`.
 - PASS: `git diff --check`.
 
 ## Done Criteria Mapping
@@ -81,7 +96,7 @@ For each done criterion, state whether it is met and link evidence.
     `PVTI_lAHOAXpIUs4BZ5tWzgu6lvw`.
 - Criterion: Project readback shows the sample item and Company Ops fields.
   - Status: Met.
-  - Evidence: readback check above.
+  - Evidence: initial and final readback checks above.
 - Criterion: The `Status` versus `Ops Status` distinction is explained to the
   owner.
   - Status: Met for evidence; owner-facing explanation is in the completion

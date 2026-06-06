@@ -35,8 +35,6 @@ The sample request satisfies the Assignment Packet:
 
 ## Required Follow-up
 
-- Run a final `project-sync apply` after this accepted decision so the dashboard
-  mirrors `Ops Status=Accepted`.
 - Decide whether to keep or close sample issue #20 after owner review.
 
 ## Closure Instruction
