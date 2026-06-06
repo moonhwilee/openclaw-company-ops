@@ -597,6 +597,52 @@ Publisher no-go boundaries:
 - It must not mutate source artifacts, Work Cards, claims, evidence, decisions,
   dashboard state, recovery status, or completion status.
 
+### Distribution Surface Decision
+
+Company Ops must not depend on installer-written user memory. A clean OpenClaw
+install should not require modifying `MEMORY.md`, `AGENTS.md`, or any private
+workspace bootstrap file to learn the routing rules. Those files can be useful
+for one owner's development workspace, but they are not a distributable control
+plane.
+
+For distribution, use two explicit surfaces:
+
+- OpenClaw skill: carries the short trigger/routing instructions that should be
+  loaded when a user asks for Company Ops behavior. The skill should summarize
+  `ops-direct`, `team-qna`, and `detached-wu`, point to the packaged docs, and
+  tell the agent to call foreground commands for route/inbox/closeout decisions.
+  It is good for context injection and safe defaults, but it should not own
+  filesystem mutation, dashboard sync, Discord publish, or closeout state.
+- OpenClaw plugin or package: carries the executable repo-local tools, CLI
+  entrypoint, templates, smoke tests, and optional connector bindings. It is the
+  right home for `route`, `work-unit inbox`, `work-unit closeout`,
+  `project-sync`, and Discord publisher commands. It can be installed and
+  versioned without editing user memory.
+
+Cold packaging judgment:
+
+- A skill alone is not enough. It can teach the agent the operating pattern, but
+  it cannot reliably enforce source-backed state, locks, deterministic inbox
+  ordering, or no-mutation dry-runs.
+- A plugin/package alone is also not enough for natural-language use. It exposes
+  commands, but the agent still needs a small instruction surface telling it
+  when to use those commands and where authority boundaries are.
+- The appropriate v1 distribution shape is therefore a Company Ops plugin or
+  package that includes a small Company Ops skill plus foreground CLI tools. The
+  installer may print an optional onboarding note, but it must not edit private
+  memory automatically.
+
+Deployment acceptance for this decision:
+
+- A clean OpenClaw install can discover the Company Ops skill/plugin without
+  writing user memory.
+- Natural-language Company Ops requests load the skill instructions or otherwise
+  direct the agent to the same packaged routing policy.
+- The foreground CLI remains the authority for deterministic route, inbox, and
+  closeout checks.
+- Uninstall removes package/plugin files without needing to clean private
+  `MEMORY.md` edits.
+
 ### Phase 5.5: Result Ready Inbox / Closeout Lock Gate
 
 Purpose: make more than one active Work Unit recoverable without relying on
@@ -607,15 +653,38 @@ Scope:
 - Add a foreground/manual result-ready inbox command, for example
   `work-unit inbox --result-ready`, that lists Work Units ready for Operations
   Lead review from source artifacts, claim state, and proof/progress logs.
+- The command should support text and JSON output. JSON output must include at
+  least `work_unit_id`, `title`, `team`, `claim_state`, `result_ready_at`,
+  `result_ready_source`, `evidence_path`, `decision_path`, `decision_exists`,
+  `proof_path`, `project_dry_run_supported`, `stale_reason`, and `sort_key`.
 - Sort ready Work Units by the Operations Manual Result Ready Inbox Rule:
   earliest valid `RESULT_READY` proof timestamp, then claim `updated_at`, then
   Work Unit id.
+- Source scanning should be local-first: Work Unit artifact directories, claim
+  state, evidence/result records, decisions, and proof/progress logs. It must
+  not read Discord history, GitHub Project fields, GitHub comments, or chat
+  transcripts to discover result readiness.
+- Include `--artifact-root`, `--work-unit-id`, `--team`, `--limit`, and
+  `--format text|json` options. The default should scan the configured artifact
+  root and show actionable ready items only.
 - Add a WU-scoped closeout preparation path, for example
   `work-unit closeout --work-unit-id <id> --dry-run`, that takes a closeout lock,
   rereads assignment/evidence/claim/proof/progress/project dry-run state, and
   re-checks whether a decision artifact already exists before any write.
+- The closeout lock should be a local source-adjacent lock file or atomic lock
+  directory keyed by Work Unit id. Lock acquisition must happen before any
+  decision write, Project mutation, Discord publish, or owner-facing report.
+- `--dry-run` is mandatory for the first implementation and must be the default
+  path used in smoke tests. A later non-dry-run closeout path requires a separate
+  acceptance decision.
+- If a decision already exists, closeout preparation must exit as stale or
+  already-decided and must not overwrite, reopen, or append a competing
+  decision.
 - Preserve the canonical routing labels: `ops-direct`, `team-qna`, and
   `detached-wu`.
+- Add a foreground route helper, for example `route --intent <text>`, only if it
+  can stay deterministic and conservative. Ambiguous intents should return
+  `needs-ops-decision` rather than guessing or calling an LLM.
 
 Decision output: accept the foreground inbox and closeout-lock path as required
 for multi-WU operation, implement a narrower version with rationale, or no-go
@@ -629,6 +698,10 @@ No-go boundaries:
 - It must not automatically accept, reject, reopen, overwrite, reassign,
   complete, or report owner completion.
 - It must not add LLM calls or network reads to list local ready Work Units.
+- It must not turn Discord, GitHub Project, GitHub comments, Telegram messages,
+  or OpenClaw session history into a source of truth.
+- It must not silently modify user memory, install a cron, or run as a
+  background service.
 
 Acceptance gate:
 
@@ -638,6 +711,13 @@ Acceptance gate:
 - A concurrent closeout attempt for the same Work Unit fails before mutation
   when the closeout lock already exists.
 - Dry-run mode performs no external mutation and no owner-facing completion.
+- JSON output is stable enough for an agent to consume without reading raw
+  artifact files into the main context.
+- Missing or malformed proof rows are surfaced as warnings without inventing a
+  fallback result-ready state.
+- Route helper, if included, returns one of `ops-direct`, `team-qna`,
+  `detached-wu`, or `needs-ops-decision` and explains the decision with a short
+  deterministic reason.
 
 ### Phase 5.6: Scheduled Pulse / Daemon Gate
 

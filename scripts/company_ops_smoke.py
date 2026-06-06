@@ -1282,10 +1282,15 @@ def run_async_work_unit_policy_smoke() -> None:
             "handoff a detached Work Unit",
         ),
         "docs/post-setup-plan.md": (
+            "Company Ops must not depend on installer-written user memory.",
+            "Company Ops plugin",
+            "foreground CLI tools",
             "Phase 5.5: Result Ready Inbox / Closeout Lock Gate",
             "work-unit inbox --result-ready",
             "closeout-lock helper",
             "must not automatically accept",
+            "It must not add LLM calls or network reads to list local ready Work Units.",
+            "needs-ops-decision",
         ),
         "docs/templates/assignment-packet.md": (
             "Request route: <detached-wu>",
