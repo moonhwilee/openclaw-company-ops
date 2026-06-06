@@ -15,11 +15,12 @@ Each row is a JSON object:
 {
   "work_unit_id": "WU-260607-999",
   "transition_kind": "checkpoint",
+  "mode": "goal",
   "phase_index": "2",
   "phase_total": "7",
   "phase": "implementation",
   "round": "1",
-  "show_round": true,
+  "show_round": false,
   "current_slice": "project-sync derivation",
   "next_checkpoint": "2026-06-07T04:00:00+09:00",
   "source_ref": "docs/examples/manual-dry-run/WU-260607-999/progress.jsonl",
@@ -34,9 +35,13 @@ Each row is a JSON object:
 - Append rows; do not treat the file as a dashboard database.
 - Keep `Status` lifecycle coarse. Do not encode `Round 2` or `Phase 3` as a
   status.
-- Keep `show_round` false or absent for one-pass work such as ordinary verify.
-  Set it only for convergence/goal rounds or when the owner explicitly asks to
-  see round labels in the dashboard.
+- `mode=goal` and `mode=convergence` automatically display `round` as a compact
+  leading label such as `R1`. Keep `show_round` false or absent for one-pass
+  work such as ordinary verify unless the owner explicitly asks to see round
+  labels in the dashboard.
+- Prefer `work-unit checkpoint` for live long-work checkpoints. It uses one
+  payload for the team `CHECKPOINT`, the `progress.jsonl` row, and optional
+  Project mirror sync after Discord readback.
 - Do not infer progress from GitHub Project fields, GitHub comments, or
   free-form Discord text.
 - `project-sync` may derive dashboard `Progress` from the latest valid row.

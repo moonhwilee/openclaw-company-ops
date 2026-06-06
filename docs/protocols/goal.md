@@ -42,20 +42,19 @@ Work Units, the operating loop must surface progress at the time work is
 happening:
 
 - Publish assignment and start visibility before meaningful execution continues.
-- Publish a `CHECKPOINT` at each major slice boundary or at least every 10-15
-  minutes while work remains active.
-- For owner dashboard visibility, record the same live progress facts with
-  `work-unit progress` so `project-sync` can derive the Project `Progress`
-  field from `progress.jsonl`.
+- Use `work-unit checkpoint` at each major slice boundary or at least every
+  10-15 minutes while work remains active. The foreground command publishes the
+  team `CHECKPOINT`, records matching `progress.jsonl` metadata after readback,
+  and can run one Project mirror sync from the same payload.
 - Keep checkpoint text factual: current slice, status, elapsed time or last
   checkpoint, next expected checkpoint, and source artifact or evidence pointer
   when one exists.
-- If the work is a convergence loop or the owner explicitly asks to see rounds,
-  include `round` and mark it for display. Otherwise, keep round metadata out of
-  the dashboard `Progress` text so one-pass verify work does not look like a
-  multi-round loop. If the work has a known phase count, include `phase_index`
-  and `phase_total`; otherwise record only the current phase or slice without
-  inventing totals.
+- If the work is a `goal` or `convergence` loop, include `--mode goal` or
+  `--mode convergence`; round display is automatic when `--round` is present.
+  For one-pass `verify`, keep round metadata out of the dashboard unless the
+  owner explicitly asks for it with `--show-round`. If the work has a known
+  phase count, include `phase_index` and `phase_total`; otherwise record only
+  the current phase or slice without inventing totals.
 - Do not use an LLM call just to make a checkpoint sound polished.
 - Do not claim live visibility from messages generated after the result is
   already ready.

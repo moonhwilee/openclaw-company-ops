@@ -104,8 +104,10 @@ small:
   owner-facing at-a-glance visibility. Keep it as a mirror of Issues and source
   artifacts, not as operating truth.
 - For long Work Units, the dashboard `Progress` field is derived from the
-  latest valid `progress.jsonl` row written by `work-unit progress`; do not
-  manually backfill it from Project edits or Discord text.
+  latest valid `progress.jsonl` row. Prefer `work-unit checkpoint` during live
+  work so Discord `CHECKPOINT`, source-backed progress, and optional Project
+  mirror sync use the same payload. Do not manually backfill Progress from
+  Project edits or Discord text.
 
 Recommended issue labels:
 

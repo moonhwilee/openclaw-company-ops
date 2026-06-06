@@ -74,12 +74,13 @@ The default flow is:
 3. Operations Lead assigns the Team Lead through CLI or a local agent session.
 4. Operations Lead posts `[STARTED]` when the Team Lead starts or claims the
    work.
-5. For long `goal` work, Operations Lead posts `CHECKPOINT` entries at major
+5. For long `goal` work, Operations Lead runs `work-unit checkpoint` at major
    slice boundaries or at least every 10-15 minutes while work remains active.
-6. For long Work Units, Operations Lead records a matching source-backed
-   progress row with `work-unit progress` so the GitHub Project `Progress`
-   field can mirror current phase, round, or slice without becoming source of
-   truth.
+   This publishes/readbacks the team `CHECKPOINT`, then records matching
+   source-backed `progress.jsonl` metadata and can run one Project mirror sync.
+6. For standalone progress metadata without Discord visibility, Operations Lead
+   may still use `work-unit progress`, but it must not replace the normal
+   checkpoint briefing path during live long work.
 7. Operations Lead posts `[RESULT_READY]` when the Team Lead result is actually
    available.
 8. Operations Lead performs lightweight verification before final reporting.

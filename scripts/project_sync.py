@@ -215,9 +215,10 @@ def format_progress(progress: dict[str, Any]) -> str:
     phase = str(progress.get("phase") or "").strip()
     current_slice = str(progress.get("current_slice") or "").strip()
     round_value = str(progress.get("round") or "").strip()
+    mode = str(progress.get("mode") or "").strip().lower()
     show_round = progress.get("show_round") is True or str(
         progress.get("show_round") or ""
-    ).strip().lower() in {"1", "true", "yes"}
+    ).strip().lower() in {"1", "true", "yes"} or mode in {"goal", "convergence"}
     index = str(progress.get("phase_index") or "").strip()
     total = str(progress.get("phase_total") or "").strip()
 

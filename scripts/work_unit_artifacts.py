@@ -7,12 +7,18 @@ import argparse
 import datetime as dt
 import json
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from typing import Any
 
 
 ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
+ROUND_VISIBLE_MODES = {"goal", "convergence"}
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 
 
 def required(value: str) -> str:
@@ -27,6 +33,59 @@ def work_unit_id(value: str) -> str:
     if not WORK_UNIT_RE.match(cleaned):
         raise argparse.ArgumentTypeError("expected format WU-YYMMDD-NNN")
     return cleaned
+
+
+def utc_now_iso() -> str:
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def should_show_round(mode: str, explicit_show_round: bool) -> bool:
+    return explicit_show_round or mode.strip().lower() in ROUND_VISIBLE_MODES
+
+
+def progress_row_from_args(
+    args: argparse.Namespace,
+    *,
+    transition_at: str,
+    proof_ref: str | None = None,
+) -> dict[str, Any]:
+    mode = args.mode.strip().lower()
+    return {
+        "work_unit_id": args.work_unit_id,
+        "transition_kind": args.transition_kind,
+        "mode": mode,
+        "phase": args.phase,
+        "phase_index": args.phase_index,
+        "phase_total": args.phase_total,
+        "round": args.round,
+        "show_round": should_show_round(mode, bool(args.show_round)),
+        "current_slice": args.current_slice,
+        "next_checkpoint": args.next_checkpoint,
+        "source_ref": args.source_ref,
+        "proof_ref": proof_ref if proof_ref is not None else args.proof_ref,
+        "transition_at": transition_at,
+        "recorded_by": args.recorded_by,
+    }
+
+
+def append_progress_row(output_dir: Path, row: dict[str, Any]) -> Path:
+    progress_path = output_dir / "progress.jsonl"
+    with progress_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+    return progress_path
+
+
+def run_json_command(command: list[str]) -> tuple[int, dict[str, Any], str]:
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    parsed: dict[str, Any] = {}
+    if result.stdout.strip():
+        try:
+            loaded = json.loads(result.stdout)
+            if isinstance(loaded, dict):
+                parsed = loaded
+        except json.JSONDecodeError:
+            parsed = {}
+    return result.returncode, parsed, result.stderr.strip() or result.stdout.strip()
 
 
 def create_work_unit(args: argparse.Namespace) -> int:
@@ -91,28 +150,193 @@ def append_progress(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    transition_at = args.transition_at or dt.datetime.now(dt.timezone.utc).replace(
-        microsecond=0
-    ).isoformat().replace("+00:00", "Z")
-    row = {
-        "work_unit_id": args.work_unit_id,
-        "transition_kind": args.transition_kind,
-        "phase": args.phase,
-        "phase_index": args.phase_index,
-        "phase_total": args.phase_total,
-        "round": args.round,
-        "show_round": bool(args.show_round),
-        "current_slice": args.current_slice,
-        "next_checkpoint": args.next_checkpoint,
-        "source_ref": args.source_ref,
-        "proof_ref": args.proof_ref,
-        "transition_at": transition_at,
-        "recorded_by": args.recorded_by,
-    }
-    progress_path = output_dir / "progress.jsonl"
-    with progress_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+    row = progress_row_from_args(args, transition_at=args.transition_at or utc_now_iso())
+    progress_path = append_progress_row(output_dir, row)
     print(f"recorded progress {args.work_unit_id}: {progress_path}")
+    return 0
+
+
+def checkpoint_card_args(args: argparse.Namespace) -> list[str]:
+    command = [
+        sys.executable,
+        str(SCRIPT_DIR / "discord_ops.py"),
+        "card",
+        "--surface",
+        "team-detail",
+        "--kind",
+        "CHECKPOINT",
+        "--work-unit-id",
+        args.work_unit_id,
+        "--team",
+        args.team,
+        "--current-slice",
+        args.current_slice,
+        "--status",
+        args.status,
+        "--next",
+        args.next,
+        "--format",
+        "json",
+    ]
+    optional_args = (
+        ("--elapsed", args.elapsed),
+        ("--next-checkpoint", args.next_checkpoint),
+        ("--evidence", args.evidence),
+        ("--source", args.source_ref),
+    )
+    for flag, value in optional_args:
+        if value:
+            command.extend([flag, value])
+    return command
+
+
+def publish_card(
+    args: argparse.Namespace,
+    card: dict[str, Any],
+    proof_log: Path,
+) -> tuple[int, dict[str, Any], str]:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
+        temp_path = Path(handle.name)
+        json.dump({"card": card}, handle, sort_keys=True, ensure_ascii=False)
+        handle.write("\n")
+    try:
+        command = [
+            sys.executable,
+            str(SCRIPT_DIR / "discord_ops.py"),
+            "publish-card",
+            "--card-json",
+            str(temp_path),
+            "--target",
+            args.target,
+            "--proof-log",
+            str(proof_log),
+            "--channel",
+            args.channel,
+            "--transition-at",
+            args.transition_at,
+            "--readback-limit",
+            str(args.readback_limit),
+            "--format",
+            "json",
+        ]
+        if args.account:
+            command.extend(["--account", args.account])
+        if args.thread_id:
+            command.extend(["--thread-id", args.thread_id])
+        return run_json_command(command)
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.project_sync_field_map:
+        return {"enabled": False}
+    command = [
+        sys.executable,
+        str(SCRIPT_DIR / "project_sync.py"),
+        "project-sync",
+        "apply",
+        "--work-unit-id",
+        args.work_unit_id,
+        "--artifact-root",
+        str(args.output_root.expanduser()),
+        "--field-map",
+        args.project_sync_field_map,
+        "--audit-log",
+        args.project_sync_audit_log,
+        "--format",
+        "json",
+    ]
+    if args.project_sync_ledger:
+        command.extend(["--ledger", args.project_sync_ledger])
+    else:
+        command.append("--no-ledger")
+    code, parsed, output = run_json_command(command)
+    return {
+        "enabled": True,
+        "ok": code == 0,
+        "mode": "apply",
+        "returncode": code,
+        "summary": parsed.get("summary", {}),
+        "error": output if code != 0 else "",
+    }
+
+
+def checkpoint_work_unit(args: argparse.Namespace) -> int:
+    output_dir = args.output_root.expanduser() / args.work_unit_id
+    if not output_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {output_dir}", file=sys.stderr)
+        return 1
+    if not args.dry_run and not args.publish:
+        print("error: checkpoint requires --dry-run or --publish", file=sys.stderr)
+        return 1
+    if args.publish and not args.target:
+        print("error: --publish requires --target", file=sys.stderr)
+        return 1
+
+    transition_at = args.transition_at or utc_now_iso()
+    args.transition_at = transition_at
+    proof_log = args.proof_log.expanduser() if args.proof_log else output_dir / DEFAULT_PROOF_LOG_NAME
+
+    card_code, card_payload, card_error = run_json_command(checkpoint_card_args(args))
+    if card_code != 0:
+        print(f"error: checkpoint card validation failed: {card_error}", file=sys.stderr)
+        return 1
+    card = card_payload.get("card") or {}
+    text = card_payload.get("text") or ""
+    if not isinstance(card, dict) or not text:
+        print("error: checkpoint card command returned invalid JSON", file=sys.stderr)
+        return 1
+
+    preview_row = progress_row_from_args(args, transition_at=transition_at, proof_ref="")
+    if args.dry_run:
+        payload = {
+            "dry_run": True,
+            "card": card,
+            "text": text,
+            "progress_row": preview_row,
+            "project_sync": {
+                "enabled": bool(args.project_sync_field_map),
+                "mode": "skipped",
+                "reason": "dry-run does not append progress or mutate Project mirror",
+            },
+        }
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(text)
+            print(f"\nDRY-RUN checkpoint progress: {preview_row['work_unit_id']} show_round={str(preview_row['show_round']).lower()}")
+        return 0
+
+    publish_code, publish_payload, publish_error = publish_card(args, card, proof_log)
+    if publish_code != 0:
+        print(publish_error or "error: checkpoint publish failed", file=sys.stderr)
+        return 1
+
+    proof = publish_payload.get("publish") or {}
+    proof_ref = str(proof_log)
+    if proof.get("proof_id"):
+        proof_ref = f"{proof_ref}#{proof['proof_id']}"
+    progress_row = progress_row_from_args(args, transition_at=transition_at, proof_ref=proof_ref)
+    progress_path = append_progress_row(output_dir, progress_row)
+    project_sync = run_project_sync(args)
+    if project_sync.get("enabled") and not project_sync.get("ok"):
+        print(f"warning: Project checkpoint sync failed: {project_sync.get('error')}", file=sys.stderr)
+
+    payload = {
+        "dry_run": False,
+        "publish": publish_payload.get("publish", {}),
+        "progress_path": str(progress_path),
+        "progress_row": progress_row,
+        "project_sync": project_sync,
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"recorded checkpoint {args.work_unit_id}: {progress_path}")
     return 0
 
 
@@ -478,6 +702,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Root directory containing <work-unit-id>/",
     )
     progress.add_argument("--transition-kind", default="checkpoint", type=required)
+    progress.add_argument(
+        "--mode",
+        default="",
+        help="Progress mode; goal and convergence automatically display round when present",
+    )
     progress.add_argument("--phase", default="", help="Current phase label")
     progress.add_argument("--phase-index", default="", help="Current phase number or label")
     progress.add_argument("--phase-total", default="", help="Known total phase count, if any")
@@ -494,6 +723,74 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
     progress.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
     progress.set_defaults(func=append_progress)
+
+    checkpoint = work_unit_subparsers.add_parser(
+        "checkpoint",
+        help="Publish a team CHECKPOINT and record matching source-backed progress",
+    )
+    checkpoint.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    checkpoint.add_argument(
+        "--output-root",
+        required=True,
+        type=Path,
+        help="Root directory containing <work-unit-id>/",
+    )
+    checkpoint.add_argument("--team", required=True, type=required)
+    checkpoint.add_argument("--status", required=True, type=required)
+    checkpoint.add_argument("--current-slice", required=True, type=required)
+    checkpoint.add_argument("--next", required=True, type=required, help="Discord next action")
+    checkpoint.add_argument("--elapsed", default="", help="Elapsed time or progress age")
+    checkpoint.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
+    checkpoint.add_argument("--evidence", default="", help="Optional checkpoint evidence")
+    checkpoint.add_argument("--source-ref", default="", help="Source artifact reference for this checkpoint")
+    checkpoint.add_argument("--transition-kind", default="checkpoint", type=required)
+    checkpoint.add_argument(
+        "--mode",
+        default="",
+        help="Progress mode; goal and convergence automatically display round when present",
+    )
+    checkpoint.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
+    checkpoint.add_argument("--phase-index", default="", help="Current phase number or label")
+    checkpoint.add_argument("--phase-total", default="", help="Known total phase count, if any")
+    checkpoint.add_argument("--round", default="", help="Current convergence round, if applicable")
+    checkpoint.add_argument(
+        "--show-round",
+        action="store_true",
+        help="Force round display in dashboard Progress",
+    )
+    checkpoint.add_argument("--proof-ref", default="", help=argparse.SUPPRESS)
+    checkpoint.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    checkpoint.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
+    checkpoint.add_argument(
+        "--proof-log",
+        type=Path,
+        help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
+    )
+    checkpoint.add_argument("--target", default="", help="Discord target for --publish")
+    checkpoint.add_argument("--channel", default="discord", help="OpenClaw message channel")
+    checkpoint.add_argument("--account", default="", help="OpenClaw channel account id")
+    checkpoint.add_argument("--thread-id", default="", help="Optional Discord thread id")
+    checkpoint.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
+    checkpoint.add_argument(
+        "--project-sync-field-map",
+        default="",
+        help="Optional Project field-map JSON; runs mirror sync after successful publish",
+    )
+    checkpoint.add_argument(
+        "--project-sync-ledger",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "claims" / "ledger.json"),
+        help="Ledger passed to project-sync; empty disables ledger",
+    )
+    checkpoint.add_argument(
+        "--project-sync-audit-log",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
+        help="Audit log for successful Project mirror sync",
+    )
+    checkpoint.add_argument("--format", choices=("text", "json"), default="text")
+    mode_group = checkpoint.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument("--dry-run", action="store_true", help="Validate and preview without writes or sends")
+    mode_group.add_argument("--publish", action="store_true", help="Publish/read back Discord, append progress, then sync Project mirror")
+    checkpoint.set_defaults(func=checkpoint_work_unit)
     return parser
 
 

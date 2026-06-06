@@ -1441,6 +1441,104 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
             f"project sync dry-run did not format explicit round first: {show_round_fields.get('Progress')}"
         )
 
+    goal_round_root = artifact_root.parent / "goal-round-artifacts"
+    shutil.copytree(artifact_root / work_unit_id, goal_round_root / work_unit_id)
+    goal_round_progress = goal_round_root / work_unit_id / "progress.jsonl"
+    goal_round_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "checkpoint",
+                "mode": "goal",
+                "phase_index": "1",
+                "phase_total": "4",
+                "phase": "converge implementation",
+                "round": "2",
+                "transition_at": "2026-06-06T12:50:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    goal_round_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(goal_round_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(goal_round_result, "project sync automatic goal round progress dry-run")
+    goal_round_fields = json.loads(goal_round_result.stdout)["work_units"][0]["desired_fields"]
+    if goal_round_fields.get("Progress") != "R2 · 1/4 · converge implementation":
+        raise RuntimeError(
+            f"project sync dry-run did not auto-display goal round: {goal_round_fields.get('Progress')}"
+        )
+
+    checkpoint_root = artifact_root.parent / "checkpoint-artifacts"
+    shutil.copytree(artifact_root / work_unit_id, checkpoint_root / work_unit_id)
+    checkpoint_progress = checkpoint_root / work_unit_id / "progress.jsonl"
+    before_checkpoint = checkpoint_progress.read_text(encoding="utf-8") if checkpoint_progress.exists() else ""
+    checkpoint_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(checkpoint_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "Goal loop checkpoint is ready.",
+            "--current-slice",
+            "checkpoint command smoke",
+            "--next",
+            "Continue the next goal slice.",
+            "--mode",
+            "goal",
+            "--round",
+            "2",
+            "--phase-index",
+            "1",
+            "--phase-total",
+            "4",
+            "--phase",
+            "converge implementation",
+            "--source-ref",
+            "local-smoke://checkpoint",
+            "--transition-at",
+            "2026-06-06T12:55:00Z",
+            "--format",
+            "json",
+            "--dry-run",
+        ]
+    )
+    require_success(checkpoint_result, "work-unit checkpoint dry-run")
+    checkpoint_payload = json.loads(checkpoint_result.stdout)
+    checkpoint_row = checkpoint_payload.get("progress_row") or {}
+    if checkpoint_row.get("show_round") is not True:
+        raise RuntimeError("checkpoint dry-run did not auto-enable goal round display")
+    if checkpoint_payload.get("card", {}).get("kind") != "CHECKPOINT":
+        raise RuntimeError("checkpoint dry-run did not create a CHECKPOINT card")
+    after_checkpoint = checkpoint_progress.read_text(encoding="utf-8") if checkpoint_progress.exists() else ""
+    if after_checkpoint != before_checkpoint:
+        raise RuntimeError("checkpoint dry-run mutated progress.jsonl")
+
     apply_guard = run_command(
         [
             sys.executable,

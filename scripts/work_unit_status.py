@@ -94,6 +94,7 @@ def read_progress(path: Path, work_unit_id: str) -> dict[str, Any]:
         "phase": "",
         "phase_index": "",
         "phase_total": "",
+        "mode": "",
         "round": "",
         "show_round": False,
         "current_slice": "",
@@ -136,6 +137,7 @@ def read_progress(path: Path, work_unit_id: str) -> dict[str, Any]:
         "phase": str(latest.get("phase") or ""),
         "phase_index": str(latest.get("phase_index") or ""),
         "phase_total": str(latest.get("phase_total") or ""),
+        "mode": str(latest.get("mode") or ""),
         "round": str(latest.get("round") or ""),
         "show_round": latest.get("show_round") is True
         or str(latest.get("show_round") or "").strip().lower() in {"1", "true", "yes"},

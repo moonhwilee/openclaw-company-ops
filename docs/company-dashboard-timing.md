@@ -216,10 +216,10 @@ separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 For v1, source-backed progress is recorded as optional Work Unit
 `progress.jsonl` rows. `project-sync` derives the dashboard `Progress` field from
 the latest valid row. A compact value such as `2/7 · implementation` is enough
-for one-pass work. When a Work Unit is truly round-based, or the owner
-explicitly asks to see rounds, display the round first in compact form, for
-example `R1 · 2/7 · implementation`. This confirms that work is active without
-requiring a new LLM summary or expensive progress calculation.
+for one-pass work. When a Work Unit is `goal` or `convergence` mode, or the
+owner explicitly asks to see rounds, display the round first in compact form,
+for example `R1 · 2/7 · implementation`. This confirms that work is active
+without requiring a new LLM summary or expensive progress calculation.
 
 The dashboard may display phase or round progress only when the value is derived
 from source-backed lifecycle updates. Manual Project edits remain visibility
@@ -394,8 +394,11 @@ Current implementation state:
 - Apply writes an audit log and uses a lock by default.
 - `discord publish-card` can run a nonblocking one-shot Project sync after a
   successful visibility publish when a field map is supplied.
-- `work-unit progress` can append optional source-backed progress rows, and
-  `project-sync` derives the dashboard `Progress` field from the latest valid
+- `work-unit progress` can append optional source-backed progress rows.
+- `work-unit checkpoint` is the preferred live checkpoint path because it
+  validates one payload, publishes/readbacks the team `CHECKPOINT`, appends the
+  matching progress row, and can run one changed-only Project mirror sync.
+- `project-sync` derives the dashboard `Progress` field from the latest valid
   progress row.
 - The sync path performs no GitHub Issue close/open, Discord semantic publish,
   source artifact, claim, evidence, or decision mutation.
