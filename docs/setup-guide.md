@@ -100,8 +100,9 @@ small:
   stable.
 - Leave website/homepage empty until there is a docs site, GitHub Pages site,
   or released manual.
-- Do not create a GitHub Project yet unless there are enough Work Cards to make
-  a dashboard useful.
+- Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync for
+  owner-facing at-a-glance visibility. Keep it as a mirror of Issues and source
+  artifacts, not as operating truth.
 
 Recommended issue labels:
 
@@ -151,11 +152,10 @@ reference issues and pull requests from multiple repositories.
 For this repo, the current recommendation is:
 
 - Do not create more GitHub repositories yet.
-- Do not enable GitHub Projects yet.
 - Start with this repo's Issues only when writing templates or running a manual
   dry run.
-- Create the first Company Dashboard GitHub Project only after there are several
-  active Work Cards or multiple active repos that need one shared view.
+- Use the accepted Company Dashboard GitHub Project as a visibility mirror once
+  the bounded sync command and fields are configured.
 
 When the dashboard is created, make it a visibility layer with fields such as:
 
@@ -437,22 +437,20 @@ mutating Work Units.
 
 ### Company Dashboard
 
-Status: Repo-local snapshot supported, Project creation deferred
+Status: GitHub Project dashboard accepted with bounded auto-sync
 
 Company Dashboard will show company-wide Work Unit state.
 
-The default candidate is GitHub Projects, but it should be enabled only after
-the project has enough real Work Cards to make the dashboard useful.
-
+The accepted default is a GitHub Project plus deterministic source-backed sync.
 It is a visibility layer, not a source of truth.
 
 Current practice: review the GitHub Issues list and linked artifacts, or render
 a local visibility snapshot with `scripts/dashboard_snapshot.py`.
 
-Future setup path: configure GitHub Projects or another dashboard surface only
-when the threshold in `docs/company-dashboard-timing.md` is met. Final Company
-Ops completion requires GitHub Project or equivalent dashboard visibility unless
-the owner explicitly records a no-go decision with rationale.
+Setup path: configure the GitHub Project fields and bounded `project-sync`
+workflow described in `docs/company-dashboard-timing.md`. Final Company Ops
+completion requires GitHub Project or equivalent dashboard visibility unless the
+owner explicitly records a no-go decision with rationale.
 
 ### Templates
 

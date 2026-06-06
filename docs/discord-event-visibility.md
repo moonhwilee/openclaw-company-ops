@@ -291,9 +291,10 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    compaction handoff; it does not publish progress or mutate operating state.
    Checkpoint-needed automation and yieldable long-work runners are not part of
    this gate unless later evidence reopens them.
-3. Phase 5.3 decides whether GitHub Project sync is needed or whether
-   Work Cards, source artifacts, issue labels, and `dashboard_snapshot.py` are
-   enough as the v1 dashboard surface.
+3. Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync:
+   Work Cards, source artifacts, issue labels, and `dashboard_snapshot.py`
+   remain source-backed inputs, while the Project is a few-minutes-fresh
+   visibility mirror for at-a-glance owner review.
 4. Phase 5.4 now considers whether the foreground Discord publisher needs
    hardening beyond the accepted P0 `publish-card` proof. It must remain an
    explicit one-card publisher, not a daemon, command router, or timeline

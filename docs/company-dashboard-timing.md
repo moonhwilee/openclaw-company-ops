@@ -1,43 +1,130 @@
 # Company Dashboard Timing
 
-Status: Repo-local snapshot supported, Project creation deferred
+Status: GitHub Project dashboard accepted with bounded auto-sync
 
-This guide explains when to create a Company Dashboard for OpenClaw Company Ops.
+This guide defines when and how to use the Company Dashboard for OpenClaw
+Company Ops.
 
-The default dashboard candidate is a GitHub Project. Do not create it too early.
-At the current stage, the dashboard is a visibility layer only. It must point
-back to Work Cards, Assignment Packets, Ops Claim Ledger entries, Evidence &
-Result Records, and Operations Lead Decisions.
+The default dashboard is a GitHub Project. The owner watches Discord for the
+event stream, but Discord is not enough for portfolio-level visibility. The
+GitHub Project gives the owner an at-a-glance board/table for current Work Unit
+state.
+
+The dashboard is a visibility mirror only. It must point back to Work Cards,
+Assignment Packets, Ops Claim Ledger entries, Evidence & Result Records, and
+Operations Lead Decisions.
 
 It is not a source of truth, not an Assignment Packet, not evidence, not a
 decision record, not a command router, and not a recovery system.
 
 ## Current Recommendation
 
-Do not enable a Company Dashboard yet.
+Enable a Company Dashboard with bounded auto-sync.
 
-Use GitHub Issues and linked manual artifacts until the work naturally grows
-beyond a single repo issue list.
+The accepted v1 shape is:
 
-Use the repo-local visibility snapshot when a quick review table is useful:
+- a user-level or organization-level GitHub Project;
+- a small, stable field set;
+- a deterministic sync command with `--dry-run` and `--apply`;
+- a scheduled reconcile every few minutes;
+- optional one-shot sync after lifecycle events, only as an accelerator;
+- no LLM calls in the sync path.
+
+The repo-local visibility snapshot remains useful for local inspection:
 
 ```bash
 python3 scripts/dashboard_snapshot.py dashboard snapshot --ledger "$LEDGER"
 ```
 
-The snapshot reads the Ops Claim Ledger and renders dashboard-ready rows. It
-does not create or mutate a GitHub Project.
+The snapshot reads source artifacts and renders dashboard-ready rows. It does
+not create or mutate a GitHub Project.
 
-Create the first dashboard only when at least one of these is true:
+## Operating Surface
 
-- There are 5 or more active Work Cards at the same time.
-- There are 2 or more active repositories with Work Cards.
-- The Operations Lead needs to compare blockers, owners, or decision status
-  across multiple Work Units.
-- The Owner asks for portfolio-level visibility.
-- Manual issue-list review is causing missed stale claims or missed decisions.
+Operating surface means the moving parts that must be configured, monitored,
+debugged, secured, and recovered.
 
-If none of these are true, the dashboard adds overhead before it adds value.
+For dashboard sync, the operating surface includes:
+
+- schedule configuration;
+- GitHub auth and Project permissions;
+- Project id and field ids;
+- logs and audit records;
+- duplicate-run locking;
+- failure alerts;
+- install, disable, and troubleshooting instructions.
+
+Keep this surface small for v1.
+
+## Scheduler Choice
+
+Use a small scheduled command for v1. It should run, reconcile, write an audit
+record, and exit.
+
+Preferred options:
+
+- OpenClaw cron or local scheduled runner: lowest operating surface for v1.
+- `launchd` daemon: more durable for always-on services, but larger operating
+  surface because it adds plist configuration, process lifecycle, restart
+  policy, crash behavior, logs, and install/uninstall handling.
+- GitHub Actions schedule: remote and convenient, but adds Actions quota,
+  workflow/secrets management, and GitHub-hosted failure modes. Do not use it
+  for v1 unless local scheduling is unavailable.
+
+The sync is not an LLM-observed task. The scheduler runs a deterministic script
+under the Company Ops host/user account. Team Leads create or update source
+artifacts; they do not run the sync. The Operations Lead owns the sync policy
+and reviews failures.
+
+If the host is asleep, offline, or the local scheduler is disabled, sync pauses
+until the host resumes. This is acceptable for v1 as long as the failure is
+visible.
+
+## Sync Interval
+
+Dashboard freshness is approximately:
+
+```text
+sync interval + sync runtime + small GitHub UI propagation delay
+```
+
+Recommended v1 interval:
+
+- default: 5 minutes;
+- allowed when owner wants faster freshness: 2-3 minutes;
+- do not go below 1 minute without evidence that the extra churn is useful.
+
+At current expected Work Unit volume, a 5-minute interval has negligible system
+load. It is normally JSON/Markdown reads plus a small number of GitHub API
+calls. The main risks are GitHub API rate limit, auth failure, stale field ids,
+and duplicate runs, not CPU or memory.
+
+Required protections:
+
+- lock file: skip if the previous sync is still running;
+- idempotency: do not update fields that already match;
+- changed-only API writes;
+- max-run-time or timeout;
+- audit log for each changed Project item;
+- failure alert that does not invent or mutate status.
+
+## Hybrid Sync Model
+
+Use periodic sync as the authoritative dashboard mirror.
+
+Optional lifecycle one-shot sync may run after a major state transition, such as
+`publish-card` or a Work Unit result event, to reduce visible latency. This
+one-shot path is only an accelerator.
+
+The lifecycle operation must not depend on Project sync success. If Project
+sync fails, the source artifact and Discord visibility result remain what they
+are; the sync failure is logged and alerted separately.
+
+This gives:
+
+- normal work-path overhead: `+0s` for scheduled reconcile;
+- optional one-shot overhead: roughly `+1-3s` after selected lifecycle events;
+- dashboard freshness: typically within the chosen interval.
 
 ## Repository Strategy
 
@@ -66,16 +153,19 @@ References:
 
 ## Fields To Use
 
-When the dashboard is created, start with a small field set:
+Start with a small field set:
 
 - Work Unit id.
 - Repository.
 - Work Card.
 - Team Lead.
-- State.
+- Status.
+- Phase.
 - Priority.
 - Blocker.
-- Expected next review.
+- Evidence present.
+- Decision.
+- Last proof or last source update.
 - Assignment Packet reference.
 - Ops Claim Ledger reference.
 - Evidence & Result Record reference.
@@ -86,12 +176,13 @@ when they support actual review or coordination.
 
 ## Views To Use
 
-Start with three views:
+Start with four views:
 
-- Active Work: open Work Cards grouped by state.
-- Blocked Work: Work Cards where state is `blocked` or blocker is present.
+- Active Work: open Work Cards grouped by status.
+- Blocked Work: Work Cards where status is `blocked` or blocker is present.
 - Decision Queue: Work Cards with result-ready evidence waiting for Operations
   Lead review.
+- Packaging Readiness: Phase 6 and packaging-bound items only.
 
 Optional later views:
 
@@ -101,90 +192,84 @@ Optional later views:
 - Closed decisions.
 
 Do not use views to hide missing artifacts. If an artifact is missing, the Work
-Unit is blocked.
+Unit is blocked or stale until the source artifact is fixed.
 
-## Manual Add Rules
+## Auto-Sync Rules
 
-Manual Day-0 dashboard management should stay explicit.
+The sync reads:
 
-Add a Work Card to the dashboard only after:
+- GitHub Issues, labels, assignees, and milestones;
+- Assignment Packets;
+- Ops Claim Ledger entries;
+- Evidence & Result Records;
+- Operations Lead Decisions;
+- proof logs or Discord visibility proof references when available.
 
-- The Work Card exists.
-- The Assignment Packet exists.
-- The initial claim exists.
-- The dashboard item links back to those artifacts.
+The sync writes only:
 
-Remove or archive dashboard items only after:
+- Project item membership;
+- Project custom fields;
+- sync audit logs;
+- optional sync-failure alerts.
 
-- Evidence is linked.
-- Operations Lead Decision is linked.
-- Work Card is closed or the Work Unit is explicitly abandoned by decision.
+The sync must never:
 
-Dashboard cleanup must not replace Work Card closure.
-
-## Automation Timing
-
-Do not automate dashboard intake until manual use proves the field set and views
-are correct.
-
-Automation may be considered when:
-
-- There are repeated manual dashboard-add steps.
-- Multiple repos produce Work Cards.
-- Missing dashboard items create real visibility problems.
-- The dashboard field set has stabilized.
-
-Even then, automation should only add or update visibility items from source
-artifacts. It must not decide assignment, evidence, completion, reassignment, or
-recovery.
-
-## Forbidden Uses
-
-The dashboard must not:
-
-- Replace a Work Card.
-- Replace an Assignment Packet.
-- Replace an Ops Claim Ledger entry.
-- Replace Evidence & Result Records.
-- Replace Operations Lead Decisions.
-- Infer completion from a field value.
-- Reassign Team Leads.
-- Restart or recover agents.
-- Mutate execution state.
-- Act as a command router.
-- Become a hidden database of work truth.
+- close or reopen Issues;
+- create evidence;
+- create Operations Lead decisions;
+- mutate assignment or claim state;
+- reassign Team Leads;
+- recover agents;
+- publish semantic Discord progress;
+- treat Project fields as source truth;
+- back-propagate Project edits into source artifacts.
 
 If the dashboard disagrees with a source artifact, fix the dashboard. Do not
 rewrite the source artifact to match the dashboard unless the source artifact is
 actually wrong and the Operations Lead records the correction.
 
+## Implementation Stages
+
+Implement the dashboard sync in narrow stages:
+
+1. `project-sync --dry-run`
+   - Read source state.
+   - Resolve Project and field ids.
+   - Print planned item and field changes.
+   - Mutate nothing.
+2. `project-sync --apply`
+   - Apply only changed Project item/field updates.
+   - Record an audit log.
+   - Preserve idempotency.
+3. Scheduled reconcile
+   - Run every 5 minutes by default.
+   - Use a lock file to prevent overlap.
+   - Alert on failure without mutating source state.
+4. Optional lifecycle one-shot
+   - Run for one Work Unit after selected lifecycle events.
+   - Never make lifecycle success depend on Project sync success.
+
 ## Creation Checklist
 
-Before creating the first Company Dashboard, confirm:
+Before enabling the first Company Dashboard, confirm:
 
-- At least 5 active Work Cards, or multiple active repos, or a real visibility
-  failure.
-- Work Card labels are stable enough to support dashboard views.
-- Assignment, claim, evidence, and decision artifacts are being used
-  consistently.
-- The Operations Lead can name the dashboard fields and views needed.
-- The dashboard will be user-level or organization-level, not a fake umbrella
-  repo.
+- Project fields and views are named.
+- GitHub auth can read Issues and write Project items/fields.
+- Project id and field ids are discoverable without storing secrets in the repo.
+- `--dry-run` shows a clear diff.
+- `--apply` is idempotent.
+- Scheduled sync has locking and logs.
+- Failure alerts are visible but do not invent status.
 - No rule requires dashboard data as completion truth.
 
-If any item fails, keep using GitHub Issues and linked artifacts.
+If any item fails, keep GitHub Issues and source artifacts as the operating
+truth and treat the Project as stale visibility until sync is fixed.
 
 ## Current State For This Repo
 
-For `moonhwilee/openclaw-company-ops`, do not create a GitHub Project yet.
+For `moonhwilee/openclaw-company-ops`, Phase 5.3 accepts a GitHub Project
+dashboard with bounded auto-sync.
 
-The current active Work Card count is low, and the recent Work Units have been
-sequential documentation dry runs. The issue list and linked artifacts are still
-sufficient.
-
-The next dashboard decision should be revisited when:
-
-- Multiple Work Cards are open at once.
-- Multiple product repositories need shared visibility.
-- The Operations Lead starts missing blockers, stale claims, or decision queues
-  because the issue list is no longer enough.
+The next implementation work should prepare the Project field model and a
+deterministic `project-sync` command. Do not install a long-lived daemon or use
+LLM interpretation in the sync path.

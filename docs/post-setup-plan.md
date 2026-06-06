@@ -480,18 +480,54 @@ Decision record:
 
 ### Phase 5.3: Dashboard Gate
 
-Purpose: decide whether v1 needs GitHub Project sync or whether the repo-local
-dashboard surface is enough.
+Status: accepted as bounded GitHub Project auto-sync.
+
+Purpose: give the owner an at-a-glance Company Dashboard while preserving
+source artifacts as operating truth.
+
+Decision:
+
+- accept a GitHub Project as the v1 dashboard surface;
+- keep Discord as event stream and Q&A visibility, not portfolio dashboard;
+- keep `dashboard_snapshot.py` as local inspection support, not owner-facing
+  dashboard replacement;
+- implement Project sync as a deterministic mirror from source artifacts;
+- use no LLM calls in the sync path.
 
 Evaluate:
 
-- current Work Card volume;
-- whether issue labels, source artifacts, and `dashboard_snapshot.py` are still
-  easy to scan;
-- whether cross-repo tracking is already creating owner-visible ambiguity.
+- whether GitHub auth can read Issues and write Project items/fields;
+- whether Project id and field ids can be discovered or configured without
+  storing secrets in the repo;
+- whether status mapping from Work Cards and source artifacts is deterministic;
+- whether `project-sync --dry-run` can show planned changes without mutation;
+- whether `project-sync --apply` is idempotent and changed-only;
+- whether scheduled reconcile can run every few minutes with locking, logs, and
+  failure alerts;
+- whether optional lifecycle one-shot sync can accelerate dashboard freshness
+  without making Work Unit completion depend on Project sync.
 
-Decision output: accept GitHub Project sync, accept an equivalent dashboard
-surface for v1, defer with trigger, or no-go with rationale.
+Accepted v1 shape:
+
+- default scheduled reconcile interval: 5 minutes;
+- allowed faster interval when owner wants tighter freshness: 2-3 minutes;
+- optional foreground one-shot sync after selected lifecycle events, adding
+  roughly 1-3 seconds only to those events;
+- normal background sync adds 0 seconds to Team Lead or Operations Lead work
+  paths;
+- the Project is a visibility mirror only.
+
+No-go boundaries:
+
+- no Project field may replace assignment, claim, evidence, or decision
+  artifacts;
+- no Project sync may close Issues, create evidence, create decisions, reassign
+  Team Leads, recover agents, or publish semantic Discord progress;
+- no long-lived daemon is required for v1;
+- no hidden orchestrator, fallback truth, command router, or automatic
+  completion may be introduced.
+
+Implementation details are tracked in `docs/company-dashboard-timing.md`.
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 

@@ -347,12 +347,15 @@ Turn on branch protection later when:
 
 Branch protection can require checks, but it must not become completion truth.
 
-### Defer Company Dashboard
+### Company Dashboard
 
-Do not create a GitHub Project just because setup exists.
+Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync because the
+owner needs an at-a-glance view beyond the Discord event stream.
 
-Create a dashboard only when there are enough active Work Cards or repos to
-make cross-work visibility useful. Dashboard timing is defined in
+Create or configure the dashboard only as a visibility mirror. It must read
+Issues and source artifacts, then update Project items/fields. It must not
+replace assignment, claim, evidence, decision, recovery, or completion truth.
+Dashboard timing and sync boundaries are defined in
 `docs/company-dashboard-timing.md`.
 
 ## Artifact Storage Setup
@@ -906,7 +909,7 @@ implementation status in `docs/post-setup-plan.md`. Phases 1-4 and Phase 5.1
 have been exercised; current work is the remaining Phase 5 gates:
 
 1. Completion / Hook Guard MVP decision.
-2. Dashboard gate.
+2. Dashboard gate: accepted as bounded GitHub Project auto-sync.
 3. Discord publisher hardening gate.
 4. Scheduled Pulse / daemon gate.
 5. Packaging readiness decision.
