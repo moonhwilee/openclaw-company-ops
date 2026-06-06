@@ -1266,6 +1266,9 @@ def run_async_work_unit_policy_smoke() -> None:
     checks = {
         "docs/operations-manual.md": (
             "Main Session Nonblocking Rule",
+            "Work Unit Handoff Change Rule",
+            "The initial handoff is a source-backed starting contract",
+            "Do not silently rewrite the original handoff",
             "`ops-direct`",
             "`team-qna`",
             "`detached-wu`",
@@ -1299,6 +1302,8 @@ def run_async_work_unit_policy_smoke() -> None:
             "must not automatically accept",
             "It must not add LLM calls or network reads to list local ready Work Units.",
             "needs-ops-decision",
+            "work-unit amend",
+            "should not overwrite the original handoff",
         ),
         "docs/setup-guide.md": (
             "Distribution Surface",
@@ -1312,6 +1317,8 @@ def run_async_work_unit_policy_smoke() -> None:
             "Request route: <detached-wu>",
             "Execution route: <cli-direct|cli-delivered|discord-bound>",
             "Main session behavior: detached after handoff",
+            "Assumptions And Open Questions",
+            "Change Log",
             "Returning this report does not complete the Work Unit.",
         ),
         "README.md": (

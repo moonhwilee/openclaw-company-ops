@@ -31,6 +31,22 @@ State the single outcome expected from this Work Unit.
 
 Include only the context needed to execute the Work Unit.
 
+## Assumptions And Open Questions
+
+List assumptions that are safe to start with and questions that may require an
+Operations Lead amendment if they change scope, criteria, cost, risk, or
+authority.
+
+-
+
+## Change Log
+
+Record source-backed changes after the initial handoff. Do not erase the
+original handoff when execution discovers a better plan or a new issue.
+
+- Initial handoff:
+- Amendments:
+
 ## Scope
 
 What the team lead should do:

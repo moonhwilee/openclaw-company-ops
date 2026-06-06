@@ -752,6 +752,20 @@ Acceptance gate:
   `detached-wu`, or `needs-ops-decision` and explains the decision with a short
   deterministic reason.
 
+Optional adjacent optimization candidate:
+
+- Consider a foreground `work-unit amend` or `work-unit replan --dry-run`
+  helper after the inbox/closeout path is accepted. Its job would be to record a
+  source-backed amendment when execution discovers a new issue that changes
+  scope, criteria, cost, risk, or authority.
+- The helper should not overwrite the original handoff. It should point to the
+  original Assignment Packet, append an amendment/revision note, update
+  `Updated at`, optionally publish a factual CHECKPOINT/REVISE visibility note,
+  and run Project sync as a mirror.
+- This is lower priority than `work-unit inbox --result-ready` and closeout
+  locks, but it directly reduces confusion from early handoff decisions that
+  become stale during execution.
+
 ### Phase 5.6: Scheduled Pulse / Daemon Gate
 
 Purpose: decide whether to install or schedule alert-only monitoring.

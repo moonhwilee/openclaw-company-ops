@@ -72,6 +72,49 @@ Do not use a hidden background orchestrator to satisfy this rule. The detached
 state is the Work Unit source artifacts, proof/progress logs, claim state, and
 dashboard mirror.
 
+## Work Unit Handoff Change Rule
+
+The initial handoff is a source-backed starting contract, not a promise that
+every execution detail is frozen forever.
+
+Treat these parts as stable identity and audit facts:
+
+- Work Unit id.
+- Work Card.
+- Original owner request and business intent.
+- Assigned Team Lead and Operations Lead.
+- Protocol mode, safety constraints, and no-go boundaries.
+- Original handoff timestamp and proof trail.
+
+Treat these parts as changeable only through an explicit source-backed
+amendment or revision note:
+
+- Execution plan.
+- Narrow scope details.
+- Inputs and assumptions.
+- Done criteria or verification criteria.
+- Target artifact paths, if the original target becomes wrong.
+
+When the Team Lead discovers a new issue during execution:
+
+1. If the issue is inside the existing scope, record it in progress/checkpoint
+   evidence and continue the selected protocol.
+2. If the issue changes scope, done criteria, verification criteria, risk, cost,
+   or required authority, pause the affected slice and request an Operations
+   Lead amendment decision.
+3. The Operations Lead may amend the Assignment Packet, record a revision note,
+   split out a new Work Unit, mark the current Work Unit `REVISE`/blocked, or
+   ask the owner for direction.
+4. Do not silently rewrite the original handoff as if the earlier decision never
+   existed. Keep the original packet and proof trail auditable, update
+   `Updated at`, and point to the amendment or revised packet.
+5. Dashboard and Discord updates are mirrors of the source-backed amendment;
+   they do not create the amendment by themselves.
+
+Rule of thumb: a plan can change, but the change needs a visible source-backed
+reason. The Team Lead can replan within the Assignment Packet; the Operations
+Lead owns scope and closeout changes.
+
 ## Result Ready Inbox Rule
 
 Team Lead results are inputs for Operations Lead review, not automatic
