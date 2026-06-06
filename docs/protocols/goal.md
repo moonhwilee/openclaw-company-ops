@@ -50,9 +50,12 @@ happening:
 - Keep checkpoint text factual: current slice, status, elapsed time or last
   checkpoint, next expected checkpoint, and source artifact or evidence pointer
   when one exists.
-- If the work is a convergence loop, include the current `round`. If the work
-  has a known phase count, include `phase_index` and `phase_total`; otherwise
-  record only the current phase, slice, or round without inventing totals.
+- If the work is a convergence loop or the owner explicitly asks to see rounds,
+  include `round` and mark it for display. Otherwise, keep round metadata out of
+  the dashboard `Progress` text so one-pass verify work does not look like a
+  multi-round loop. If the work has a known phase count, include `phase_index`
+  and `phase_total`; otherwise record only the current phase or slice without
+  inventing totals.
 - Do not use an LLM call just to make a checkpoint sound polished.
 - Do not claim live visibility from messages generated after the result is
   already ready.

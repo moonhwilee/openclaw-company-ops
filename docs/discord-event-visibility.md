@@ -99,8 +99,8 @@ Required timing:
   complete.
 - At review: exactly one `#team-* [ACCEPTED|REVISE|BLOCKED_DETAIL]` is sent
   after Operations Lead judgment.
-- At owner closeout: `#ops-feed [완료|막힘]` is sent only after the team detail
-  trail is closed.
+- At owner closeout: `#ops-feed [완료|수정필요|막힘]` is sent only after the
+  team detail trail is closed.
 
 Proof requirements:
 
@@ -314,7 +314,8 @@ Use one Operations Lead channel for owner-to-Operations-Lead discussion:
 
 Use two channels for owner timeline and alert visibility:
 
-- `#ops-feed`: owner-facing `ASSIGNED`, `COMPLETED`, and `BLOCKED` summaries.
+- `#ops-feed`: owner-facing `ASSIGNED`, `COMPLETED`, `NEEDS_REVISION`, and
+  `BLOCKED` summaries.
 - `#ops-alerts`: claim stale, session mismatch, and suspected compaction
   recovery alerts only.
 
@@ -408,6 +409,7 @@ Use these event names consistently.
 
 - `ASSIGNED`: Operations Lead assigned a Team Lead.
 - `COMPLETED`: Operations Lead accepted the result for owner-facing purposes.
+- `NEEDS_REVISION`: Operations Lead reviewed the result and requires revision.
 - `BLOCKED`: required input, artifact, permission, or decision is missing.
 
 `#team-*` detail-trail kinds:
@@ -583,6 +585,7 @@ Use one source artifact link per event when possible:
 - `ASSIGNED`: Assignment Packet or CLI assignment reference.
 - `ASSIGNED_DETAIL`: Assignment Packet or CLI assignment reference.
 - `STARTED`: Ops Claim Ledger entry or claim note.
+- `NEEDS_REVISION`: owner-facing revision-required summary source.
 - `BLOCKED`: owner-facing blocked summary source.
 - `BLOCKED_DETAIL`: Work Card, claim entry, or blocker note.
 - `CLAIM_STALE`: Ops Claim Ledger entry.
@@ -757,7 +760,7 @@ operating state.
 
 Use `ACCEPTED` or `REVISE` in the team detail trail only after Operations Lead
 review. Use `COMPLETED` in `#ops-feed` only when the owner-facing result summary
-is accepted.
+is accepted. Use `NEEDS_REVISION` in `#ops-feed` after a team-detail `REVISE`.
 
 The Discord visibility message may summarize the decision, but the decision
 artifact or final Operations Lead review remains the authority.
@@ -765,7 +768,8 @@ artifact or final Operations Lead review remains the authority.
 Do not call a delegated task complete while its team detail trail stops at
 `RESULT_READY`. A normal successful delegation is incomplete for visibility
 until the same team channel also contains `ACCEPTED`. If the result requires
-changes, post `REVISE`; if a blocker prevents review or continuation, post
+changes, post `REVISE` in the team detail trail and `NEEDS_REVISION` in
+`#ops-feed`; if a blocker prevents review or continuation, post
 `BLOCKED_DETAIL`.
 
 Accepted decisions can lead to Work Card closure only after both the Evidence &

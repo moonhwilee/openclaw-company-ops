@@ -85,15 +85,15 @@ The default flow is:
 8. Operations Lead performs lightweight verification before final reporting.
 9. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
    `[BLOCKED_DETAIL]` review note in the relevant `#team-*` channel.
-10. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
-   in `#ops-feed`.
+10. Operations Lead posts one owner-facing `[COMPLETED]`, `[NEEDS_REVISION]`,
+   or `[BLOCKED]` summary in `#ops-feed`.
 
 `[RESULT_READY]` is a Team Lead result-submission signal, not an Operations
 Lead decision. A Team Lead delegation is visibility-incomplete if the relevant
 team channel stops at `[RESULT_READY]`. Before reporting completion, the
 Operations Lead must close the team detail trail with `[ACCEPTED]`, `[REVISE]`,
 or `[BLOCKED_DETAIL]`, and then close the owner-facing timeline in `#ops-feed`
-with `[COMPLETED]` or `[BLOCKED]`.
+with `[COMPLETED]`, `[NEEDS_REVISION]`, or `[BLOCKED]`.
 
 The Discord messages are visibility only. They show the owner what was assigned,
 what changed, what result came back, and where to inspect detail, but they do

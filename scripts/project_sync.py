@@ -215,11 +215,14 @@ def format_progress(progress: dict[str, Any]) -> str:
     phase = str(progress.get("phase") or "").strip()
     current_slice = str(progress.get("current_slice") or "").strip()
     round_value = str(progress.get("round") or "").strip()
+    show_round = progress.get("show_round") is True or str(
+        progress.get("show_round") or ""
+    ).strip().lower() in {"1", "true", "yes"}
     index = str(progress.get("phase_index") or "").strip()
     total = str(progress.get("phase_total") or "").strip()
 
     label = phase or current_slice
-    if not label and not round_value:
+    if not label and not (round_value and show_round):
         return ""
 
     prefix = ""
@@ -227,9 +230,8 @@ def format_progress(progress: dict[str, Any]) -> str:
         prefix = f"{index}/{total}"
     elif index:
         prefix = index
-    parts = [part for part in (prefix, label) if part]
-    if round_value:
-        parts.append(f"round {round_value}")
+    round_part = f"R{round_value}" if round_value and show_round else ""
+    parts = [part for part in (round_part, prefix, label) if part]
     return " · ".join(parts)
 
 

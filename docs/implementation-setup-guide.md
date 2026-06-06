@@ -707,7 +707,7 @@ Next action: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 
 Recommended visibility kinds:
 
-- `#ops-feed`: `ASSIGNED`, `COMPLETED`, `BLOCKED`.
+- `#ops-feed`: `ASSIGNED`, `COMPLETED`, `NEEDS_REVISION`, `BLOCKED`.
 - `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `CHECKPOINT`, `RESULT_READY`,
   `ACCEPTED`, `REVISE`, `BLOCKED_DETAIL`.
 - `CHECKPOINT` is for long-running live progress between `STARTED` and

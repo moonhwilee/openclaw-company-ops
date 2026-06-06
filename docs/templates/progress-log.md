@@ -19,6 +19,7 @@ Each row is a JSON object:
   "phase_total": "7",
   "phase": "implementation",
   "round": "1",
+  "show_round": true,
   "current_slice": "project-sync derivation",
   "next_checkpoint": "2026-06-07T04:00:00+09:00",
   "source_ref": "docs/examples/manual-dry-run/WU-260607-999/progress.jsonl",
@@ -33,6 +34,9 @@ Each row is a JSON object:
 - Append rows; do not treat the file as a dashboard database.
 - Keep `Status` lifecycle coarse. Do not encode `Round 2` or `Phase 3` as a
   status.
+- Keep `show_round` false or absent for one-pass work such as ordinary verify.
+  Set it only for convergence/goal rounds or when the owner explicitly asks to
+  see round labels in the dashboard.
 - Do not infer progress from GitHub Project fields, GitHub comments, or
   free-form Discord text.
 - `project-sync` may derive dashboard `Progress` from the latest valid row.

@@ -121,8 +121,8 @@ python3 scripts/openclaw_company_ops.py discord card ...
 
 Supported local card families:
 
-- `--surface ops-feed --kind ASSIGNED|COMPLETED|BLOCKED`
-- `--surface team-detail --kind ASSIGNED_DETAIL|STARTED|RESULT_READY|ACCEPTED|REVISE|BLOCKED_DETAIL`
+- `--surface ops-feed --kind ASSIGNED|COMPLETED|NEEDS_REVISION|BLOCKED`
+- `--surface team-detail --kind ASSIGNED_DETAIL|STARTED|CHECKPOINT|RESULT_READY|ACCEPTED|REVISE|BLOCKED_DETAIL`
 - `discord card-pair --ops-card-json <path> --team-card-json <path>` validates
   one ops-feed card against one team-detail card.
 - `discord card-sequence --card-json <path> ...` validates the actual posting

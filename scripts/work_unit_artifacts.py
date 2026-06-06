@@ -101,6 +101,7 @@ def append_progress(args: argparse.Namespace) -> int:
         "phase_index": args.phase_index,
         "phase_total": args.phase_total,
         "round": args.round,
+        "show_round": bool(args.show_round),
         "current_slice": args.current_slice,
         "next_checkpoint": args.next_checkpoint,
         "source_ref": args.source_ref,
@@ -481,6 +482,11 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--phase-index", default="", help="Current phase number or label")
     progress.add_argument("--phase-total", default="", help="Known total phase count, if any")
     progress.add_argument("--round", default="", help="Current convergence round, if applicable")
+    progress.add_argument(
+        "--show-round",
+        action="store_true",
+        help="Display round in dashboard Progress; use for convergence/goal rounds or explicit owner request",
+    )
     progress.add_argument("--current-slice", default="", help="Current execution slice")
     progress.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
     progress.add_argument("--source-ref", default="", help="Source artifact reference for this progress update")

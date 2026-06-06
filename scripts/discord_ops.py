@@ -28,6 +28,7 @@ VISIBILITY_SURFACES = {
 OPS_FEED_EVENTS = {
     "ASSIGNED",
     "COMPLETED",
+    "NEEDS_REVISION",
     "BLOCKED",
 }
 
@@ -44,12 +45,14 @@ TEAM_DETAIL_EVENTS = {
 OPS_FEED_CARD_LABELS = {
     "ASSIGNED": "요청",
     "COMPLETED": "완료",
+    "NEEDS_REVISION": "수정필요",
     "BLOCKED": "막힘",
 }
 
 OPS_FEED_CARD_STATUS_ICONS = {
     "ASSIGNED": "📌",
     "COMPLETED": "✅",
+    "NEEDS_REVISION": "🔁",
     "BLOCKED": "⛔",
 }
 
@@ -486,16 +489,18 @@ def validate_ops_feed_text(text: str) -> None:
 
 
 def validate_final_review_gate(card: dict[str, str]) -> None:
-    if card["surface"] != "ops-feed" or card["kind"] not in {"COMPLETED", "BLOCKED"}:
+    if card["surface"] != "ops-feed" or card["kind"] not in {"COMPLETED", "NEEDS_REVISION", "BLOCKED"}:
         return
     final_review = card.get("team_final_review_kind", "")
     if final_review not in TEAM_FINAL_REVIEW_EVENTS:
         raise ValueError(
-            "ops-feed completion/blocker cards require --team-final-review-kind "
+            "ops-feed closeout cards require --team-final-review-kind "
             "ACCEPTED, REVISE, or BLOCKED_DETAIL"
         )
     if card["kind"] == "COMPLETED" and final_review != "ACCEPTED":
         raise ValueError("ops-feed COMPLETED cards require team final review ACCEPTED")
+    if card["kind"] == "NEEDS_REVISION" and final_review != "REVISE":
+        raise ValueError("ops-feed NEEDS_REVISION cards require team final review REVISE")
     if card["kind"] == "BLOCKED" and final_review != "BLOCKED_DETAIL":
         raise ValueError("ops-feed BLOCKED cards require team final review BLOCKED_DETAIL")
 
@@ -552,11 +557,11 @@ def validate_card(card: dict[str, str]) -> None:
     if card["surface"] == "ops-feed":
         if card["kind"] == "ASSIGNED":
             require_fields(card, ("problem", "request", "criteria"), "ops-feed request card")
-        elif card["kind"] == "COMPLETED":
+        elif card["kind"] in {"COMPLETED", "NEEDS_REVISION"}:
             require_fields(
                 card,
                 ("outcome", "criteria_result", "decision", "verification"),
-                "ops-feed completion card",
+                f"ops-feed {card['kind']} card",
             )
         elif card["kind"] == "BLOCKED":
             require_fields(card, ("problem", "cause", "needed"), "ops-feed blocker card")
@@ -592,7 +597,7 @@ def format_ops_feed_card(card: dict[str, str]) -> str:
         )
         append_line(lines, "주의", card.get("caution"))
         append_line(lines, "근거", card.get("evidence"))
-    elif card["kind"] == "COMPLETED":
+    elif card["kind"] in {"COMPLETED", "NEEDS_REVISION"}:
         lines.extend(
             [
                 f"결과: {card['outcome']}",
@@ -725,27 +730,24 @@ def validate_card_sequence(cards: list[dict[str, str]]) -> dict[str, str]:
         if ("team-detail", "RESULT_READY") in events and events.index(("team-detail", "RESULT_READY")) < checkpoint_index:
             raise ValueError("team-detail CHECKPOINT must not follow team-detail RESULT_READY")
 
-    if ("ops-feed", "COMPLETED") in events:
-        completed_index = events.index(("ops-feed", "COMPLETED"))
+    closeout_rules = {
+        "COMPLETED": "ACCEPTED",
+        "NEEDS_REVISION": "REVISE",
+        "BLOCKED": "BLOCKED_DETAIL",
+    }
+    for ops_kind, team_kind in closeout_rules.items():
+        event = ("ops-feed", ops_kind)
+        if event not in events:
+            continue
+        closeout_index = events.index(event)
         if ("team-detail", "RESULT_READY") not in events:
-            raise ValueError("ops-feed COMPLETED requires prior team-detail RESULT_READY")
-        if events.index(("team-detail", "RESULT_READY")) > completed_index:
-            raise ValueError("team-detail RESULT_READY must precede ops-feed COMPLETED")
-        if ("team-detail", "ACCEPTED") not in events:
-            raise ValueError("ops-feed COMPLETED requires prior team-detail ACCEPTED")
-        if events.index(("team-detail", "ACCEPTED")) > completed_index:
-            raise ValueError("team-detail ACCEPTED must precede ops-feed COMPLETED")
-
-    if ("ops-feed", "BLOCKED") in events:
-        blocked_index = events.index(("ops-feed", "BLOCKED"))
-        if ("team-detail", "RESULT_READY") not in events:
-            raise ValueError("ops-feed BLOCKED requires prior team-detail RESULT_READY")
-        if events.index(("team-detail", "RESULT_READY")) > blocked_index:
-            raise ValueError("team-detail RESULT_READY must precede ops-feed BLOCKED")
-        if ("team-detail", "BLOCKED_DETAIL") not in events:
-            raise ValueError("ops-feed BLOCKED requires prior team-detail BLOCKED_DETAIL")
-        if events.index(("team-detail", "BLOCKED_DETAIL")) > blocked_index:
-            raise ValueError("team-detail BLOCKED_DETAIL must precede ops-feed BLOCKED")
+            raise ValueError(f"ops-feed {ops_kind} requires prior team-detail RESULT_READY")
+        if events.index(("team-detail", "RESULT_READY")) > closeout_index:
+            raise ValueError(f"team-detail RESULT_READY must precede ops-feed {ops_kind}")
+        if ("team-detail", team_kind) not in events:
+            raise ValueError(f"ops-feed {ops_kind} requires prior team-detail {team_kind}")
+        if events.index(("team-detail", team_kind)) > closeout_index:
+            raise ValueError(f"team-detail {team_kind} must precede ops-feed {ops_kind}")
 
     return {
         "work_unit_id": next(iter(work_unit_ids)) or "",
@@ -771,6 +773,8 @@ def validate_card_pair(ops_card: dict[str, str], team_card: dict[str, str]) -> d
         raise ValueError("ops-feed ASSIGNED pairs with team-detail ASSIGNED_DETAIL")
     if ops_kind == "COMPLETED" and team_kind != "ACCEPTED":
         raise ValueError("ops-feed COMPLETED pairs with team-detail ACCEPTED")
+    if ops_kind == "NEEDS_REVISION" and team_kind != "REVISE":
+        raise ValueError("ops-feed NEEDS_REVISION pairs with team-detail REVISE")
     if ops_kind == "BLOCKED" and team_kind != "BLOCKED_DETAIL":
         raise ValueError("ops-feed BLOCKED pairs with team-detail BLOCKED_DETAIL")
 
@@ -1167,12 +1171,25 @@ def validate_proof_rows(
     if event_time(final_surface, final_kind) < result_ready_time:
         raise ValueError("team-detail final review must follow RESULT_READY")
 
-    closeouts = [event for event in events if event in {("ops-feed", "COMPLETED"), ("ops-feed", "BLOCKED")}]
+    closeouts = [
+        event
+        for event in events
+        if event in {("ops-feed", "COMPLETED"), ("ops-feed", "NEEDS_REVISION"), ("ops-feed", "BLOCKED")}
+    ]
     if len(closeouts) != 1:
         raise ValueError("proof log must contain exactly one owner closeout")
     closeout_surface, closeout_kind = closeouts[0]
     if event_time(closeout_surface, closeout_kind) < event_time(final_surface, final_kind):
         raise ValueError("owner closeout must follow team-detail final review")
+    expected_closeout = {
+        "ACCEPTED": "COMPLETED",
+        "REVISE": "NEEDS_REVISION",
+        "BLOCKED_DETAIL": "BLOCKED",
+    }[final_kind]
+    if closeout_kind != expected_closeout:
+        raise ValueError(
+            f"owner closeout {closeout_kind} does not match team-detail final review {final_kind}"
+        )
 
     return {
         "work_unit_id": work_unit_id,
@@ -1265,7 +1282,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--kind",
         required=True,
         help=(
-            "Card kind. ops-feed: ASSIGNED, COMPLETED, BLOCKED. "
+            "Card kind. ops-feed: ASSIGNED, COMPLETED, NEEDS_REVISION, BLOCKED. "
             "team-detail: ASSIGNED_DETAIL, STARTED, CHECKPOINT, RESULT_READY, ACCEPTED, REVISE, BLOCKED_DETAIL."
         ),
     )
@@ -1298,7 +1315,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--team-final-review-kind",
         default="",
         choices=("", *tuple(sorted(TEAM_FINAL_REVIEW_EVENTS))),
-        help="Required gate for ops-feed completion/blocker cards",
+        help="Required gate for ops-feed closeout cards",
     )
     card.add_argument("--format", choices=("text", "json"), default="text")
     card.set_defaults(func=cmd_card)

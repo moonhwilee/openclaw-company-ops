@@ -361,6 +361,97 @@ def run_discord_card_smoke() -> None:
     if "🔁 [REVISE] WU-260605-905 · 💼 revenue" not in revenue_revise.stdout:
         raise RuntimeError("revenue card did not include canonical team icon")
 
+    revenue_revise_json = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "REVISE",
+            "--work-unit-id",
+            "WU-260605-905",
+            "--team",
+            "revenue",
+            "--decision",
+            "REVISE",
+            "--reason",
+            "Pricing assumption needs one more check.",
+            "--next",
+            "Revenue Lead revises the result.",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(revenue_revise_json, "discord revenue revise card JSON")
+
+    blocked_needs_revision = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            "NEEDS_REVISION",
+            "--work-unit-id",
+            "WU-260605-905",
+            "--team",
+            "revenue",
+            "--outcome",
+            "검토 결과 수정이 필요합니다.",
+            "--criteria-result",
+            "핵심 증거는 있으나 가격 가정 보강이 필요합니다.",
+            "--decision",
+            "REVISE",
+            "--verification",
+            "Team detail REVISE review inspected.",
+            "--team-final-review-kind",
+            "ACCEPTED",
+            "--next",
+            "Revenue Lead revises the result.",
+        ]
+    )
+    if blocked_needs_revision.returncode == 0:
+        raise RuntimeError("ops-feed revise closeout passed with non-REVISE final review gate")
+
+    needs_revision = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            "NEEDS_REVISION",
+            "--work-unit-id",
+            "WU-260605-905",
+            "--team",
+            "revenue",
+            "--outcome",
+            "검토 결과 수정이 필요합니다.",
+            "--criteria-result",
+            "핵심 증거는 있으나 가격 가정 보강이 필요합니다.",
+            "--decision",
+            "REVISE",
+            "--verification",
+            "Team detail REVISE review inspected.",
+            "--evidence",
+            "team REVISE card smoke",
+            "--team-final-review-kind",
+            "REVISE",
+            "--next",
+            "Revenue Lead revises the result.",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(needs_revision, "discord ops-feed needs-revision card")
+    needs_revision_text = json.loads(needs_revision.stdout).get("text", "")
+    if "🔁 [수정필요] WU-260605-905 · 💼 revenue" not in needs_revision_text:
+        raise RuntimeError("ops-feed needs-revision card did not include expected header")
+
     result_ready = run_command(
         [
             sys.executable,
@@ -503,6 +594,8 @@ def run_discord_card_smoke() -> None:
         result_card_json = pair_dir / "result-card.json"
         ops_card_json = pair_dir / "ops-card.json"
         team_card_json = pair_dir / "team-card.json"
+        revise_ops_card_json = pair_dir / "revise-ops-card.json"
+        revise_team_card_json = pair_dir / "revise-team-card.json"
         request_json = run_command(
             [
                 sys.executable,
@@ -640,6 +733,8 @@ def run_discord_card_smoke() -> None:
         result_card_json.write_text(result_json.stdout, encoding="utf-8")
         ops_card_json.write_text(completion.stdout, encoding="utf-8")
         team_card_json.write_text(accepted.stdout, encoding="utf-8")
+        revise_ops_card_json.write_text(needs_revision.stdout, encoding="utf-8")
+        revise_team_card_json.write_text(revenue_revise_json.stdout, encoding="utf-8")
         pair_result = run_command(
             [
                 sys.executable,
@@ -654,6 +749,21 @@ def run_discord_card_smoke() -> None:
         require_success(pair_result, "discord card pair validation")
         if "OK paired visibility cards: WU-260605-901 · build-lab COMPLETED + ACCEPTED" not in pair_result.stdout:
             raise RuntimeError("card pair validation did not include expected result")
+
+        revise_pair_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card-pair",
+                "--ops-card-json",
+                str(revise_ops_card_json),
+                "--team-card-json",
+                str(revise_team_card_json),
+            ]
+        )
+        require_success(revise_pair_result, "discord revise card pair validation")
+        if "OK paired visibility cards: WU-260605-905 · revenue NEEDS_REVISION + REVISE" not in revise_pair_result.stdout:
+            raise RuntimeError("revise card pair validation did not include expected result")
 
         sequence_result = run_command(
             [
@@ -844,6 +954,50 @@ def run_discord_card_smoke() -> None:
         require_success(proof_result, "discord live proof validation")
         if "OK live visibility proof: WU-260605-901" not in proof_result.stdout:
             raise RuntimeError("live proof validation did not include expected result")
+
+        revise_proof_log = pair_dir / "revise-proof.jsonl"
+        revise_proof_events = [
+            ("ops-feed", "ASSIGNED", "revise-card-001", "2026-06-05T22:00:00Z"),
+            ("team-detail", "ASSIGNED_DETAIL", "revise-card-002", "2026-06-05T22:00:05Z"),
+            ("team-detail", "STARTED", "revise-card-003", "2026-06-05T22:00:10Z"),
+            ("team-detail", "CHECKPOINT", "revise-card-004", "2026-06-05T22:10:10Z"),
+            ("team-detail", "RESULT_READY", "revise-card-005", "2026-06-05T22:20:15Z"),
+            ("team-detail", "REVISE", "revise-card-006", "2026-06-05T22:20:45Z"),
+            ("ops-feed", "NEEDS_REVISION", "revise-card-007", "2026-06-05T22:21:00Z"),
+        ]
+        write_jsonl(
+            revise_proof_log,
+            [
+                {
+                    **base_proof,
+                    "proof_id": f"WU-260605-901:{surface}:{kind}:{card_id}",
+                    "card_id": card_id,
+                    "surface": surface,
+                    "kind": kind,
+                    "transition_at": timestamp,
+                    "sent_at": timestamp,
+                    "readback_at": timestamp,
+                    "discord_timestamp": timestamp,
+                    "discord_message_id": f"msg-{card_id}",
+                }
+                for surface, kind, card_id, timestamp in revise_proof_events
+            ],
+        )
+        revise_proof_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "proof-validate",
+                "--proof-log",
+                str(revise_proof_log),
+                "--work-unit-id",
+                "WU-260605-901",
+                "--require-checkpoint",
+                "--min-live-span-seconds",
+                "60",
+            ]
+        )
+        require_success(revise_proof_result, "discord revise proof validation")
 
         replay_proof_log = pair_dir / "replay-proof.jsonl"
         write_jsonl(
@@ -1186,7 +1340,7 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError(f"project sync dry-run expected Result Ready status, got {fields.get('Status')}")
     if fields.get("Evidence present") != "yes":
         raise RuntimeError("project sync dry-run did not mark evidence present")
-    if fields.get("Progress") != "2/7 · dashboard progress smoke · round 1":
+    if fields.get("Progress") != "2/7 · dashboard progress smoke":
         raise RuntimeError(
             f"project sync dry-run did not derive Progress from progress artifact: {fields.get('Progress')}"
         )
@@ -1236,9 +1390,55 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
     )
     require_success(round_only_result, "project sync round-only progress dry-run")
     round_only_fields = json.loads(round_only_result.stdout)["work_units"][0]["desired_fields"]
-    if round_only_fields.get("Progress") != "round 2":
+    if round_only_fields.get("Progress") != "":
         raise RuntimeError(
-            f"project sync dry-run did not preserve round-only progress: {round_only_fields.get('Progress')}"
+            f"project sync dry-run displayed implicit round-only progress: {round_only_fields.get('Progress')}"
+        )
+
+    show_round_root = artifact_root.parent / "show-round-artifacts"
+    shutil.copytree(artifact_root / work_unit_id, show_round_root / work_unit_id)
+    show_round_progress = show_round_root / work_unit_id / "progress.jsonl"
+    show_round_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "checkpoint",
+                "phase_index": "3",
+                "phase_total": "3",
+                "phase": "verify operating path",
+                "round": "1",
+                "show_round": True,
+                "transition_at": "2026-06-06T12:45:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    show_round_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(show_round_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(show_round_result, "project sync explicit round progress dry-run")
+    show_round_fields = json.loads(show_round_result.stdout)["work_units"][0]["desired_fields"]
+    if show_round_fields.get("Progress") != "R1 · 3/3 · verify operating path":
+        raise RuntimeError(
+            f"project sync dry-run did not format explicit round first: {show_round_fields.get('Progress')}"
         )
 
     apply_guard = run_command(

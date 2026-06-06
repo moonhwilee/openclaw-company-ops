@@ -215,9 +215,11 @@ separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 
 For v1, source-backed progress is recorded as optional Work Unit
 `progress.jsonl` rows. `project-sync` derives the dashboard `Progress` field from
-the latest valid row. A compact value such as
-`2/7 · implementation · round 1` is enough; it confirms that work is active
-without requiring a new LLM summary or expensive progress calculation.
+the latest valid row. A compact value such as `2/7 · implementation` is enough
+for one-pass work. When a Work Unit is truly round-based, or the owner
+explicitly asks to see rounds, display the round first in compact form, for
+example `R1 · 2/7 · implementation`. This confirms that work is active without
+requiring a new LLM summary or expensive progress calculation.
 
 The dashboard may display phase or round progress only when the value is derived
 from source-backed lifecycle updates. Manual Project edits remain visibility
