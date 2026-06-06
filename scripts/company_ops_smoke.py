@@ -50,9 +50,8 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 def expected_dashboard_timestamp(value: str) -> str:
     parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     local = parsed.astimezone()
-    utc = parsed.astimezone(dt.timezone.utc)
     local_zone = local.tzname() or local.strftime("%z")
-    return f"{local:%Y-%m-%d %H:%M} {local_zone} · UTC {utc:%Y-%m-%d %H:%M}"
+    return f"{local:%Y-%m-%d %H:%M} {local_zone}"
 
 
 def create_artifacts(args: argparse.Namespace, work_dir: Path, work_unit_id: str, team_lead: str) -> Path:

@@ -205,8 +205,7 @@ when they support actual review or coordination.
 
 `Last proof or last source update` is a GitHub Project text field. Source
 artifacts keep UTC timestamps for audit stability, while `project-sync` formats
-the dashboard mirror using the machine's local timezone and keeps the UTC
-reference in the same string.
+the dashboard mirror using the machine's local timezone.
 
 Long-running Work Units should keep `Status` coarse and put progress detail in
 separate dashboard fields. Do not create statuses such as `Round 2` or `Phase

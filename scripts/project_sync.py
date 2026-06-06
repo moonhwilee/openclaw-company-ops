@@ -119,9 +119,8 @@ def format_dashboard_timestamp(value: str) -> str:
     if parsed is None:
         return value
     local = parsed.astimezone()
-    utc = parsed.astimezone(timezone.utc)
     local_zone = local.tzname() or local.strftime("%z")
-    return f"{local:%Y-%m-%d %H:%M} {local_zone} · UTC {utc:%Y-%m-%d %H:%M}"
+    return f"{local:%Y-%m-%d %H:%M} {local_zone}"
 
 
 def normalize_field_entry(value: Any) -> dict[str, Any]:
