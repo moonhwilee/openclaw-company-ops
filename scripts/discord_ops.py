@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
 ALERT_EVENTS = {
     "CLAIM_STALE",
     "SESSION_MISMATCH",
@@ -162,6 +163,48 @@ def append_jsonl(path: str, row: dict[str, Any]) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+
+
+def run_project_one_shot_sync(card: dict[str, str], args: argparse.Namespace) -> dict[str, Any]:
+    if not args.project_sync_field_map:
+        return {"enabled": False}
+    command = [
+        sys.executable,
+        str(SCRIPT_DIR / "project_sync.py"),
+        "project-sync",
+        "dry-run" if args.dry_run else "apply",
+        "--work-unit-id",
+        card["work_unit_id"],
+        "--artifact-root",
+        args.project_sync_artifact_root,
+        "--field-map",
+        args.project_sync_field_map,
+        "--format",
+        "json",
+    ]
+    if not args.dry_run:
+        command.extend(["--audit-log", args.project_sync_audit_log])
+    if args.project_sync_ledger:
+        command.extend(["--ledger", args.project_sync_ledger])
+    else:
+        command.append("--no-ledger")
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    parsed: dict[str, Any] = {}
+    if result.stdout:
+        try:
+            loaded = json.loads(result.stdout)
+            if isinstance(loaded, dict):
+                parsed = loaded
+        except json.JSONDecodeError:
+            parsed = {}
+    return {
+        "enabled": True,
+        "ok": result.returncode == 0,
+        "mode": "dry-run" if args.dry_run else "apply",
+        "returncode": result.returncode,
+        "summary": parsed.get("summary", {}),
+        "error": result.stderr.strip(),
+    }
 
 
 def stable_card_id(card: dict[str, str], text: str) -> str:
@@ -876,6 +919,7 @@ def cmd_publish_card(args: argparse.Namespace) -> int:
     sent_at = utc_now_iso()
 
     if args.dry_run:
+        project_sync = run_project_one_shot_sync(card, args)
         readback_at = utc_now_iso()
         row = proof_row_from_card(
             card,
@@ -893,9 +937,18 @@ def cmd_publish_card(args: argparse.Namespace) -> int:
         )
         append_jsonl(args.proof_log, row)
         if args.format == "json":
-            print(json.dumps({"publish": row, "text": text}, indent=2, sort_keys=True, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"publish": row, "text": text, "project_sync": project_sync},
+                    indent=2,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                )
+            )
         else:
             print(f"DRY-RUN publish-card proof recorded: {row['proof_id']}")
+            if project_sync.get("enabled"):
+                print(f"DRY-RUN project one-shot sync ok: {str(project_sync.get('ok')).lower()}")
         return 0
 
     command = [
@@ -963,8 +1016,12 @@ def cmd_publish_card(args: argparse.Namespace) -> int:
         print(f"error: Discord publish readback failed; proof recorded as incomplete: {readback_error}", file=sys.stderr)
         return 1
 
+    project_sync = run_project_one_shot_sync(card, args)
+    if project_sync.get("enabled") and not project_sync.get("ok"):
+        print(f"warning: Project one-shot sync failed: {project_sync.get('error')}", file=sys.stderr)
+
     if args.format == "json":
-        print(json.dumps({"publish": row}, indent=2, sort_keys=True, ensure_ascii=False))
+        print(json.dumps({"publish": row, "project_sync": project_sync}, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(
             "OK published visibility card: "
@@ -1225,6 +1282,26 @@ def build_parser() -> argparse.ArgumentParser:
     publish_card.add_argument("--transition-at", default="", help="UTC ISO timestamp for the operating transition")
     publish_card.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
     publish_card.add_argument("--dry-run", action="store_true", help="Record dry-run proof without sending")
+    publish_card.add_argument(
+        "--project-sync-field-map",
+        default="",
+        help="Optional Project field-map JSON; enables nonblocking one-shot sync after successful publish",
+    )
+    publish_card.add_argument(
+        "--project-sync-artifact-root",
+        default="docs/examples/manual-dry-run",
+        help="Artifact root passed to project-sync one-shot",
+    )
+    publish_card.add_argument(
+        "--project-sync-ledger",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "claims" / "ledger.json"),
+        help="Ledger passed to project-sync one-shot; empty disables ledger",
+    )
+    publish_card.add_argument(
+        "--project-sync-audit-log",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
+        help="Audit log for successful non-dry-run one-shot sync",
+    )
     publish_card.add_argument("--format", choices=("text", "json"), default="text")
     publish_card.set_defaults(func=cmd_publish_card)
 

@@ -1059,6 +1059,8 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
     write_json(
         field_map,
         {
+            "owner": "@me",
+            "project_number": 1,
             "project_id": "PVT_local_smoke",
             "fields": {
                 "Work Unit id": "field_work_unit",
@@ -1116,6 +1118,29 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError("project sync dry-run did not plan the expected item and field updates")
     if planned["planned_actions"][0].get("type") != "ensure_project_item":
         raise RuntimeError("project sync dry-run did not plan Project item membership first")
+
+    apply_guard = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "apply",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    if apply_guard.returncode == 0:
+        raise RuntimeError("project sync apply unexpectedly accepted a non-GitHub smoke Work Card")
+    if "apply requires GitHub issue or pull request Work Card URLs" not in apply_guard.stderr:
+        raise RuntimeError(f"project sync apply guard failed for wrong reason: {apply_guard.stderr}")
 
     suffix_root = artifact_root.parent / "suffix-artifacts"
     suffix_dir = suffix_root / "WU-260606-LIVE-P0"

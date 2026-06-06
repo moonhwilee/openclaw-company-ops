@@ -256,18 +256,29 @@ Implement the dashboard sync in narrow stages:
    - Read optional local Project and field-id map.
    - Print planned item and field changes.
    - Mutate nothing.
-2. `project-sync apply`
+2. `project-sync field-map` - implemented as the local configuration helper
+   - Read an existing GitHub Project and its fields through `gh`.
+   - Write a local field-id map outside repo state.
+   - Store no tokens.
+3. `project-sync apply` - implemented as the Project mutation path
+   - Require an explicit local field map with owner, Project number, Project id,
+     and field ids.
+   - Require `gh` auth with the `project` scope before mutation.
+   - Add the Work Card issue or pull request to the Project when missing.
    - Apply only changed Project item/field updates.
    - Record an audit log.
    - Preserve idempotency.
-3. Lifecycle one-shot sync
-   - Run after source-backed state transitions.
-   - Scope to one Work Unit when possible.
-   - Never make lifecycle success depend on Project sync success.
-4. Scheduled reconcile
-   - Run every 5 minutes by default as stale-dashboard recovery.
-   - Use a lock file to prevent overlap.
-   - Alert on failure without mutating source state.
+4. Lifecycle one-shot sync - implemented for `discord publish-card`
+   - Runs after a successful source-backed visibility publish when a field map is
+     provided.
+   - Scopes to the card's Work Unit.
+   - Never makes Discord publish success depend on Project sync success.
+5. Scheduled reconcile - implemented as the full-workspace command path
+   - `project-sync reconcile` scans all Work Unit artifacts and applies changed
+     Project updates.
+   - Uses a lock file to prevent overlap.
+   - Intended to run every 5 minutes by default as stale-dashboard recovery.
+   - Alerts/logs on failure without mutating source state.
 
 ## Creation Checklist
 
@@ -294,13 +305,24 @@ dashboard with bounded auto-sync.
 Current implementation state:
 
 - `python3 scripts/openclaw_company_ops.py project-sync dry-run` exists.
-- It reads Work Unit source artifacts and optional claim ledger state.
-- It derives desired Project fields deterministically.
-- It accepts an optional local JSON field map with Project and field ids.
-- It reports planned field updates, missing field ids, and mutation readiness.
-- It performs no GitHub Project, GitHub Issue, Discord, source artifact, claim,
-  evidence, or decision mutation.
+- `python3 scripts/openclaw_company_ops.py project-sync field-map` exists.
+- `python3 scripts/openclaw_company_ops.py project-sync apply` exists.
+- `python3 scripts/openclaw_company_ops.py project-sync reconcile` exists.
+- Dry-run reads Work Unit source artifacts and optional claim ledger state,
+  derives desired Project fields deterministically, and mutates nothing.
+- Field-map generation reads an existing GitHub Project and writes local config
+  only.
+- Apply requires an explicit local field map and `gh` auth with `project` scope.
+- Example local field map shape is documented in
+  `docs/company-dashboard-project-field-map.example.json`; copy it outside the
+  repo state path before inserting real ids.
+- Apply adds missing Project item membership and updates changed fields only.
+- Apply writes an audit log and uses a lock by default.
+- `discord publish-card` can run a nonblocking one-shot Project sync after a
+  successful visibility publish when a field map is supplied.
+- The sync path performs no GitHub Issue close/open, Discord semantic publish,
+  source artifact, claim, evidence, or decision mutation.
 
-Next implementation work should add `project-sync apply` with changed-only
-GitHub Project item/field updates and audit logging. Do not install a
-long-lived daemon or use LLM interpretation in the sync path.
+Operational enablement still requires a real GitHub Project, text-compatible
+fields, a local field-id map, and `gh auth refresh -s project` on the runner.
+Do not install a long-lived daemon or use LLM interpretation in the sync path.

@@ -33,6 +33,8 @@ def print_help() -> None:
     print("  python3 scripts/openclaw_company_ops.py claim status --help")
     print("  python3 scripts/openclaw_company_ops.py status work-unit --help")
     print("  python3 scripts/openclaw_company_ops.py project-sync dry-run --work-unit-id WU-260606-001")
+    print("  python3 scripts/openclaw_company_ops.py project-sync field-map --owner @me --project-number 1 --output ~/.openclaw/state/openclaw-company-ops/project-field-map.json")
+    print("  python3 scripts/openclaw_company_ops.py project-sync apply --work-unit-id WU-260606-001 --field-map ~/.openclaw/state/openclaw-company-ops/project-field-map.json")
     print("  python3 scripts/openclaw_company_ops.py pulse check --help")
     print("  python3 scripts/openclaw_company_ops.py smoke multi-team")
 

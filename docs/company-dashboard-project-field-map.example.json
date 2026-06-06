@@ -1,0 +1,67 @@
+{
+  "owner": "@me",
+  "project_number": 1,
+  "project_id": "PVT_replace_with_project_node_id",
+  "fields": {
+    "Work Unit id": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Repository": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Work Card": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Team Lead": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Status": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Phase": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Priority": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Blocker": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Evidence present": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Decision": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Last proof or last source update": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Assignment Packet reference": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Ops Claim Ledger reference": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Evidence & Result Record reference": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    },
+    "Operations Lead Decision reference": {
+      "id": "PVTF_replace_with_field_id",
+      "type": "text"
+    }
+  }
+}

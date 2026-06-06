@@ -535,12 +535,19 @@ Implementation details are tracked in `docs/company-dashboard-timing.md`.
 
 Current implementation state:
 
-- `project-sync dry-run` is implemented as the first Project sync stage.
-- It computes desired Project fields from source artifacts and optional ledger
-  state.
-- It can target one Work Unit for lifecycle one-shot preparation.
-- It does not mutate GitHub Project, GitHub Issues, Discord, source artifacts,
-  claims, evidence, or decisions.
+- `project-sync dry-run` computes desired Project fields from source artifacts
+  and optional ledger state without mutation.
+- `project-sync field-map` reads an existing GitHub Project and writes local
+  field-id config without storing secrets.
+- `project-sync apply` requires an explicit local field map and `gh` auth with
+  `project` scope, then adds missing Project item membership and updates changed
+  fields only.
+- `project-sync reconcile` runs the same changed-only apply path across all Work
+  Unit artifacts with locking for stale-dashboard recovery.
+- `discord publish-card` can run nonblocking one-shot sync after successful
+  publish when a field map is supplied.
+- The sync path does not close/open GitHub Issues, create source artifacts,
+  mutate claims/evidence/decisions, or publish semantic Discord status.
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 
