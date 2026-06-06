@@ -1283,10 +1283,16 @@ def run_async_work_unit_policy_smoke() -> None:
         ),
         "docs/post-setup-plan.md": (
             "Company Ops must not depend on installer-written user memory.",
+            "installs into the user's OpenClaw runtime/workspace",
+            "Operations Lead consumes the bundled skill",
             "Company Ops plugin",
             "foreground CLI tools",
             "Impact on existing docs and repository layout",
             "small Company Ops skill with routing triggers",
+            "optional guided team setup path",
+            "users who start with a single",
+            "must not auto-create or bind agents",
+            "setup-needed result",
             "Phase 5.5: Result Ready Inbox / Closeout Lock Gate",
             "work-unit inbox --result-ready",
             "closeout-lock helper",
@@ -1297,6 +1303,9 @@ def run_async_work_unit_policy_smoke() -> None:
         "docs/setup-guide.md": (
             "Distribution Surface",
             "Company Ops plugin or package",
+            "installed into the OpenClaw runtime/workspace",
+            "Optional guided onboarding for single-agent users",
+            "explicit confirmation before creating or binding Team Lead agents",
             "must not silently edit user `MEMORY.md`",
         ),
         "docs/templates/assignment-packet.md": (
@@ -1307,6 +1316,8 @@ def run_async_work_unit_policy_smoke() -> None:
         ),
         "README.md": (
             "Sizeable `goal` and `verify` work is detached Work Unit work.",
+            "installed into the OpenClaw runtime/workspace used by the",
+            "optional guided team setup",
         ),
     }
     for relative_path, required_phrases in checks.items():

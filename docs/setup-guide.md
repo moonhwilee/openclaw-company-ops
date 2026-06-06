@@ -482,6 +482,21 @@ other private workspace bootstrap files. A development workspace may use a
 memory pointer temporarily, but public install behavior must come from the
 skill/plugin/package and explicit foreground commands.
 
+Installed target: the package is installed into the OpenClaw runtime/workspace
+where the Operations Lead agent runs. The human owner keeps using natural
+language. The Operations Lead uses the bundled skill as the routing manual and
+uses the packaged foreground CLI as the ticketing, inbox, lock, dashboard, and
+visibility toolset.
+
+Optional guided onboarding for single-agent users is a Phase 6 packaging
+option, not an implemented setup step today. It should start from one OpenClaw
+agent, propose a default team topology, show a dry-run plan, and require
+explicit confirmation before creating or binding Team Lead agents, credentials,
+Discord channels, GitHub Projects, cron jobs, or external resources. If a
+runtime cannot create Team Lead agents programmatically, guided onboarding
+should output a manual checklist and keep single-agent `ops-direct` mode usable
+while `team-qna` and `detached-wu` report setup-needed next steps.
+
 Do not reorganize the repository into an installable layout during setup. Phase
 5.7 locks the included surfaces, and Phase 6 performs the packaging layout and
 install/uninstall work.

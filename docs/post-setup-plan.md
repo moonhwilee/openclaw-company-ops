@@ -609,6 +609,19 @@ workspace bootstrap file to learn the routing rules. Those files can be useful
 for one owner's development workspace, but they are not a distributable control
 plane.
 
+Installed target:
+
+- The package installs into the user's OpenClaw runtime/workspace where the
+  Operations Lead agent runs. In the default company model, that means the main
+  agent acting as Operations Lead consumes the bundled skill and calls the
+  packaged foreground CLI. It is not installed into the human user, and it must
+  not treat private memory files as the control plane.
+- The owner still uses natural-language requests. The packaged skill tells the
+  Operations Lead when Company Ops applies and how to think about `ops-direct`,
+  `team-qna`, and `detached-wu`; the packaged CLI provides the ticketing,
+  inbox, lock, dashboard, and visibility tools needed for source-backed
+  execution.
+
 For distribution, use two explicit surfaces:
 
 - OpenClaw skill: carries the short trigger/routing instructions that should be
@@ -807,6 +820,19 @@ Scope:
 - Include smoke tests and clear install/usage instructions.
 - Include explicit install and uninstall behavior. Installation must not write
   private `MEMORY.md`, `AGENTS.md`, or other user bootstrap files.
+- Offer an optional guided team setup path for users who start with a single
+  OpenClaw agent. The guided setup may propose a default company topology
+  such as Operations Lead plus build, product, market, and revenue Team Leads,
+  generate a dry-run plan, and then apply only the user-approved local
+  configuration/artifacts.
+- Guided team setup must not auto-create or bind agents, credentials, Discord
+  channels, GitHub Projects, scheduled jobs, or external resources without an
+  explicit foreground confirmation. When the runtime cannot create Team Lead
+  agents programmatically, it should leave a clear manual setup checklist and
+  keep the single-agent mode usable.
+- Single-agent mode remains valid after install: `ops-direct` works
+  immediately, while `team-qna` and `detached-wu` either route to configured
+  Team Leads or return a setup-needed result with next steps.
 - If hooks are retained, document install, disable, smoke-test, and
   troubleshooting instructions. Hooks remain optional guardrails around source
   artifacts, not required state storage.
@@ -815,6 +841,11 @@ Acceptance gate:
 
 - A fresh user can initialize or run the validated flow without reading private
   local memory.
+- A fresh single-agent user can run guided setup, inspect the proposed team
+  topology, confirm or decline it, and receive clear next steps without knowing
+  OpenClaw agent harness internals.
+- Guided setup has a dry-run mode and leaves source-backed configuration or
+  setup artifacts, not private memory edits.
 - Public docs do not mention private nicknames or internal-only state.
 - Package behavior matches the artifacts-and-visibility model.
 - Packaged hook behavior, if included, is reproducible and does not interfere

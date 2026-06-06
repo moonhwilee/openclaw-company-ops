@@ -64,6 +64,13 @@ operations. The current repository layout stays repo-local until the Phase 5.7
 packaging-readiness gate locks the included surfaces and Phase 6 creates the
 installable layout.
 
+The package is installed into the OpenClaw runtime/workspace used by the
+Operations Lead agent. It does not install instructions into the human owner or
+write private memory. Phase 6 may include optional guided team setup for users
+who start with a single OpenClaw agent, but that setup must be dry-run first
+and must require explicit confirmation before creating or binding Team Lead
+agents or external resources.
+
 ## Documents
 
 - [Architecture](docs/architecture.md)
