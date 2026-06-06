@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "Scope is limited to the Assignment Packet and source artifacts.",
+    "criteria": "Phase 5.3 implementation criteria are mapped to concrete source files, commands, and test evidence; No legacy path, fallback source of truth, reverse import, hidden orchestrator, or unintended source mutation is found; Relevant deterministic checks pass or each failure is identified with a concrete missing artifact or blocker; Team Lead verify result recommends accept, revise, hold, or reject with evidence",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "Verify whether the Phase 5.3 Dashboard Gate implementation satisfies the accepted Company Ops procedure and implementation principles.",
+    "kind": "ASSIGNED_DETAIL",
+    "needed": "",
+    "next": "Team Lead verifies Phase 5.3 from source artifacts and deterministic checks; no source edits unless reassigned.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "Criterion-by-criterion verify mapping, commands run, pass/fail/unknown items, principle audit, recommendation.",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "Inspect Phase 5.3 source docs and current implementation state from the active repo; Verify project-sync dry-run, field-map/apply/reconcile behavior, lifecycle one-shot sync boundaries, and dashboard mirror principles; Check deterministic evidence only; do not rely on prior conversation memory as proof; Report accept/revise/hold/reject recommendation with criterion-by-criterion evidence",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/24",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260607-005"
+  }
+}

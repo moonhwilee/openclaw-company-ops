@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "Phase 5.3 implementation criteria are mapped to concrete source files, commands, and test evidence; No legacy path, fallback source of truth, reverse import, hidden orchestrator, or unintended source mutation is found; Relevant deterministic checks pass or each failure is identified with a concrete missing artifact or blocker; Team Lead verify result recommends accept, revise, hold, or reject with evidence",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "ASSIGNED",
+    "needed": "",
+    "next": "Team Lead verifies Phase 5.3 from source artifacts and deterministic checks; no source edits unless reassigned.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "Verify Phase 5.3 dashboard sync implementation",
+    "reason": "",
+    "report": "",
+    "request": "phase5.3 구현에 대해서 verify 진행해줘.",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/24",
+    "status": "",
+    "surface": "ops-feed",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260607-005"
+  }
+}

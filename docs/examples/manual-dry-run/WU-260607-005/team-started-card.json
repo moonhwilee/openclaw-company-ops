@@ -1,0 +1,33 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "STARTED",
+    "needed": "",
+    "next": "Run verify protocol and submit criterion-by-criterion result.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "docs/examples/manual-dry-run/WU-260607-005/assignment.md",
+    "status": "Team Lead verify started from Assignment Packet.",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260607-005"
+  },
+  "text": "▶️ [STARTED] WU-260607-005 · 🧪 build-lab\nStatus: Team Lead verify started from Assignment Packet.\nNext: Run verify protocol and submit criterion-by-criterion result."
+}
