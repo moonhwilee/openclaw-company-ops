@@ -76,12 +76,16 @@ The default flow is:
    work.
 5. For long `goal` work, Operations Lead posts `CHECKPOINT` entries at major
    slice boundaries or at least every 10-15 minutes while work remains active.
-6. Operations Lead posts `[RESULT_READY]` when the Team Lead result is actually
+6. For long Work Units, Operations Lead records a matching source-backed
+   progress row with `work-unit progress` so the GitHub Project `Progress`
+   field can mirror current phase, round, or slice without becoming source of
+   truth.
+7. Operations Lead posts `[RESULT_READY]` when the Team Lead result is actually
    available.
-7. Operations Lead performs lightweight verification before final reporting.
-8. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
+8. Operations Lead performs lightweight verification before final reporting.
+9. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
    `[BLOCKED_DETAIL]` review note in the relevant `#team-*` channel.
-9. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
+10. Operations Lead posts one owner-facing `[COMPLETED]` or `[BLOCKED]` summary
    in `#ops-feed`.
 
 `[RESULT_READY]` is a Team Lead result-submission signal, not an Operations
@@ -188,6 +192,9 @@ Additional default visibility cost:
   seconds while posting is manual.
 - Long `goal` checkpoint cost: roughly one short send/readback cycle per major
   slice or every 10-15 minutes. This should not add an LLM call.
+- Long Work Unit `Progress` dashboard cost: one small `progress.jsonl` append
+  and changed-only `project-sync` update from source artifacts. This should not
+  add a Team Lead, summary LLM call, daemon, or fallback state store.
 
 Do not add a second Team Lead or LLM summarization call for visibility. Use one
 Operations Lead composition step per transition to write both the owner-facing

@@ -103,6 +103,9 @@ small:
 - Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync for
   owner-facing at-a-glance visibility. Keep it as a mirror of Issues and source
   artifacts, not as operating truth.
+- For long Work Units, the dashboard `Progress` field is derived from the
+  latest valid `progress.jsonl` row written by `work-unit progress`; do not
+  manually backfill it from Project edits or Discord text.
 
 Recommended issue labels:
 
