@@ -906,14 +906,14 @@ Status: Active plan
 
 After the base setup and repo-local scripts exist, continue tracking
 implementation status in `docs/post-setup-plan.md`. Phases 1-4 and Phase 5.1
-have been exercised; current work is the remaining Phase 5 gates:
+have been exercised. Phase 5.2 accepted the narrow repo-local hook guard MVP,
+and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Current work
+is the remaining Phase 5 gates:
 
-1. Completion / Hook Guard MVP decision.
-2. Dashboard gate: accepted as bounded GitHub Project auto-sync.
-3. Discord publisher hardening gate.
-4. Result-ready inbox / closeout-lock gate.
-5. Scheduled Pulse / daemon gate.
-6. Packaging readiness decision.
+1. Discord publisher hardening gate.
+2. Result-ready inbox / closeout-lock gate.
+3. Scheduled Pulse / daemon gate.
+4. Packaging readiness decision.
 
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.
@@ -921,9 +921,10 @@ is explicitly accepted, deferred, or rejected before packaging.
 Final completion requires GitHub Project or equivalent dashboard visibility
 unless the owner explicitly records a no-go decision with rationale.
 
-## Future CLI Migration
+## Future CLI And Package Migration
 
-When CLI automation exists, update this guide in place.
+When CLI automation or packaged distribution exists, update this guide in
+place.
 
 Current repo-local entrypoint:
 
@@ -932,7 +933,10 @@ python3 scripts/openclaw_company_ops.py --help
 ```
 
 This entrypoint routes to the implemented repo-local scripts. It is not yet a
-published package.
+published package. The accepted public-v1 direction is a Company Ops plugin or
+package that bundles a small Company Ops skill for natural-language routing and
+foreground CLI tools for deterministic source-backed operations. Do not make
+user `MEMORY.md` or `AGENTS.md` edits part of the install path.
 
 Recommended replacement order:
 
@@ -944,7 +948,13 @@ Recommended replacement order:
 6. Replace manual Discord posting with `discord card` plus foreground
    `discord publish-card`; keep publisher proof explicit and do not add a hidden
    bridge.
-7. Replace the manual smoke test with `smoke`.
+7. Add `work-unit inbox --result-ready` and closeout-lock dry-run commands
+   before scaling multi-Work Unit result recovery.
+8. Add a conservative `route --intent <text>` helper only if it remains
+   deterministic and can return `needs-ops-decision` when ambiguous.
+9. Package the accepted surfaces as a plugin/package with a bundled small skill
+   only after Phase 5.7 locks the included and deferred surfaces.
+10. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the
 supported command is available. Keep only emergency diagnostics and explicit

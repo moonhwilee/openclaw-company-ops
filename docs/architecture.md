@@ -459,15 +459,14 @@ dashboard snapshots, a non-installing pulse daemon runner, and a repo-local
 entrypoint.
 
 The active remaining order is documented in `docs/post-setup-plan.md`. Phases
-1-4 and Phase 5.1 have been exercised; the current work is the remaining Phase
-5 activation sub-gates:
+1-4 and Phase 5.1 have been exercised. Phase 5.2 accepted the narrow hook guard
+MVP and Phase 5.3 accepted the bounded GitHub Project dashboard sync. The
+current work is the remaining Phase 5 activation sub-gates:
 
-1. Completion / Hook Guard MVP decision.
-2. Dashboard gate.
-3. Discord publisher hardening gate.
-4. Result-ready inbox / closeout-lock gate.
-5. Scheduled Pulse / daemon gate.
-6. Packaging readiness decision.
+1. Discord publisher hardening gate.
+2. Result-ready inbox / closeout-lock gate.
+3. Scheduled Pulse / daemon gate.
+4. Packaging readiness decision.
 
 After Phase 5:
 
@@ -485,6 +484,7 @@ These decisions are not blockers for the architecture:
 - When to install or schedule the Pulse Monitor daemon runner.
 - When to promote the foreground Discord `publish-card` path beyond P0 proof
   into a broader operating surface.
-- When to create or sync a GitHub Project dashboard.
-- Whether the first public package is a CLI, OpenClaw skill, setup script, or a
-  combination.
+- The exact public-v1 package layout and install mechanism. The accepted
+  direction is a Company Ops plugin or package containing a small Company Ops
+  skill plus foreground CLI tools, not installer-written user memory and not a
+  standalone skill-only or CLI-only release.

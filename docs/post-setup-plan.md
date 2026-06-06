@@ -570,6 +570,10 @@ Current implementation state:
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 
+Status: open decision. P0 foreground publishing, proof validation, sequence
+ordering, and card-shape guards exist, but Phase 5.4 has not yet recorded a
+formal accept/defer/no-go decision for public v1 packaging.
+
 Purpose: decide whether the accepted foreground Discord publisher needs
 additional hardening before packaging.
 
@@ -642,6 +646,22 @@ Deployment acceptance for this decision:
   closeout checks.
 - Uninstall removes package/plugin files without needing to clean private
   `MEMORY.md` edits.
+
+Impact on existing docs and repository layout:
+
+- Current repo-local scripts and docs are still valid as the development
+  surface. Do not restructure the repository into an installable plugin package
+  before Phase 5.7 locks the exact packaging surface.
+- Existing manual/setup docs should describe the accepted direction, not present
+  skill, CLI, plugin, or setup script as equally open public-v1 choices.
+- Phase 5.7 must produce the concrete packaging layout decision: plugin
+  manifest location, bundled small skill path, packaged CLI entrypoint name,
+  included templates/docs, smoke command, uninstall behavior, and explicit
+  proof that install/uninstall does not edit user memory.
+- Phase 6 is the right time to move or copy files into the package layout. Until
+  then, keep implementation in the existing repo-local `scripts/`, `docs/`,
+  `.codex/`, and template paths to avoid churn before the included surfaces are
+  accepted.
 
 ### Phase 5.5: Result Ready Inbox / Closeout Lock Gate
 
@@ -748,6 +768,8 @@ Purpose: lock the surface that is allowed to enter Phase 6.
 
 Candidate Phase 6 surface:
 
+- small Company Ops skill with routing triggers, authority boundaries, and
+  foreground-command instructions;
 - Work Unit artifact generator;
 - Ops Claim Ledger CLI;
 - alert-only pulse check and any accepted manual runner;
@@ -778,10 +800,13 @@ Purpose: make the validated operating surface reproducible.
 
 Scope:
 
-- Turn the repo-local entrypoint into the selected distribution shape.
+- Turn the repo-local entrypoint into the selected plugin/package distribution
+  shape with a bundled small Company Ops skill and foreground CLI tools.
 - Keep command names aligned with the supported scripts.
 - Replace manual setup-guide blocks only where supported commands exist.
 - Include smoke tests and clear install/usage instructions.
+- Include explicit install and uninstall behavior. Installation must not write
+  private `MEMORY.md`, `AGENTS.md`, or other user bootstrap files.
 - If hooks are retained, document install, disable, smoke-test, and
   troubleshooting instructions. Hooks remain optional guardrails around source
   artifacts, not required state storage.

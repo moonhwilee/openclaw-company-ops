@@ -48,6 +48,7 @@ It covers:
 It does not cover:
 
 - Installing a finished OpenClaw Company Ops package.
+- Installing a Company Ops plugin/package with its bundled small skill.
 - Installing a scheduled Pulse Monitor background job.
 - Connecting a full Discord command bridge.
 - Installing a Company Dashboard app.
@@ -462,6 +463,28 @@ Setup path: configure the GitHub Project fields and bounded `project-sync`
 workflow described in `docs/company-dashboard-timing.md`. Final Company Ops
 completion requires GitHub Project or equivalent dashboard visibility unless the
 owner explicitly records a no-go decision with rationale.
+
+### Distribution Surface
+
+Status: Planned
+
+The accepted public-v1 direction is a Company Ops plugin or package that
+includes:
+
+- a small Company Ops skill for trigger/routing instructions, including
+  `ops-direct`, `team-qna`, and `detached-wu`;
+- foreground CLI tools for source-backed route, Work Unit inbox, closeout,
+  project sync, Discord visibility, pulse checks, and smoke validation;
+- templates and docs that match the packaged commands.
+
+The package installer must not silently edit user `MEMORY.md`, `AGENTS.md`, or
+other private workspace bootstrap files. A development workspace may use a
+memory pointer temporarily, but public install behavior must come from the
+skill/plugin/package and explicit foreground commands.
+
+Do not reorganize the repository into an installable layout during setup. Phase
+5.7 locks the included surfaces, and Phase 6 performs the packaging layout and
+install/uninstall work.
 
 ### Templates
 

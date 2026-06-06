@@ -56,6 +56,14 @@ Repo-local tooling is available through:
 python3 scripts/openclaw_company_ops.py --help
 ```
 
+The target distributable shape is not a memory edit, standalone skill, or
+standalone CLI. Public v1 should be a Company Ops plugin or package that
+includes a small Company Ops skill for natural-language routing plus foreground
+CLI tools for deterministic route, inbox, closeout, dashboard, and visibility
+operations. The current repository layout stays repo-local until the Phase 5.7
+packaging-readiness gate locks the included surfaces and Phase 6 creates the
+installable layout.
+
 ## Documents
 
 - [Architecture](docs/architecture.md)
@@ -89,6 +97,6 @@ python3 scripts/openclaw_company_ops.py --help
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.
-- Turn the repo-local entrypoint into a small reproducible package only after
-  the Phase 5 activation sub-gates pass or record explicit no-go/defer
-  rationale.
+- Turn the repo-local entrypoint into the accepted plugin/package plus small
+  skill distribution only after the Phase 5 activation sub-gates pass or record
+  explicit no-go/defer rationale.
