@@ -1228,9 +1228,13 @@ Phase 6 implementation decisions to keep narrow:
   state root, for example `~/.openclaw/state/openclaw-company-ops/`. Config may
   name field-map paths, Discord targets, proof-log paths, and role context, but
   it is not Work Unit source truth.
-- Guided team setup: keep dry-run planning in v1. Any agent creation, binding,
-  credential, Discord, Project, cron, or external-resource change requires a
-  separate explicit foreground confirmation.
+- Guided team setup: keep dry-run planning in v1. This is an onboarding
+  blueprint/checklist for users who start with one OpenClaw agent and need to
+  see the recommended Operations Lead, Team Lead, GitHub Project, Discord
+  target, role config, and missing-setup steps before anything is created. Any
+  agent creation, binding, credential, Discord, Project, cron, or
+  external-resource change requires a separate explicit foreground
+  confirmation.
 - Dashboard hygiene: `doctor` may report stale mirror items and literal body
   rendering problems. Automatic archive remains out of scope; any archive path
   must be an explicit foreground cleanup command.
@@ -1294,6 +1298,9 @@ Acceptance gate:
 - A fresh single-agent user can run guided setup, inspect the proposed team
   topology, confirm or decline it, and receive clear next steps without knowing
   OpenClaw agent harness internals.
+- The guided setup dry run explains what would be configured and what is
+  missing, but it does not create agents, channels, Projects, credentials,
+  cron jobs, or external resources.
 - `doctor` / `preflight` reports missing Project, Discord, role-context,
   proof-log, dashboard-hygiene, and Work Card rendering setup without mutating
   source artifacts or external surfaces.
