@@ -66,9 +66,8 @@ The target distributable shape is not a memory edit, standalone skill, or
 standalone CLI. Public v1 should be a Company Ops plugin or package that
 includes a small Company Ops skill for natural-language routing plus foreground
 CLI tools for deterministic route, inbox, closeout, dashboard, and visibility
-operations. The current repository layout stays repo-local until the Phase 5.7
-packaging-readiness gate locks the included surfaces and Phase 6 creates the
-installable layout.
+operations. Phase 5.7 has locked the included surfaces; the current repository
+layout stays repo-local until Phase 6 creates the installable layout.
 
 The package is installed into the OpenClaw runtime/workspace used by the
 Operations Lead agent. It does not install instructions into the human owner or
@@ -139,7 +138,8 @@ guess targets, or grant permissions on the user's behalf.
   rationale.
 - Turn the repo-local entrypoint into the accepted plugin/package plus small
   skill distribution.
-- Keep scheduled Pulse, daemon install, route helpers, non-dry-run closeout or
-  amendment apply, automatic ops-alerts publishing, hidden orchestrators, and
-  fallback truth sources out of public v1 unless a later explicit gate changes
-  that decision.
+- Keep scheduled Pulse, scheduled dashboard reconcile, daemon install, route
+  helpers, amendment apply/record, automatic closeout, automatic ops-alerts
+  publishing, hidden orchestrators, and fallback truth sources out of public v1
+  unless a later explicit gate changes that decision. Foreground `work-unit
+  closeout --dry-run/--publish` remains an accepted Operations Lead surface.

@@ -25,7 +25,9 @@ Use these labels when reading this guide:
 - `Status: Planned`: the component is intended for implementation, but no
   supported setup path exists yet.
 - `Status: Manual Day-0`: the step can be run manually today without dedicated
-  automation.
+  automation. Some Day-0 sections are historical baseline procedures; where a
+  repo-local foreground command now exists, prefer the supported command and
+  keep the manual notes as setup context or emergency repair guidance.
 - `Status: Repo-local script supported`: the component has a supported
   foreground command in this repository, but is not packaged for distribution
   yet.
@@ -109,9 +111,9 @@ small:
   stable.
 - Leave website/homepage empty until there is a docs site, GitHub Pages site,
   or released manual.
-- Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync for
-  owner-facing at-a-glance visibility. Keep it as a mirror of Issues and source
-  artifacts, not as operating truth.
+- Phase 5.3 accepted a GitHub Project dashboard for owner-facing at-a-glance
+  visibility. Phase 5.7/6 keeps it as a bounded foreground mirror of Issues and
+  source artifacts, not as operating truth or a scheduled background job.
 - For long Work Units, the dashboard `Progress` field is derived from the
   latest valid `progress.jsonl` row. Prefer `work-unit checkpoint` during live
   work so Discord `CHECKPOINT`, source-backed progress, and optional Project
@@ -448,36 +450,36 @@ explicit foreground configuration and proof capture.
 
 It is a visibility bridge, not a command router and not a state owner.
 
-Current practice: the Operations Lead or Team Lead posts concise updates that
-link back to the relevant source artifact. Pulse Monitor alert JSON can be
-formatted with `scripts/discord_ops.py` before manual posting. Foreground
-publisher/proof commands may be used only with explicit target and proof-log
-configuration.
+Current practice: the supported path is a foreground publisher/proof command
+that sends one explicit card, immediately reads it back, and records proof.
+Manual or formatter-assisted posting remains useful as historical setup context
+or emergency repair, but it is no longer the preferred current path when the
+publisher is configured. Foreground publisher/proof commands may be used only
+with explicit target and proof-log configuration.
 
-Post-setup path: first verify manual or formatter-assisted posting in
-pre-dogfood visibility setup. The first approved send path should be a
-foreground publisher that sends one explicit card, immediately reads it back,
-and records proof. Do not connect a daemon, scheduler, or automatic bridge until
-a later activation decision justifies that extra surface. Any publisher must
-emit the same event shape without deciding, recovering, reassigning, closing, or
+Do not connect a daemon, scheduler, retry queue, or automatic bridge until a
+later activation decision justifies that extra surface. Any publisher must emit
+the same event shape without deciding, recovering, reassigning, closing, or
 mutating Work Units.
 
 ### Company Dashboard
 
-Status: GitHub Project dashboard accepted with bounded auto-sync
+Status: GitHub Project dashboard accepted with bounded foreground sync
 
 Company Dashboard shows company-wide Work Unit state.
 
-The accepted default is a GitHub Project plus deterministic source-backed sync.
-It is a visibility layer, not a source of truth.
+The accepted default is a GitHub Project plus deterministic source-backed
+foreground sync. It is a visibility layer, not a source of truth.
 
 Current practice: review the GitHub Issues list and linked artifacts, or render
 a local visibility snapshot with `scripts/dashboard_snapshot.py`.
 
 Setup path: configure the GitHub Project fields and bounded `project-sync`
-workflow described in `docs/company-dashboard-timing.md`. Final Company Ops
-completion requires GitHub Project or equivalent dashboard visibility unless the
-owner explicitly records a no-go decision with rationale.
+workflow described in `docs/company-dashboard-timing.md`. Public v1 must not
+install scheduled dashboard reconcile, cron, launchd, daemon, GitHub Actions
+schedule, or hidden Project mutation runner. Final Company Ops completion
+requires GitHub Project or equivalent dashboard visibility unless the owner
+explicitly records a no-go decision with rationale.
 
 ### Shared Distribution Surface
 

@@ -1,6 +1,6 @@
 # Company Dashboard Timing
 
-Status: GitHub Project dashboard accepted with bounded auto-sync
+Status: GitHub Project dashboard accepted with bounded foreground sync
 
 This guide defines when and how to use the Company Dashboard for OpenClaw
 Company Ops.
@@ -19,7 +19,7 @@ decision record, not a command router, and not a recovery system.
 
 ## Current Recommendation
 
-Enable a Company Dashboard with bounded auto-sync.
+Enable a Company Dashboard with bounded source-backed foreground sync.
 
 The accepted v1 shape is:
 
@@ -27,7 +27,9 @@ The accepted v1 shape is:
 - a small, stable field set;
 - a deterministic sync command with `dry-run` and `apply` actions;
 - lifecycle one-shot sync as the primary update path for state changes;
-- scheduled reconcile every few minutes as a safety net;
+- explicit foreground reconcile as the stale-mirror safety net;
+- no public-v1 scheduled dashboard reconcile, cron, launchd, daemon, or hidden
+  runner;
 - no LLM calls in the sync path.
 
 The repo-local visibility snapshot remains useful for local inspection:
@@ -46,39 +48,38 @@ debugged, secured, and recovered.
 
 For dashboard sync, the operating surface includes:
 
-- schedule configuration;
 - GitHub auth and Project permissions;
 - Project id and field ids;
 - logs and audit records;
 - duplicate-run locking;
-- failure alerts;
-- install, disable, and troubleshooting instructions.
+- failure reports;
+- explicit enable, disable, and troubleshooting instructions.
 
 Keep this surface small for v1.
 
-## Scheduler Choice
+## Reconcile Choice
 
-Use a small scheduled command for v1. It should run, reconcile, write an audit
-record, and exit.
+Public v1 must not install a scheduled dashboard reconcile. Reconcile is a
+foreground Operations Lead command: run it explicitly when `doctor` reports stale
+mirror drift, after manual source repair, or during operator review.
 
-Preferred options:
+Allowed public-v1 path:
 
-- OpenClaw cron or local scheduled runner: lowest operating surface for v1.
-- `launchd` daemon: more durable for always-on services, but larger operating
-  surface because it adds plist configuration, process lifecycle, restart
-  policy, crash behavior, logs, and install/uninstall handling.
-- GitHub Actions schedule: remote and convenient, but adds Actions quota,
-  workflow/secrets management, and GitHub-hosted failure modes. Do not use it
-  for v1 unless local scheduling is unavailable.
+- `project-sync reconcile` as an explicit foreground command with local
+  field-map configuration, `gh` auth, locking, and audit output.
 
-The sync is not an LLM-observed task. The scheduler runs a deterministic script
-under the Company Ops host/user account. Team Leads create or update source
-artifacts; they do not run the sync. The Operations Lead owns the sync policy
-and reviews failures.
+Deferred paths:
 
-If the host is asleep, offline, or the local scheduler is disabled, sync pauses
-until the host resumes. This is acceptable for v1 as long as the failure is
-visible.
+- OpenClaw cron or a local scheduled runner;
+- `launchd` daemon;
+- GitHub Actions schedule;
+- any hidden runner that mutates Project items without an explicit foreground
+  operation.
+
+The sync is not an LLM-observed task. The foreground command runs a deterministic
+script under the Company Ops host/user account. Team Leads create or update
+source artifacts; they do not run the sync. The Operations Lead owns the sync
+policy and reviews failures.
 
 ## Sync Interval
 
@@ -92,19 +93,17 @@ Dashboard freshness is approximately:
 one-shot runtime + small GitHub API/UI propagation delay
 ```
 
-The scheduled reconcile interval is the stale-dashboard recovery window, not the
-normal update path.
+There is no public-v1 scheduled reconcile interval. The stale-dashboard recovery
+window is the next explicit foreground reconcile, or the next `doctor` /
+`preflight` check that reports stale mirror drift.
 
-Recommended v1 reconcile interval:
+If a later gate accepts scheduled dashboard reconcile, it must define:
 
-- default: 5 minutes;
-- allowed when owner wants faster stale-recovery: 2-3 minutes;
-- do not go below 1 minute without evidence that the extra churn is useful.
-
-At current expected Work Unit volume, a 5-minute interval has negligible system
-load. It is normally JSON/Markdown reads plus a small number of GitHub API
-calls. The main risks are GitHub API rate limit, auth failure, stale field ids,
-and duplicate runs, not CPU or memory.
+- the schedule owner and disable path;
+- the exact interval and failure reporting behavior;
+- duplicate-run locking;
+- suppression rules for archived, closed, or local-only Work Units;
+- evidence that the extra operating surface is worth it.
 
 Required protections:
 
@@ -113,7 +112,7 @@ Required protections:
 - changed-only API writes;
 - max-run-time or timeout;
 - audit log for each changed Project item;
-- failure alert that does not invent or mutate status.
+- failure report that does not invent or mutate status.
 
 ## Hybrid Sync Model
 
@@ -140,16 +139,16 @@ The lifecycle operation must not depend on Project sync success. If Project
 sync fails, the source artifact and Discord visibility result remain what they
 are; the sync failure is logged and alerted separately.
 
-Use scheduled reconcile as a safety net. It should detect and repair stale
-Project state when one-shot sync was skipped, failed, or never ran because a
-source artifact changed outside the normal lifecycle command path.
+Use explicit foreground reconcile as a safety net. It should detect and repair
+stale Project state when one-shot sync was skipped, failed, or never ran because
+a source artifact changed outside the normal lifecycle command path.
 
 This gives:
 
 - normal lifecycle overhead: roughly `+1-3s` per synced state transition;
 - dashboard freshness: usually near-immediate after lifecycle events;
-- recovery window for missed updates: typically within the scheduled reconcile
-  interval.
+- recovery for missed updates: when Operations Lead runs foreground reconcile or
+  `doctor` reports stale mirror drift and the operator follows the next step.
 
 ## Repository Strategy
 
@@ -356,7 +355,7 @@ Implement the dashboard sync in narrow stages:
    - Blocks team-detail handoff before owner-facing assignment visibility.
    - Uses the same source-backed single-card publish path; it does not add a
      legacy route, fallback store, or hidden runner.
-6. Scheduled reconcile - implemented as the existing-item safety-net path
+6. Foreground reconcile - implemented as the existing-item safety-net path
    - `project-sync reconcile` scans Work Unit artifacts and applies changed
      Project updates only for items already present in the dashboard.
    - Skip historical or local-only Work Units whose Work Card is not a GitHub
@@ -364,8 +363,9 @@ Implement the dashboard sync in narrow stages:
    - Do not add missing Project items; lifecycle one-shot sync owns active item
      creation so archived history does not reappear.
    - Uses a lock file to prevent overlap.
-   - Intended to run every 5 minutes by default as stale-dashboard recovery.
-   - Alerts/logs on failure without mutating source state.
+   - Run explicitly by Operations Lead as stale-dashboard recovery; public v1
+     must not install a scheduled reconcile by default.
+   - Reports/logs failure without mutating source state.
 
 ## Creation Checklist
 
@@ -386,8 +386,9 @@ truth and treat the Project as stale visibility until sync is fixed.
 
 ## Current State For This Repo
 
-For `moonhwilee/openclaw-company-ops`, Phase 5.3 accepts a GitHub Project
-dashboard with bounded auto-sync.
+For `moonhwilee/openclaw-company-ops`, Phase 5.3 accepted a GitHub Project
+dashboard mirror, and Phase 5.7/6 narrowed the packaged public-v1 behavior to
+bounded foreground sync.
 
 Current implementation state:
 

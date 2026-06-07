@@ -349,8 +349,11 @@ Branch protection can require checks, but it must not become completion truth.
 
 ### Company Dashboard
 
-Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync because the
-owner needs an at-a-glance view beyond the Discord event stream.
+Phase 5.3 accepted a GitHub Project dashboard because the owner needs an
+at-a-glance view beyond the Discord event stream. Phase 5.7/6 narrows the
+packaged public-v1 behavior to bounded foreground sync: lifecycle one-shot sync
+plus explicit Operations Lead reconcile, with no scheduled dashboard reconcile
+installed by default.
 
 Create or configure the dashboard only as a visibility mirror. It must read
 Issues and source artifacts, then update Project items/fields. It must not
@@ -1016,7 +1019,7 @@ Recommended replacement order:
    result-ready inbox and closeout-lock path are stable. Add it only if it
    remains deterministic and can return `needs-ops-decision` when ambiguous.
 11. Package the accepted surfaces as a plugin/package with a bundled small skill
-   only after Phase 5.7 locks the included and deferred surfaces.
+   now that Phase 5.7 has locked the included and deferred surfaces.
 12. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the

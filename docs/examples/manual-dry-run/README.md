@@ -2,8 +2,9 @@
 
 Status: Manual Day-0
 
-This directory contains manual Work Unit examples that exercise the current
-OpenClaw Company Ops templates before dedicated automation exists.
+This directory contains historical and current repo-local Work Unit examples
+that exercised the OpenClaw Company Ops templates as the operating loop moved
+from manual Day-0 practice to supported foreground CLI commands.
 
 The examples are evidence of the operating loop. They are not an implemented
 runtime, dashboard backend, database, command router, or recovery system.
@@ -22,6 +23,14 @@ runtime, dashboard backend, database, command router, or recovery system.
   packet-first `goal` / `verify` loop before CLI work starts.
 - `WU-20260605-002`: real product Work Unit for the first minimal Work Unit
   artifact generator CLI.
+- `WU-20260605-003`: real product Work Unit for the Team Lead Protocol Capsule
+  convention and related repo-local smoke coverage.
+- `WU-260606-001` through `WU-260606-003`: repo-local examples for source-backed
+  state publishing, Discord visibility, and GitHub Project dashboard sync
+  improvements.
+- `WU-260607-001` through `WU-260607-005`: later dogfood examples for
+  result-ready, revise/accept closeout, Project mirror proof, and Discord
+  foreground publisher/proof paths.
 - `scripts/company_ops_smoke.py multi-team`: bounded repo-local smoke that
   validates two Team Lead claims, Pulse Monitor no-alert behavior, and one
   result-ready claim update without mutating external systems.

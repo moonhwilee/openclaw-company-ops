@@ -1,9 +1,12 @@
 # Discord Event Visibility
 
-Status: Repo-local visibility formatter supported
+Status: Repo-local visibility formatter and foreground publisher supported
 
 This guide describes how to use Discord as an operational visibility surface for
-OpenClaw Company Ops before an implemented Discord Ops Bridge exists.
+OpenClaw Company Ops. The early channel model and manual posting examples are
+historical setup context; the current supported path is a configured foreground
+publisher/proof command that sends one explicit card, reads it back, and records
+proof without becoming a daemon, command router, retry loop, or source of truth.
 
 Discord is not a source of truth, not a command router, not a state database,
 and not a completion authority.
@@ -291,10 +294,10 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    compaction handoff; it does not publish progress or mutate operating state.
    Checkpoint-needed automation and yieldable long-work runners are not part of
    this gate unless later evidence reopens them.
-3. Phase 5.3 accepts a GitHub Project dashboard with bounded auto-sync:
-   Work Cards, source artifacts, issue labels, and `dashboard_snapshot.py`
-   remain source-backed inputs, while the Project is a few-minutes-fresh
-   visibility mirror for at-a-glance owner review.
+3. Phase 5.3 accepted a GitHub Project dashboard mirror: Work Cards, source
+   artifacts, issue labels, and `dashboard_snapshot.py` remain source-backed
+   inputs. Phase 5.7/6 narrows public v1 to bounded foreground sync; scheduled
+   dashboard reconcile is deferred.
 4. Phase 5.4 accepts narrow foreground publisher hardening: duplicate-card proof
    guard, expected target/surface checks, and the canonical
    `visibility-proof.jsonl` proof-log convention. It must remain an explicit
@@ -320,11 +323,12 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    is deferred with trigger. Automatic `#ops-alerts` Pulse publish remains
    deferred until a separate delivery gate accepts channel, suppression, and
    readback behavior.
-9. Phase 5.7 locks the surfaces allowed to enter packaging/public v1.
+9. Phase 5.7 locked the surfaces allowed to enter packaging/public v1.
 
 ## Recommended Channels
 
-Use seven channels for Phase 1 operation.
+The early Phase 1 recommendation used seven channels. Keep this as a reference
+topology, not a requirement for every public-v1 install.
 
 Use one Operations Lead channel for owner-to-Operations-Lead discussion:
 

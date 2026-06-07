@@ -488,11 +488,13 @@ Phase 6 should implement the package layout, runtime exposure checks, and
 command/protocol-level fail-closed guards. This is not an OS-level isolation
 claim unless the OpenClaw runtime later provides stronger agent identity,
 workspace, or tool-exposure controls.
-Phase 5.7 packages only the bounded foreground surface. Manual/foreground
+Phase 5.7 recorded the bounded foreground package boundary. Manual/foreground
 `pulse check` is implemented; `pulse_daemon.py daemon run` remains a bounded
 smoke/debug diagnostic unless a later gate accepts more. GitHub Project and
 Discord live mutation tools are configured foreground mirrors/proof surfaces
-that fail closed on missing local configuration or auth. Hooks remain optional
+that fail closed on missing local configuration or auth. Scheduled dashboard
+reconcile is not part of public v1; stale mirror recovery uses explicit
+foreground reconcile and `doctor` / `preflight` reporting. Hooks remain optional
 source-artifact guardrails, not required runtime state.
 
 After Phase 5:

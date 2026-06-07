@@ -483,7 +483,7 @@ Decision record:
 
 ### Phase 5.3: Dashboard Gate
 
-Status: accepted as bounded GitHub Project auto-sync.
+Status: accepted as bounded GitHub Project foreground sync.
 
 Purpose: give the owner an at-a-glance Company Dashboard while preserving
 source artifacts as operating truth.
@@ -507,8 +507,8 @@ Evaluate:
 - whether `project-sync apply` is idempotent and changed-only;
 - whether lifecycle one-shot sync can run after source-backed state changes
   without making Work Unit completion depend on Project sync;
-- whether scheduled reconcile can run every few minutes as stale-dashboard
-  recovery with locking, logs, and failure alerts.
+- whether explicit foreground reconcile can repair stale-dashboard drift with
+  locking, logs, and failure reports.
 
 Accepted v1 shape:
 
@@ -517,11 +517,10 @@ Accepted v1 shape:
   changes;
 - one-shot sync adds roughly 1-3 seconds only to state-changing lifecycle
   events;
-- scheduled reconcile is a safety net, not the normal dashboard update path;
-- default scheduled reconcile interval: 5 minutes as the stale-dashboard
-  recovery window;
-- allowed faster reconcile interval when owner wants tighter stale-recovery:
-  2-3 minutes;
+- explicit foreground reconcile is a safety net, not the normal dashboard update
+  path;
+- public v1 does not install scheduled dashboard reconcile, cron, launchd,
+  daemon, GitHub Actions schedule, or hidden Project mutation runner;
 - the Project is a visibility mirror only.
 
 No-go boundaries:
@@ -1166,10 +1165,14 @@ Shared access and role authority:
 Phase 6 deferred surfaces remain:
 
 - scheduled Pulse/cron activation;
+- scheduled dashboard reconcile, cron, launchd, daemon, GitHub Actions schedule,
+  or hidden Project mutation runner;
 - `pulse_daemon.py daemon run` as anything more than a bounded foreground
   smoke/debug diagnostic;
 - route helper `route --intent`;
-- closeout non-dry-run and amendment apply/record commands;
+- amendment apply/record commands;
+- closeout expansion beyond the accepted foreground `work-unit closeout
+  --dry-run/--publish` lock gate, including automatic closeout;
 - automatic `#ops-alerts` publishing;
 - broader Discord retry, queue, or bridge behavior.
 
@@ -1237,7 +1240,9 @@ Phase 6 implementation decisions to keep narrow:
   confirmation.
 - Dashboard hygiene: `doctor` may report stale mirror items and literal body
   rendering problems. Automatic archive remains out of scope; any archive path
-  must be an explicit foreground cleanup command.
+  must be an explicit foreground cleanup command. Public v1 uses explicit
+  foreground `project-sync reconcile` for stale mirror recovery; scheduled
+  dashboard reconcile remains deferred.
 
 Decision output: accepted. Phase 5.7 locks the Phase 6 included surfaces,
 deferred surfaces, and no-go surfaces listed above.
