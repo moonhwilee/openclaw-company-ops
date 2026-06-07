@@ -820,84 +820,82 @@ Cost/risk judgment:
   Keep the threshold limited to scope, criteria, risk, cost, authority, or
   target-artifact changes.
 
-### Phase 5.5b: Handoff Draft / Spec Generator Gate (candidate)
+### Phase 5.5b: Handoff Draft / Spec Generator Gate
 
-Purpose: evaluate whether the pre-handoff preparation path can be made faster
-without replacing Operations Lead judgment.
+Purpose: reduce repeated Work Card / Assignment Packet / handoff spec assembly
+after Operations Lead judgment is already complete.
 
-This is a preparation and measurement section; it is not an accepted implementation
-phase. Do not implement it until real or owner-approved test Work Units show
-that `owner request -> Work Card/Assignment/spec -> handoff publish` remains a
-repeated bottleneck after Phase 5.5 and Phase 5.5a.
+This is an accepted bounded implementation phase after Phase 5.5 and Phase
+5.5a. It is not a routing engine, automatic assignment engine, or substitute for
+LLM/Operations Lead judgment. Its value is consistency and reduced repetitive
+formatting, not faster Discord/GitHub validation.
+
+The helper must not replace Operations Lead judgment.
+
+Implementation scope:
+
+- Add a foreground dry-run command such as `work-unit draft-handoff --request
+  ...` or `work-unit handoff --draft ...`.
+- The helper may produce a Work Card draft, Assignment Packet draft, handoff
+  spec draft, missing-field list, and no-go/ordering checklist.
+- The helper must make all generated output review-only until Operations Lead
+  explicitly converts it into a real handoff.
+- The first implementation must be dry-run only: no Work Card creation, no
+  source artifact write, no Discord publish, no GitHub Project mutation, no
+  owner-facing completion report.
+- The helper should accept Operations Lead-supplied facts such as mode, Team
+  Lead, scope, done criteria, verification criteria, no-go notes, and target
+  paths. It may flag missing fields, but must not invent judgment-sensitive
+  values.
 
 Current insight:
 
-- `work-unit handoff` already makes the publish/readback step short and
-  ordered. The remaining possible delay is before that command: Operations Lead
-  turning a short owner request into a Work Card, Assignment Packet, handoff
-  spec, visibility cards, proof plan, and Project mirror plan.
-- A draft helper must not replace Operations Lead judgment.
-- This path must not become a machine that replaces LLM or Operations Lead
-  judgment. A draft helper may only generate deterministic scaffolding and
-  missing-field warnings.
-- The performance goal, if later accepted, is to reduce routine pre-handoff
-  preparation from multi-minute manual assembly to roughly one to two minutes
-  without reducing packet quality or adding LLM/token/network cost.
-
-Candidate helper shape:
-
-- A foreground dry-run command such as `work-unit draft-handoff --request ...`
-  or `work-unit handoff --draft ...`.
-- It may produce a Work Card draft, Assignment Packet draft, handoff spec
-  draft, missing-field list, and no-go/ordering checklist.
-- It must mark ambiguous fields as `needs-ops-decision` instead of guessing.
-- Operations Lead must review and explicitly convert the draft into a real
-  handoff. The draft must never publish, create Work Cards, assign Team Leads,
-  create Project items, or report owner completion by itself.
+- `work-unit handoff` already makes the publish/readback planning step short
+  and ordered. Controlled dry-run probes showed validation itself is not the
+  bottleneck.
+- The remaining opportunity is before handoff validation: turning already-made
+  Operations Lead decisions into consistent Work Card, Assignment Packet, and
+  spec scaffolding.
+- A draft helper must preserve the existing quality bar by leaving scope,
+  Team Lead, risk, no-go, done criteria, and verification criteria under
+  Operations Lead control.
+- The implementation goal is not to eliminate thinking time. It is to reduce
+  repeated packet/spec assembly without adding LLM/token/network cost or normal
+  Work Unit runtime overhead.
 
 No-go boundaries:
 
-- No automatic Team Lead selection without Operations Lead review.
+- No automatic Team Lead selection.
+- No automatic route decision from owner text.
 - No automatic Work Card creation, Discord publish, GitHub Project mutation, or
   source artifact write from the draft command.
 - No additional LLM calls, token use, network reads, daemon, scheduler,
   background queue, retry loop, or hidden orchestrator.
 - No confidence scores or authoritative-looking claims that could make a draft
   appear reviewed.
+- No guessing for ambiguous fields. Mark them as `needs-ops-decision`.
 - No source of truth outside Work Card, Assignment Packet, source artifacts,
   and explicit Operations Lead decisions.
 
-Owner-approved timing study before implementation:
+Acceptance gate:
 
-- Use six controlled Company Ops requests: verify/light, verify/medium,
-  verify/long, goal/light, goal/medium, and goal/long.
-- Treat each request as if it came from the owner, but do not run external
-  mutations unless the owner explicitly approves the live test mode.
-- Record timestamps for: owner request received, route decision, Work Card
-  draft ready, Assignment Packet ready, handoff spec ready, handoff dry-run
-  ready, and optional live ASSIGNED/ASSIGNED_DETAIL readbacks.
-- Run in two waves of three concurrent requests if parallel stability is under
-  evaluation. The point is to measure preparation time and ordering/race risk,
-  not to complete real business work.
-- Collect per-request timing, median/p95-style summary, missing-field causes,
-  context pressure observations, and any Discord/Project/Work Card mutation
-  risks.
-
-Acceptance trigger for later implementation:
-
-- At least several representative Work Units show repeated pre-handoff
-  preparation delay that is not explained by genuinely hard Operations Lead
-  judgment.
-- A deterministic draft helper would remove repeated formatting/spec assembly
-  work while leaving all judgment and final approval with Operations Lead.
-- The proposed helper can be tested in dry-run with no external mutation and no
-  additional LLM or network cost.
-
-Decision after the study: accept a narrow dry-run helper, defer until more real
-data exists, or reject as overengineering.
+- Dry-run creates no persistent Work Unit artifacts and performs no external
+  mutation.
+- Draft output includes Work Card, Assignment Packet, handoff spec, missing
+  fields, and no-go/order checklist sections.
+- Ambiguous or missing judgment fields are surfaced as `needs-ops-decision`.
+- Generated handoff spec can be passed to `work-unit handoff --dry-run` after
+  Operations Lead fills required values.
+- Smoke coverage proves the helper does not publish, create Work Cards, mutate
+  Project state, call an LLM, or choose a Team Lead by itself.
+- The helper is documented as an Operations Lead drafting tool, not as a source
+  of truth or an autonomous work router.
 
 Preliminary dry-run probe:
 
+- The owner-approved probe used six controlled Company Ops requests:
+  verify/light, verify/medium, verify/long, goal/light, goal/medium, and
+  goal/long.
 - On 2026-06-07, Operations Lead ran six controlled dry-run-only requests in two
   waves of three parallel handoff validations: verify/light, verify/medium,
   verify/long, goal/light, goal/medium, and goal/long.
