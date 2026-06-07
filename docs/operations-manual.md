@@ -51,8 +51,9 @@ The Assignment Packet and Protocol Capsule remain the enforcement surface for a
 Team Lead. If a Team Lead can access the shared CLI, it must still stay within
 the assigned Work Unit scope and must not perform Operations Lead decisions,
 automatic recovery, reassignment, completion, Project mutation, or owner-facing
-visibility. Phase 6 packaging may add role-scoped command guards to make these
-authority boundaries fail closed, but the operating rule already applies here.
+visibility. Phase 6 packaging should add role-scoped command guards to make
+these authority boundaries fail closed, but the operating rule already applies
+here.
 
 Practical Phase 6 guards can be command-level rather than OS-level security:
 Operations Lead-only commands should require an Operations Lead role context
@@ -60,6 +61,17 @@ and fail closed without it, while Team Lead commands should require an active
 assigned Work Unit id and refuse writes outside that Work Unit. Do not describe
 this as hard per-agent isolation unless the OpenClaw runtime explicitly
 supports separate agent identity, workspace, and tool-exposure enforcement.
+
+Role context should be resolved in a predictable order: explicit command input,
+then environment, then local config. Missing or conflicting role context is a
+blocked state, not a reason to infer authority from chat history, Project
+status, Discord channel, or the current shell. Operations Lead-only mutation
+commands include result-ready inbox review, closeout decisions, Project
+apply/reconcile, Discord publish, Pulse operating review, and owner-facing
+completion. Team Lead mutation commands are limited to the assigned Work Unit:
+claim refresh, progress/evidence/result writes, local verification references,
+and blocker reports. Read-only status, docs, help, and smoke checks may stay
+role-neutral when they do not change operating state.
 
 ## Main Session Nonblocking Rule
 

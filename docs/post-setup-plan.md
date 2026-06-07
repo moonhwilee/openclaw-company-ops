@@ -1142,10 +1142,20 @@ Shared access and role authority:
 - Team Leads may use shared tools only for the Work Unit they were assigned:
   claim refresh, progress/evidence/result writing, local verification, and
   blocker reporting.
-- Phase 6 may implement role-scoped CLI guards, for example by requiring an
-  Operations Lead context for `pulse check`, inbox/closeout, Project apply, and
-  Discord publish commands. Team Lead commands should fail closed when they try
-  to mutate outside the assigned Work Unit.
+- Phase 6 should implement role-scoped CLI guards as command/protocol-level
+  fail-closed checks. This is not OS-level isolation; it is the public-v1
+  safety boundary that prevents shared package access from becoming shared
+  authority.
+- Role context should be resolved deterministically from explicit command
+  input first, then environment, then local config. Missing or conflicting
+  role context must fail closed before mutation instead of guessing.
+- Operations Lead-only commands must require an Operations Lead role context:
+  `pulse check`, result-ready inbox review, closeout decisions, Project
+  apply/reconcile, Discord publish, and owner-facing completion.
+- Team Lead-scoped write commands must require a Team Lead role context plus
+  the active assigned Work Unit id, and must reject writes outside that Work
+  Unit. Read-only help, docs, status inspection, and smoke commands may remain
+  role-neutral when they do not mutate operating state.
 - These guards should be part of the packaged CLI/setup contract, not just
   prose in the skill. The skill tells agents when to call commands; the CLI
   should still reject unauthorized or out-of-scope mutations when it can.
@@ -1186,15 +1196,44 @@ Permission and failure boundary:
 
 Setup/preflight decision:
 
-- Phase 6 includes setup documentation, and may include a foreground
-  `doctor` or `preflight` helper, that checks Project field-map readiness,
-  GitHub Project scope, Discord target configuration, and proof-log paths.
-- The helper may report missing setup with exact next steps. It must not grant
-  OAuth scopes, create Projects, create Discord channels, choose targets,
-  publish cards, or mutate source artifacts.
+- Phase 6 includes setup documentation and should include a foreground
+  read-only `doctor` / `preflight` helper. The helper exists to make initial
+  setup and later configuration drift obvious; it is not an auto-repair
+  workflow.
+- The helper should check package/CLI availability, source artifact and
+  template paths, local config readability, role-context config, Project
+  field-map readiness, GitHub Project scope, Discord target configuration,
+  proof-log path writability, claim ledger readability, foreground
+  `pulse check` viability, stale Project mirror hygiene, and Work Card body
+  rendering problems such as literal escaped newlines.
+- The helper should report `OK`, `WARN`, or `BLOCKED` with exact next steps,
+  and should support both human-readable output and machine-readable JSON.
+- The helper must not grant OAuth scopes, create Projects, create Discord
+  channels, choose targets, bind agents, publish cards, archive Project items,
+  start scheduled jobs, or mutate source artifacts.
 - Missing Project/Discord setup is not a reason to silently degrade into a
   fallback source of truth. It should disable only that external mirror/proof
   action while keeping source-backed Work Unit commands usable.
+
+Phase 6 implementation decisions to keep narrow:
+
+- Distribution shape: build one package/plugin surface with a bundled small
+  Company Ops skill plus foreground CLI. Do not split into a standalone skill
+  without the deterministic CLI, and do not leave repo-local scripts as a
+  parallel legacy path after packaging.
+- Command naming: expose a user-facing `doctor` command and allow `preflight`
+  as an alias or internal action. The command should be read-only unless a
+  separate explicit mutation command is added later.
+- Config location: keep local package config under the user's Company Ops
+  state root, for example `~/.openclaw/state/openclaw-company-ops/`. Config may
+  name field-map paths, Discord targets, proof-log paths, and role context, but
+  it is not Work Unit source truth.
+- Guided team setup: keep dry-run planning in v1. Any agent creation, binding,
+  credential, Discord, Project, cron, or external-resource change requires a
+  separate explicit foreground confirmation.
+- Dashboard hygiene: `doctor` may report stale mirror items and literal body
+  rendering problems. Automatic archive remains out of scope; any archive path
+  must be an explicit foreground cleanup command.
 
 Decision output: accepted. Phase 5.7 locks the Phase 6 included surfaces,
 deferred surfaces, and no-go surfaces listed above.
@@ -1225,6 +1264,10 @@ Scope:
 - Keep command names aligned with the supported scripts.
 - Replace manual setup-guide blocks only where supported commands exist.
 - Include smoke tests and clear install/usage instructions.
+- Include a foreground read-only `doctor` / `preflight` helper with text and
+  JSON output.
+- Include command/protocol-level role guards for Operations Lead-only commands
+  and Team Lead Work Unit-scoped writes.
 - Include explicit install and uninstall behavior. Installation must not write
   private `MEMORY.md`, `AGENTS.md`, or other user bootstrap files.
 - Offer an optional guided team setup path for users who start with a single
@@ -1251,6 +1294,12 @@ Acceptance gate:
 - A fresh single-agent user can run guided setup, inspect the proposed team
   topology, confirm or decline it, and receive clear next steps without knowing
   OpenClaw agent harness internals.
+- `doctor` / `preflight` reports missing Project, Discord, role-context,
+  proof-log, dashboard-hygiene, and Work Card rendering setup without mutating
+  source artifacts or external surfaces.
+- Role-guard smoke proves Operations Lead-only mutation commands fail closed
+  without Operations Lead context, and Team Lead write commands fail outside
+  the assigned Work Unit id.
 - Guided setup has a dry-run mode and leaves source-backed configuration or
   setup artifacts, not private memory edits.
 - Public docs do not mention private nicknames or internal-only state.

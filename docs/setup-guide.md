@@ -517,6 +517,17 @@ availability. A setup/preflight helper may report missing configuration and
 next steps, but it must not grant scopes, create Projects, create Discord
 channels, bind targets, publish cards, or mutate source artifacts.
 
+The Phase 6 setup helper should be read-only by default. It should behave like
+`doctor` / `preflight`: inspect package/CLI availability, local Company Ops
+config, Project field-map readiness, GitHub Project scope, Discord target
+configuration, proof-log path writability, claim ledger readability,
+foreground `pulse check` viability, stale Project mirror hygiene, and Work
+Card body rendering issues such as literal escaped newlines. The helper should
+report `OK`, `WARN`, or `BLOCKED` plus exact next steps, with both
+human-readable and JSON output. It must not auto-fix by granting scopes,
+creating Projects or channels, guessing targets, archiving Project items,
+publishing cards, starting scheduled jobs, or editing source artifacts.
+
 Optional guided onboarding for single-agent users is a Phase 6 packaging
 option, not an implemented setup step today. It should start from one OpenClaw
 agent, propose a default team topology, show a dry-run plan, and require
@@ -544,6 +555,13 @@ Operations Lead role context. Team Lead commands must stay scoped to the
 assigned Work Unit id and must fail closed on writes outside that Work Unit.
 This is command/protocol-level guarding for public v1, not an OS-level security
 boundary.
+
+Role context should be explicit and deterministic. Phase 6 should prefer
+command input first, environment second, and local config third. If role
+context is missing, conflicting, or not tied to an assigned Work Unit for Team
+Lead writes, mutation must fail before any source artifact, Project, or
+Discord change. Read-only help, docs, status inspection, and smoke checks may
+remain role-neutral when they do not mutate operating state.
 
 ### Templates
 

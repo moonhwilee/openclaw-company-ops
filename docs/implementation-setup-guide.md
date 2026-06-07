@@ -980,7 +980,7 @@ mutation, and owner-facing completion; Team Leads may use shared tools only
 within their assigned Work Unit for claim refresh, progress/evidence/result
 writing, local verification, and blocker reporting.
 
-Practical role assignment is possible at command/protocol level. Phase 6 can
+Practical role assignment is possible at command/protocol level. Phase 6 should
 add CLI guards that require an Operations Lead role context for `pulse check`,
 inbox/closeout, Project apply, and Discord publish, while requiring Team Lead
 commands to include an assigned Work Unit id and refusing writes outside that
@@ -1040,7 +1040,7 @@ Permission and guardrail requirements for Phase 6:
 Public-v1 setup/preflight guidance:
 
 - The install guide should include a foreground setup check for Project and
-  Discord readiness. A future `doctor`/`preflight` helper is acceptable if it
+  Discord readiness. Phase 6 should include a `doctor`/`preflight` helper if it
   only reports readiness and next steps.
 - Project readiness means: existing Project selected, field map generated from
   that Project, required field ids/options present, GitHub auth includes
@@ -1051,3 +1051,13 @@ Public-v1 setup/preflight guidance:
 - The setup check must not create or bind external resources automatically.
   Missing readiness should fail only the external mirror/proof action, not the
   source-backed Work Unit flow.
+- The helper should also check package/CLI availability, role-context config,
+  source artifact/template paths, claim ledger readability, foreground
+  `pulse check` viability, stale Project mirror hygiene, and literal escaped
+  newline issues in generated Work Card bodies. Report `OK`, `WARN`, or
+  `BLOCKED` with exact next steps. Keep text output for humans and JSON output
+  for smoke tests.
+- Do not let `doctor` or `preflight` become an auto-fix wizard. It must not
+  grant OAuth scopes, create Projects, create Discord channels, choose targets,
+  publish cards, archive Project items, start scheduled jobs, bind Team Lead
+  agents, or mutate source artifacts.
