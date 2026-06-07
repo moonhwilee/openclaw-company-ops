@@ -129,6 +129,12 @@ results from the source-backed inbox. The inbox is the set of Work Units whose
 claim or evidence state is `result_ready` and whose team-detail trail has a
 valid `RESULT_READY` proof when live visibility is required.
 
+The inbox is discovered from local source artifacts only: Work Unit directories
+under the configured artifact root, `claim.md`, `evidence.md`, `decision.md`,
+`progress.jsonl`, and `visibility-proof.jsonl`. GitHub Project fields, Discord
+or Telegram history, GitHub comments, and OpenClaw session history are mirrors
+or delivery surfaces. They must not create a ready item by themselves.
+
 Process pending Team Lead results one at a time in a deterministic order:
 
 1. Earliest valid `RESULT_READY` proof timestamp.
@@ -150,9 +156,17 @@ Race control:
   artifacts should be treated as single-writer Operations Lead outputs. A future
   result-ready inbox or closeout command should add a Work Unit-specific
   closeout lock and re-check whether a decision already exists before writing.
+- The closeout lock is a short-lived command guard, not a durable workflow
+  owner. If the lock already exists, the command should fail before mutation and
+  report the lock path; force-unlock behavior requires a separate stale-lock
+  policy.
 - If a duplicate or stale Team Lead result arrives after a decision exists,
   compare it to the existing source artifacts and report it as stale or a
   revision request. Do not reopen or overwrite accepted work automatically.
+- If the source trail contains competing final reviews for the same Work Unit,
+  or duplicate result-ready evidence with conflicting timestamps or sources,
+  report `needs-ops-decision` and require Operations Lead review instead of
+  choosing a winner automatically.
 - If two results race for different Work Units, process both through the same
   deterministic inbox order. If two results race for the same Work Unit, the
   first valid Operations Lead decision wins until the owner explicitly asks for

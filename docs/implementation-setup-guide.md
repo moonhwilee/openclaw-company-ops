@@ -950,9 +950,12 @@ Recommended replacement order:
    `discord publish-card`; keep publisher proof explicit in
    `visibility-proof.jsonl` and do not add a hidden bridge.
 7. Add `work-unit inbox --result-ready` and closeout-lock dry-run commands
-   before scaling multi-Work Unit result recovery.
-8. Add a conservative `route --intent <text>` helper only if it remains
-   deterministic and can return `needs-ops-decision` when ambiguous.
+   before scaling multi-Work Unit result recovery. The first implementation
+   scans only local Work Unit source artifacts and treats Project/chat surfaces
+   as mirrors, not inbox sources.
+8. Defer a conservative `route --intent <text>` helper until after the
+   result-ready inbox and closeout-lock path are stable. Add it only if it
+   remains deterministic and can return `needs-ops-decision` when ambiguous.
 9. Package the accepted surfaces as a plugin/package with a bundled small skill
    only after Phase 5.7 locks the included and deferred surfaces.
 10. Replace the manual smoke test with `smoke`.

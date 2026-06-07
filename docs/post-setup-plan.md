@@ -705,6 +705,12 @@ Scope:
   state, evidence/result records, decisions, and proof/progress logs. It must
   not read Discord history, GitHub Project fields, GitHub comments, or chat
   transcripts to discover result readiness.
+- The initial inbox implementation must scan only the configured artifact root:
+  `<artifact-root>/<WU>/assignment.md`, `claim.md`, `evidence.md`,
+  `decision.md`, `progress.jsonl`, and `visibility-proof.jsonl`. GitHub Project
+  status, Discord/Telegram history, GitHub comments, and OpenClaw session
+  history may be reported as mirror context only after a Work Unit is already
+  discovered from source artifacts.
 - Include `--artifact-root`, `--work-unit-id`, `--team`, `--limit`, and
   `--format text|json` options. The default should scan the configured artifact
   root and show actionable ready items only.
@@ -715,16 +721,25 @@ Scope:
 - The closeout lock should be a local source-adjacent lock file or atomic lock
   directory keyed by Work Unit id. Lock acquisition must happen before any
   decision write, Project mutation, Discord publish, or owner-facing report.
+- The lock is a short-lived command guard, not a durable workflow state. The
+  first implementation should fail clearly when a lock already exists, include
+  the lock path in the error, and avoid adding force-unlock behavior until a
+  separate stale-lock policy is accepted.
 - `--dry-run` is mandatory for the first implementation and must be the default
   path used in smoke tests. A later non-dry-run closeout path requires a separate
   acceptance decision.
 - If a decision already exists, closeout preparation must exit as stale or
   already-decided and must not overwrite, reopen, or append a competing
   decision.
+- If proof or source artifacts contain multiple competing final reviews for the
+  same Work Unit, or duplicate result-ready evidence with different source
+  timestamps, the inbox/closeout output must mark the item `needs-ops-decision`
+  or `conflict` instead of choosing a winner.
 - Preserve the canonical routing labels: `ops-direct`, `team-qna`, and
   `detached-wu`.
-- Add a foreground route helper, for example `route --intent <text>`, only if it
-  can stay deterministic and conservative. Ambiguous intents should return
+- Defer route-helper implementation from the first Phase 5.5 patch. A later
+  foreground route helper, for example `route --intent <text>`, can be accepted
+  only if it remains deterministic, conservative, and able to return
   `needs-ops-decision` rather than guessing or calling an LLM.
 
 Decision output: accept the foreground inbox and closeout-lock path as required
@@ -756,9 +771,12 @@ Acceptance gate:
   artifact files into the main context.
 - Missing or malformed proof rows are surfaced as warnings without inventing a
   fallback result-ready state.
-- Route helper, if included, returns one of `ops-direct`, `team-qna`,
-  `detached-wu`, or `needs-ops-decision` and explains the decision with a short
-  deterministic reason.
+- Conflicting final reviews or duplicate ready evidence are reported as
+  `needs-ops-decision` or `conflict`, not auto-resolved.
+- Route helper remains deferred from the first Phase 5.5 implementation; if it
+  is later accepted, it returns one of `ops-direct`, `team-qna`, `detached-wu`,
+  or `needs-ops-decision` and explains the decision with a short deterministic
+  reason.
 
 ### Phase 5.5a: Handoff Amendment / Replan Dry-Run Gate
 
