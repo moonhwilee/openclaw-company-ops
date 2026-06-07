@@ -79,6 +79,18 @@ answers can clarify status, evidence location, or possible approaches. They do
 not become delegated Work Unit execution unless the normal Work Card,
 Assignment Packet, claim, evidence, and decision trail exists.
 
+Team Leads must be able to read the shared Company Ops skill, protocol docs,
+templates, and foreground CLI help in the runtime where they execute. The
+Operations Lead still owns routing and authority; shared access exists so Team
+Leads can re-check packet-first execution, evidence/result format,
+claim/progress rules, and no-fallback constraints during long work or context
+recovery.
+
+Shared access does not grant Operations Lead authority. Pulse review,
+result-ready inbox processing, closeout decisions, Project mutation, and
+owner-facing Discord completion remain Operations Lead-only responsibilities.
+Team Lead writes stay scoped to the assigned Work Unit.
+
 ### Standing Role Agents And Project-Specific Agents
 
 Team Lead OpenClaw Agents may be standing role agents or project-specific
@@ -468,6 +480,13 @@ Phase 5.6 records that manual/foreground Pulse checks are accepted while
 scheduled Pulse activation is deferred with trigger; the existing Dashboard,
 Discord proof trail, result-ready inbox, and Pulse detector remain separate
 surfaces with a shared interrupt policy.
+Phase 5.7 records the public-v1 package boundary: Company Ops skill, protocol
+docs, templates, and foreground CLI should be shared install capabilities for
+Operations Lead and Team Lead agents, while authority remains role-scoped.
+Phase 6 should implement the package layout, runtime exposure checks, and
+command/protocol-level fail-closed guards. This is not an OS-level isolation
+claim unless the OpenClaw runtime later provides stronger agent identity,
+workspace, or tool-exposure controls.
 The current work is the last Phase 5 activation gate:
 
 1. Packaging readiness decision.

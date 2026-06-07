@@ -3,10 +3,11 @@
 This guide explains how to set up OpenClaw Company Ops in its current stage.
 
 OpenClaw Company Ops is not yet a finished installable product. The current
-repo contains a public operating model, manual Day-0 setup steps, and planned
-component boundaries. As components are implemented, this same guide should be
-updated in place from concept and manual setup notes into installation,
-connection, and usage instructions.
+repo contains a public operating model, manual Day-0 setup steps, repo-local
+foreground tooling, and the accepted Phase 6 package boundary. As components
+move from repo-local scripts into an installable package, this same guide should
+be updated in place from manual setup notes into installation, connection, and
+usage instructions.
 
 For a detailed follow-along guide that a user can use to manually implement
 the full structure before CLI automation exists, see
@@ -25,11 +26,14 @@ Use these labels when reading this guide:
   supported setup path exists yet.
 - `Status: Manual Day-0`: the step can be run manually today without dedicated
   automation.
+- `Status: Repo-local script supported`: the component has a supported
+  foreground command in this repository, but is not packaged for distribution
+  yet.
 - `Status: Implemented`: the component has real installation, connection, and
-  usage instructions.
+  usage instructions for the distribution surface.
 
-The current setup is mostly `Manual Day-0` plus `Concept` and `Planned`
-components.
+The current setup is mostly `Manual Day-0` plus `Repo-local script supported`
+components. The finished installable package/plugin is still a Phase 6 target.
 
 ## Current Scope
 
@@ -43,7 +47,8 @@ It covers:
   generic manual reproduction, but required before accepting the first real
   post-setup dogfood Work Unit.
 - Manual Assignment Packet, Work Card, and Evidence & Result Record flow.
-- Planned components that must not be treated as implemented yet.
+- Repo-local components that must not be mistaken for a finished distribution
+  package yet.
 
 It does not cover:
 
@@ -77,8 +82,11 @@ For the current repo, GitHub is already configured with:
 - MIT license.
 - Topics and description for discoverability.
 
-Branch protection, rulesets, GitHub Projects, and website/homepage are deferred
-until the manual workflow has enough real Work Cards to justify them.
+Branch protection, rulesets, and website/homepage are deferred until the manual
+workflow has enough real Work Cards to justify them. GitHub Projects are no
+longer blanket-deferred: Phase 5.3 accepts a bounded dashboard mirror when the
+field map, source-backed sync, and fail-closed preflight rules in
+`docs/company-dashboard-timing.md` are satisfied.
 
 ## GitHub Setup
 
@@ -377,16 +385,18 @@ It may include:
 The Operations Lead decides whether the Work Unit is complete based on the
 evidence and the Assignment Packet criteria.
 
-## Planned Components
+## Repo-Local Components And Phase 6 Package Boundary
 
-The components below are part of the architecture, but they are not implemented
-as installable software in this repo yet.
+The components below are already part of the architecture. Some have supported
+repo-local foreground scripts today; none of them should be mistaken for a
+finished installable distribution until Phase 6 packages the shared
+skill/docs/templates/CLI surface and role-scoped guards.
 
 ### Ops Claim Ledger
 
 Status: Repo-local script supported
 
-Ops Claim Ledger will track expected responsibility claims.
+Ops Claim Ledger tracks expected responsibility claims.
 
 It is not a database of truth, progress history, event log, dashboard backend,
 or recovery system.
@@ -396,7 +406,7 @@ JSON-backed responsibility ledger. Manual `claim.md` files may still be used as
 public-safe examples or evidence artifacts, but the JSON ledger is the supported
 repo-local source for active claim state.
 
-Future setup path: package the same behavior as `openclaw-company-ops claim
+Phase 6 setup path: package the same behavior as `openclaw-company-ops claim
 create`, `openclaw-company-ops claim update`, and `openclaw-company-ops claim
 status`.
 
@@ -404,8 +414,8 @@ status`.
 
 Status: Repo-local script supported
 
-Pulse Monitor will compare Ops Claim Ledger expectations with available
-OpenClaw session and compaction signals.
+Pulse Monitor compares Ops Claim Ledger expectations with available OpenClaw
+session and compaction signals.
 
 It is alert-only.
 
@@ -424,20 +434,25 @@ Current practice: use `scripts/pulse_monitor.py` to run an alert-only check
 against the JSON claim ledger. Optional session snapshots can supply active
 owner session refs and compaction counts.
 
-Future setup path: package the same behavior as `openclaw-company-ops pulse
-check`, then optionally schedule it as an alert-only job.
+Phase 6 setup path: package the same behavior as `openclaw-company-ops pulse
+check` as a manual/foreground Operations Lead capability. Scheduled Pulse stays
+deferred until a later explicit activation gate; the installer must not create
+cron, launchd, daemon, or automatic alert delivery.
 
 ### Discord Ops Bridge
 
 Status: Visibility formatter supported, publisher gated
 
-Discord Ops Bridge will publish normalized operating events to Discord.
+Discord Ops Bridge publishes normalized operating events to Discord only after
+explicit foreground configuration and proof capture.
 
 It is a visibility bridge, not a command router and not a state owner.
 
 Current practice: the Operations Lead or Team Lead posts concise updates that
 link back to the relevant source artifact. Pulse Monitor alert JSON can be
-formatted with `scripts/discord_ops.py` before manual posting.
+formatted with `scripts/discord_ops.py` before manual posting. Foreground
+publisher/proof commands may be used only with explicit target and proof-log
+configuration.
 
 Post-setup path: first verify manual or formatter-assisted posting in
 pre-dogfood visibility setup. The first approved send path should be a
@@ -451,7 +466,7 @@ mutating Work Units.
 
 Status: GitHub Project dashboard accepted with bounded auto-sync
 
-Company Dashboard will show company-wide Work Unit state.
+Company Dashboard shows company-wide Work Unit state.
 
 The accepted default is a GitHub Project plus deterministic source-backed sync.
 It is a visibility layer, not a source of truth.
@@ -464,7 +479,7 @@ workflow described in `docs/company-dashboard-timing.md`. Final Company Ops
 completion requires GitHub Project or equivalent dashboard visibility unless the
 owner explicitly records a no-go decision with rationale.
 
-### Distribution Surface
+### Shared Distribution Surface
 
 Status: Planned
 
@@ -515,6 +530,21 @@ Do not reorganize the repository into an installable layout during setup. Phase
 5.7 locks the included surfaces, and Phase 6 performs the packaging layout and
 install/uninstall work.
 
+The shared distribution surface must be visible to both Operations Lead and
+Team Lead agents. If Team Leads run in separate OpenClaw runtimes or
+workspaces, Phase 6 must install or expose the same package, skill, docs,
+templates, and CLI there too, or return a setup-needed checklist before
+delegated Work Units start. Copying all rules through chat text is not a stable
+distribution model.
+
+Shared access does not mean shared authority. Operations Lead-only commands
+such as Pulse review, result-ready inbox, closeout decision, Project mutation,
+and owner-facing Discord completion must fail closed unless the command has an
+Operations Lead role context. Team Lead commands must stay scoped to the
+assigned Work Unit id and must fail closed on writes outside that Work Unit.
+This is command/protocol-level guarding for public v1, not an OS-level security
+boundary.
+
 ### Templates
 
 Status: Manual Day-0
@@ -558,7 +588,8 @@ The intended transition:
 
 - `Concept` sections become architecture references or are removed.
 - `Planned` sections become installation and configuration instructions.
-- `Manual Day-0` steps become fallback-free operating checks or are replaced by
+- `Repo-local script supported` sections become package command instructions.
+- `Manual Day-0` steps become explicit operating checks or are replaced by
   supported commands.
 - `Implemented` sections become the user-facing setup path.
 

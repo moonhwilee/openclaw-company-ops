@@ -460,7 +460,7 @@ Default team icons:
 - `🧪 build-lab`
 - `📣 market`
 - `💼 revenue`
-- `👥 <team>` defensive fallback for an unmapped team; normal operations should
+- `👥 <team>` defensive default for an unmapped team; normal operations should
   use one of the canonical mapped team icons.
 
 Default status icons:

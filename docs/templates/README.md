@@ -6,6 +6,10 @@ These templates make the current manual operating loop reproducible before a
 dedicated OpenClaw Company Ops package exists.
 
 They are not an automated runtime, database, dashboard, or command router.
+They are shared references for Operations Lead and Team Lead agents, but they
+do not expand role authority. Team Lead use stays scoped to the assigned Work
+Unit; Operations Lead-only review, closeout, Project, Discord, and Pulse
+decisions remain outside Team Lead authority.
 
 ## Available Templates
 

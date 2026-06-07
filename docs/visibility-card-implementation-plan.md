@@ -48,7 +48,7 @@ Default team icons:
 - `🧪 build-lab`: experiments, product/tooling, and smoke/prototype work.
 - `📣 market`: market research, positioning, and content.
 - `💼 revenue`: customer, proposal, payment, and delivery.
-- `👥 <team>`: defensive fallback for an unmapped team. This is not a
+- `👥 <team>`: defensive default for an unmapped team. This is not a
   canonical role icon; if it appears in normal operations, add an explicit team
   mapping or fix the team name.
 
