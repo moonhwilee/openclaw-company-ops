@@ -978,11 +978,21 @@ plugin/package layout.
 The packaged runtime should make Company Ops skill/protocol/docs/CLI visible to
 both the Operations Lead and Team Lead agents. This is required so Team Leads
 can re-check the packet-first protocol, claim/evidence/result formats, and
-verification/no-go rules during long work. Authority remains role-scoped:
-Operations Lead owns route, `pulse check`, inbox/closeout, configured
-Project/Discord mutation, and owner-facing completion; Team Leads may use
-shared tools only within their assigned Work Unit for claim refresh,
-progress/evidence/result writing, local verification, and blocker reporting.
+verification/no-go rules during long work. If Team Leads run in separate
+OpenClaw runtimes or workspaces, Phase 6 setup must expose the package there or
+return explicit setup-needed steps. Authority remains role-scoped: Operations
+Lead owns route, `pulse check`, inbox/closeout, configured Project/Discord
+mutation, and owner-facing completion; Team Leads may use shared tools only
+within their assigned Work Unit for claim refresh, progress/evidence/result
+writing, local verification, and blocker reporting.
+
+Practical role assignment is possible at command/protocol level. Phase 6 can
+add CLI guards that require an Operations Lead role context for `pulse check`,
+inbox/closeout, Project apply, and Discord publish, while requiring Team Lead
+commands to include an assigned Work Unit id and refusing writes outside that
+scope. Treat this as fail-closed operating authority, not guaranteed OS-level
+per-agent isolation unless the OpenClaw runtime supplies identity/workspace/tool
+isolation.
 
 Recommended replacement order:
 

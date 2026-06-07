@@ -78,15 +78,19 @@ agents or external resources.
 
 The packaged Company Ops skill, protocol docs, templates, and CLI should be a
 shared install capability for the Operations Lead and Team Lead agents in the
-same Company Ops runtime. Shared access does not mean shared authority. The
-Operations Lead owns routing, `pulse check`, result-ready inbox review,
-closeout decisions, configured Project/Discord mutation, and owner-facing
-completion. Team Leads may use the shared protocol references and source-backed
-CLI only inside their assigned Work Unit to refresh claims, follow the
-Assignment Packet, run verification, and submit evidence/results. Phase 5.7
-records this boundary; Phase 6 is when the installable package layout and any
-role-scoped command guards are actually built. Until then, this repository's
-docs, templates, and scripts are the repo-local model, not a published package.
+same Company Ops runtime. If Team Leads run in separate OpenClaw runtimes or
+workspaces, Phase 6 packaging must either install/expose the same package there
+or produce an explicit setup-needed checklist; it must not rely on the
+Operations Lead's chat memory as the only transfer mechanism. Shared access
+does not mean shared authority. The Operations Lead owns routing,
+`pulse check`, result-ready inbox review, closeout decisions, configured
+Project/Discord mutation, and owner-facing completion. Team Leads may use the
+shared protocol references and source-backed CLI only inside their assigned
+Work Unit to refresh claims, follow the Assignment Packet, run verification,
+and submit evidence/results. Phase 5.7 records this boundary; Phase 6 is when
+the installable package layout and any role-scoped command guards are actually
+built. Until then, this repository's docs, templates, and scripts are the
+repo-local model, not a published package.
 
 Packaged users should operate Pulse the same way as this repo: as an explicit
 foreground check, not as an installed watcher. The packaged CLI should expose

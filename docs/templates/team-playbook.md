@@ -25,6 +25,9 @@ You do not own:
 - Operations Lead assignment decisions.
 - Operations Lead final review decisions.
 - Automatic recovery, reassignment, or completion.
+- Operations Lead-only commands such as operating `pulse check`, result-ready
+  inbox review, closeout decisions, Project mutation, Discord owner-facing
+  publishing, or owner completion.
 
 ## Applicability
 
@@ -40,6 +43,7 @@ the request into a Work Unit.
 - Work Card:
 - Assignment Packet:
 - Ops Claim Ledger entry:
+- Shared Company Ops references, if installed:
 
 If the Assignment Packet is missing or unreadable, stop and report `blocked`.
 
@@ -56,6 +60,12 @@ inventing a goal loop.
 
 Do not search protocol files to infer the assignment. Protocol files are
 canonical references; the active packet is the execution contract.
+
+Shared Company Ops references and CLI tools may help you check packet-first
+rules, claim/evidence/result formats, and verification expectations. They do
+not expand scope or authority. Use shared tools only inside the assigned Work
+Unit, and report `blocked` if a needed operation requires Operations Lead
+authority.
 
 ## Execution Protocol Modes
 
@@ -147,3 +157,5 @@ path.
 - Do not delegate Work Unit ownership to subagents.
 - Do not treat Discord or dashboard status as source of truth.
 - Do not mark completion without evidence and Operations Lead decision.
+- Do not run Operations Lead-only commands or mutate outside the assigned Work
+  Unit.

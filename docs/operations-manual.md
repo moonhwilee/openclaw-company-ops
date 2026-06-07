@@ -30,9 +30,11 @@ A Work Unit is not an actor. It is the task unit owned by a Team Lead session.
 Company Ops skill, protocol docs, templates, and CLI are shared capabilities in
 the packaged runtime. The Operations Lead and Team Lead agents should be able
 to read the same packaged Company Ops references and call the same installed
-entrypoint when their role permits it. This prevents Team Leads from depending
-only on chat memory or a perfectly copied assignment prompt during long work,
-compaction, or verification.
+entrypoint when their role permits it. If those agents run in separate
+OpenClaw runtimes or workspaces, packaging/setup must expose the same package
+to each runtime or return a clear setup-needed checklist. This prevents Team
+Leads from depending only on chat memory or a perfectly copied assignment
+prompt during long work, compaction, or verification.
 
 Shared capability does not grant shared authority:
 
@@ -51,6 +53,13 @@ the assigned Work Unit scope and must not perform Operations Lead decisions,
 automatic recovery, reassignment, completion, Project mutation, or owner-facing
 visibility. Phase 6 packaging may add role-scoped command guards to make these
 authority boundaries fail closed, but the operating rule already applies here.
+
+Practical Phase 6 guards can be command-level rather than OS-level security:
+Operations Lead-only commands should require an Operations Lead role context
+and fail closed without it, while Team Lead commands should require an active
+assigned Work Unit id and refuse writes outside that Work Unit. Do not describe
+this as hard per-agent isolation unless the OpenClaw runtime explicitly
+supports separate agent identity, workspace, and tool-exposure enforcement.
 
 ## Main Session Nonblocking Rule
 

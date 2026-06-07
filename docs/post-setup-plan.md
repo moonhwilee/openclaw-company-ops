@@ -629,6 +629,10 @@ Installed target:
   agents. This is shared capability, not shared authority: Team Leads need the
   references and source-backed commands to execute packet-first work reliably,
   but Operations Lead commands and decisions remain role-scoped.
+- If Team Leads run in separate OpenClaw runtimes or workspaces, Phase 6
+  packaging must either install/expose the same package to those runtimes or
+  return a setup-needed checklist. Do not assume the Operations Lead can enforce
+  the workflow by copying all rules through chat.
 - The owner still uses natural-language requests. The packaged skill tells the
   Operations Lead when Company Ops applies and how to think about `ops-direct`,
   `team-qna`, and `detached-wu`; the packaged CLI provides the ticketing,
@@ -668,8 +672,13 @@ Deployment acceptance for this decision:
   writing user memory.
 - Natural-language Company Ops requests load the skill instructions or otherwise
   direct the agent to the same packaged routing policy.
+- Configured Team Lead agents can discover the shared Team Lead protocols,
+  templates, and allowed source-backed commands without relying on Operations
+  Lead chat memory.
 - The foreground CLI remains the authority for deterministic route, inbox, and
   closeout checks.
+- Operations Lead-only commands can fail closed without the required role
+  context; Team Lead writes can be constrained to the assigned Work Unit.
 - Uninstall removes package/plugin files without needing to clean private
   `MEMORY.md` edits.
 
@@ -1126,6 +1135,9 @@ Shared access and role authority:
   Operations Lead context for `pulse check`, inbox/closeout, Project apply, and
   Discord publish commands. Team Lead commands should fail closed when they try
   to mutate outside the assigned Work Unit.
+- These guards should be part of the packaged CLI/setup contract, not just
+  prose in the skill. The skill tells agents when to call commands; the CLI
+  should still reject unauthorized or out-of-scope mutations when it can.
 - This is command/protocol-level authority, not a claim that the operating
   system has per-agent security isolation. Any harder isolation depends on the
   OpenClaw runtime's agent identity, workspace, and tool-exposure features.
@@ -1196,6 +1208,9 @@ Scope:
 
 - Turn the repo-local entrypoint into the selected plugin/package distribution
   shape with a bundled small Company Ops skill and foreground CLI tools.
+- Expose the bundled skill, protocol docs, templates, and allowed CLI commands
+  to configured Team Lead agents as shared capability, while keeping
+  Operations Lead-only commands role-scoped.
 - Keep command names aligned with the supported scripts.
 - Replace manual setup-guide blocks only where supported commands exist.
 - Include smoke tests and clear install/usage instructions.

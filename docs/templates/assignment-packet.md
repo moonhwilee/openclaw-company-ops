@@ -73,6 +73,10 @@ Links, files, references, or starting state:
 
 -
 
+Shared Company Ops references available to the Team Lead:
+
+-
+
 ## Done Criteria
 
 The Work Unit can be considered ready for review when:
