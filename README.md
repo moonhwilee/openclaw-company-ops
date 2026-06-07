@@ -35,9 +35,9 @@ publish/closeout decision gate, Phase 5.5a amendment dry-run gate, Phase 5.5b
 draft-handoff dry-run gate, and Phase 5.6 Pulse activation decision are
 complete.
 
-Current Phase 5 work is limited to Phase 5.7 Packaging Readiness Decision:
-lock the Phase 6 included surfaces, deferred surfaces, and no-go surfaces
-before building an installable package.
+Phase 5.7 Packaging Readiness Decision is complete: the Phase 6 included
+surfaces, deferred surfaces, and no-go surfaces are locked before building an
+installable package.
 
 Phase 5.1 accepted the visibility contract: `discord card`, foreground
 `discord publish-card`, and `discord proof-validate` are the stable live
@@ -88,7 +88,7 @@ does not mean shared authority. The Operations Lead owns routing,
 Project/Discord mutation, and owner-facing completion. Team Leads may use the
 shared protocol references and source-backed CLI only inside their assigned
 Work Unit to refresh claims, follow the Assignment Packet, run verification,
-and submit evidence/results. Phase 5.7 records this boundary; Phase 6 is when
+and submit evidence/results. Phase 5.7 recorded this boundary; Phase 6 is when
 the installable package layout and any role-scoped command guards are actually
 built. Until then, this repository's docs, templates, and scripts are the
 repo-local model, not a published package.
@@ -132,13 +132,13 @@ guess targets, or grant permissions on the user's behalf.
 
 ## Planned Work
 
-- Complete Phase 5.7 by recording the exact Phase 6 packaging scope:
-  included surfaces, deferred surfaces, and no-go surfaces.
+- Begin Phase 6 Packaging / Public v1 from the accepted Phase 5.7 package
+  boundary.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.
 - Turn the repo-local entrypoint into the accepted plugin/package plus small
-  skill distribution only after Phase 5.7 locks the package boundaries.
+  skill distribution.
 - Keep scheduled Pulse, daemon install, route helpers, non-dry-run closeout or
   amendment apply, automatic ops-alerts publishing, hidden orchestrators, and
   fallback truth sources out of public v1 unless a later explicit gate changes

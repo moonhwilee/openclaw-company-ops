@@ -929,19 +929,12 @@ command, and closeout decision lock gate, Phase 5.5a implemented the foreground
 handoff amendment dry-run gate, and Phase
 5.5b implemented the foreground handoff draft/spec generator dry-run gate.
 Phase 5.6 recorded the Pulse activation decision: manual/foreground accepted;
-scheduled activation deferred with trigger; daemon install no-go for now.
-Current work is the remaining Phase 5 gate:
-
-1. Packaging readiness decision.
-
-This keeps the original architecture intact while ensuring optional automation
-is explicitly accepted, deferred, or rejected before packaging.
-
-Phase 5.7 must not reopen earlier activation gates as if they were undecided.
-It should record the Phase 6 package boundary: manual/foreground `pulse check`
-is implemented and included; scheduled Pulse and daemon installation remain
-deferred/no-go; Project and Discord live mutation tools remain configured
-foreground-only; hooks remain optional guardrails, not required runtime state.
+scheduled activation deferred with trigger; daemon install no-go for now. Phase
+5.7 recorded the final Phase 6 package boundary: manual/foreground
+`pulse check` is implemented and included; scheduled Pulse and daemon
+installation remain deferred/no-go; Project and Discord live mutation tools
+remain configured foreground-only; hooks remain optional guardrails, not
+required runtime state.
 
 For packaged users, `pulse check` remains a foreground operating command. The
 package should expose it through the installed CLI, read the user's local
@@ -973,7 +966,7 @@ user `MEMORY.md` or `AGENTS.md` edits part of the install path.
 
 Until Phase 6, there is no installable distribution target. The current target
 is the repo-local model: scripts, docs, protocol references, and templates.
-Phase 5.7 records what must be packaged; Phase 6 builds the actual
+Phase 5.7 has recorded what must be packaged; Phase 6 builds the actual
 plugin/package layout.
 
 The packaged runtime should make Company Ops skill/protocol/docs/CLI visible to

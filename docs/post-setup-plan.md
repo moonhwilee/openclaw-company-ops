@@ -686,21 +686,20 @@ Impact on existing docs and repository layout:
 
 - Current repo-local scripts and docs are still valid as the development
   surface. Do not restructure the repository into an installable plugin package
-  before Phase 5.7 locks the exact packaging surface.
+  outside Phase 6 packaging work.
 - There is not yet a published distribution target to install into. Phase 5.7
-  records the package boundary and role-authority model; Phase 6 builds the
+  recorded the package boundary and role-authority model; Phase 6 builds the
   actual plugin/package layout, shared skill/docs placement, CLI entrypoint,
   and any role-scoped command guards.
 - Existing manual/setup docs should describe the accepted direction, not present
   skill, CLI, plugin, or setup script as equally open public-v1 choices.
-- Phase 5.7 must produce the concrete packaging layout decision: plugin
-  manifest location, bundled small skill path, packaged CLI entrypoint name,
-  included templates/docs, smoke command, uninstall behavior, and explicit
-  proof that install/uninstall does not edit user memory.
+- Phase 5.7 produced the concrete packaging layout decision: plugin/package
+  direction, bundled small skill, packaged foreground CLI entrypoint, included
+  templates/docs, smoke/setup docs, optional uninstall behavior, and explicit
+  proof boundary that install/uninstall must not edit user memory.
 - Phase 6 is the right time to move or copy files into the package layout. Until
   then, keep implementation in the existing repo-local `scripts/`, `docs/`,
-  `.codex/`, and template paths to avoid churn before the included surfaces are
-  accepted.
+  `.codex/`, and template paths until Phase 6 begins the package layout work.
 
 ### Phase 5.5: Result Ready Inbox / Closeout Lock Gate
 
@@ -1082,7 +1081,7 @@ No-go boundaries:
 
 Purpose: lock the surface that is allowed to enter Phase 6.
 
-Candidate Phase 6 surface:
+Accepted Phase 6 surface:
 
 - small Company Ops skill with routing triggers, authority boundaries, and
   foreground-command instructions;
@@ -1100,7 +1099,7 @@ Candidate Phase 6 surface:
 - optional hook guard as a guardrail only, because Phase 5.2 accepted it
   narrowly.
 
-Phase 6 included surfaces should be limited to:
+Phase 6 included surfaces are limited to:
 
 - small Company Ops skill plus foreground CLI entrypoint, installed as shared
   Company Ops capability for Operations Lead and Team Lead agents in the same
@@ -1154,7 +1153,7 @@ Shared access and role authority:
   system has per-agent security isolation. Any harder isolation depends on the
   OpenClaw runtime's agent identity, workspace, and tool-exposure features.
 
-Phase 6 deferred surfaces should remain:
+Phase 6 deferred surfaces remain:
 
 - scheduled Pulse/cron activation;
 - `pulse_daemon.py daemon run` as anything more than a bounded foreground
@@ -1164,7 +1163,7 @@ Phase 6 deferred surfaces should remain:
 - automatic `#ops-alerts` publishing;
 - broader Discord retry, queue, or bridge behavior.
 
-Phase 6 no-go surfaces should remain:
+Phase 6 no-go surfaces remain:
 
 - installer edits to private user `MEMORY.md`, `AGENTS.md`, or bootstrap files;
 - Discord, GitHub Project, Telegram, or session history as source of truth;
@@ -1187,7 +1186,7 @@ Permission and failure boundary:
 
 Setup/preflight decision:
 
-- Phase 6 should include setup documentation, and may include a foreground
+- Phase 6 includes setup documentation, and may include a foreground
   `doctor` or `preflight` helper, that checks Project field-map readiness,
   GitHub Project scope, Discord target configuration, and proof-log paths.
 - The helper may report missing setup with exact next steps. It must not grant
@@ -1197,8 +1196,8 @@ Setup/preflight decision:
   fallback source of truth. It should disable only that external mirror/proof
   action while keeping source-backed Work Unit commands usable.
 
-Decision output: a Phase 6 scope record that lists included surfaces, deferred
-surfaces, and no-go surfaces.
+Decision output: accepted. Phase 5.7 locks the Phase 6 included surfaces,
+deferred surfaces, and no-go surfaces listed above.
 
 Phase 5 acceptance gate:
 

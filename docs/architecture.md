@@ -481,18 +481,14 @@ Phase 5.6 records that manual/foreground Pulse checks are accepted while
 scheduled Pulse activation is deferred with trigger; the existing Dashboard,
 Discord proof trail, result-ready inbox, and Pulse detector remain separate
 surfaces with a shared interrupt policy.
-Phase 5.7 records the public-v1 package boundary: Company Ops skill, protocol
+Phase 5.7 recorded the public-v1 package boundary: Company Ops skill, protocol
 docs, templates, and foreground CLI should be shared install capabilities for
 Operations Lead and Team Lead agents, while authority remains role-scoped.
 Phase 6 should implement the package layout, runtime exposure checks, and
 command/protocol-level fail-closed guards. This is not an OS-level isolation
 claim unless the OpenClaw runtime later provides stronger agent identity,
 workspace, or tool-exposure controls.
-The current work is the last Phase 5 activation gate:
-
-1. Packaging readiness decision.
-
-Phase 5.7 must package only the bounded foreground surface. Manual/foreground
+Phase 5.7 packages only the bounded foreground surface. Manual/foreground
 `pulse check` is implemented; `pulse_daemon.py daemon run` remains a bounded
 smoke/debug diagnostic unless a later gate accepts more. GitHub Project and
 Discord live mutation tools are configured foreground mirrors/proof surfaces

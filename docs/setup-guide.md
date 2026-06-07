@@ -652,8 +652,7 @@ exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
 `scripts/dashboard_snapshot.py`. The first non-installing Pulse Monitor daemon
 runner exists as `scripts/pulse_daemon.py`.
 
-The next recommended step is still not packaging implementation. Phases 5.1
-through 5.6 have either accepted, implemented, or deferred their activation
-decisions. Continue with Phase 5.7 in `docs/post-setup-plan.md`: lock the
-included, deferred, and no-go public-v1 surfaces and package layout, then
-proceed to Phase 6 packaging/public v1.
+Phases 5.1 through 5.7 have either accepted, implemented, deferred, or rejected
+their activation and package-boundary decisions. Continue with Phase 6
+packaging/public v1 from the included, deferred, and no-go surfaces locked in
+`docs/post-setup-plan.md`.
