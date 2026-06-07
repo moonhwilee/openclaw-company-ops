@@ -209,6 +209,28 @@ Before closing any result, the Operations Lead must reread the Assignment
 Packet, evidence, claim, proof/progress logs, and current dashboard dry-run.
 Never decide from the remembered chat transcript alone.
 
+Operations Lead result-ready closeout checklist:
+
+1. Open the next ready Work Unit from the deterministic inbox order and verify
+   its Assignment Packet is readable.
+2. Confirm the claim, Evidence & Result Record, progress rows, and required
+   visibility proof all point to existing source artifacts.
+3. Compare the evidence against the packet's done and verification criteria;
+   do not let a Team Lead status claim, green check, label, Project field,
+   Discord message, or chat summary stand in for evidence.
+4. Check whether a final `decision.md` already exists. If it does, do not
+   overwrite it; report the new result as stale, duplicate, or requiring an
+   explicit owner-requested revision/reopen.
+5. Choose the Operations Lead decision explicitly: `accept`, `revise`, or
+   `blocked` according to the closeout command contract. No automatic completion
+   follows from result arrival.
+6. Keep GitHub Project and Discord data as mirrors only. Do not reverse-import
+   Project fields, Discord history, GitHub comments, or labels into assignment,
+   claim, evidence, decision, or completion state.
+7. Run closeout as a foreground Operations Lead action, dry-run first, then
+   publish only when the planned decision, owner-facing status, and optional
+   mirror updates match the source artifacts.
+
 Race control:
 
 - Only the Operations Lead may record `ACCEPTED`, `REVISE`, or
