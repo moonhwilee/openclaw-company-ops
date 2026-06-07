@@ -1,0 +1,33 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "STARTED",
+    "needed": "",
+    "next": "Apply positioning note, verify docs diff, and submit RESULT_READY.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "docs/examples/manual-dry-run/WU-260608-003/assignment.md",
+    "status": "market goal round started from Assignment Packet; scope is one small documentation change.",
+    "surface": "team-detail",
+    "team": "market",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260608-003"
+  },
+  "text": "▶️ [STARTED] WU-260608-003 · 📣 market\nStatus: market goal round started from Assignment Packet; scope is one small documentation change.\nNext: Apply positioning note, verify docs diff, and submit RESULT_READY."
+}

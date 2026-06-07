@@ -1,0 +1,42 @@
+{
+  "work_unit_id": "WU-260608-003",
+  "title": "Add first-time user positioning note for Public v1",
+  "team": "market",
+  "mode": "goal",
+  "operations_lead": "main",
+  "work_card_repo": "moonhwilee/openclaw-company-ops",
+  "owner_request": "Add a short positioning note for first-time users explaining what Company Ops Public v1 does, what it does not do automatically, and why source artifacts matter. Keep scope to a small documentation change.",
+  "goal": "Draft and apply a concise first-time user positioning note in the most appropriate repo documentation location, likely README.md, without expanding implementation scope.",
+  "scope": [
+    "Inspect README.md and nearby docs to find the least disruptive location for a first-time user positioning note.",
+    "Add or update a small documentation section explaining what Company Ops helps coordinate.",
+    "State what Company Ops does not automatically do, including no hidden orchestration, automatic completion, recovery, or external mutation.",
+    "Explain why source artifacts matter as the recoverable state and source of truth.",
+    "Keep changes narrow to documentation; no code, script, template, or workflow behavior changes."
+  ],
+  "done_criteria": [
+    "A short positioning note exists in an appropriate documentation file.",
+    "The note is understandable to a first-time Public v1 user.",
+    "The note covers what the tool does, what it does not automate, and why source artifacts matter.",
+    "The change stays small and documentation-only.",
+    "The Team Lead returns a 1-round goal result with changed files, verification, risks, and recommendation."
+  ],
+  "verification_criteria": [
+    "The note does not claim Phase 6 implementation already exists.",
+    "The note does not soften no-go rules around automatic recovery, completion, hidden orchestration, or source-of-truth boundaries.",
+    "The note fits the surrounding README/docs style.",
+    "git diff --check passes after the documentation change."
+  ],
+  "source_refs": [
+    "README.md",
+    "docs/operations-manual.md",
+    "docs/setup-guide.md",
+    "docs/post-setup-plan.md"
+  ],
+  "targets": {
+    "ops_feed": "channel:1512413593142956153",
+    "team_detail": "channel:1512413754640564365"
+  },
+  "next": "market performs one goal round, applies the small documentation change, verifies it, and submits RESULT_READY.",
+  "report": "Return changed file path, summary, verification commands, remaining risks, and recommended decision."
+}

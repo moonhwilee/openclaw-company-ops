@@ -13,6 +13,26 @@ The Operations Lead defines work, assigns team leads, reviews evidence, and
 makes final decisions. Each team lead owns one Work Unit and directly manages
 its own subagents.
 
+## First-Time User Note
+
+Company Ops Public v1 is meant to help an Operations Lead turn owner requests
+into source-backed Work Units, prepare Team Lead assignments, and review
+evidence before a closeout decision. It provides a clear operating model,
+templates, protocol docs, and foreground source-backed tooling for
+deterministic handoff, visibility, dashboard, inbox, and closeout workflows.
+
+It does not automatically run the company for you. Public v1 has no hidden
+orchestrator, automatic completion, recovery, restart, reassignment,
+cancellation, background watcher, or fallback source of truth. Discord,
+GitHub Issues, GitHub Projects, and chat summaries are visibility or work
+surfaces; they do not replace the Work Unit source artifacts.
+
+Those source artifacts matter because they are the recoverable state: the
+Assignment Packet, Work Card, claim state, progress/proof logs, Evidence &
+Result Record, and Operations Lead Decision let a person or agent resume,
+audit, verify, or reject the work without trusting memory or a transient chat
+thread.
+
 Sizeable `goal` and `verify` work is detached Work Unit work. The Operations
 Lead should not leave the main session idle while a Team Lead executes; source
 artifacts, claim state, proof/progress logs, and the dashboard mirror carry the
