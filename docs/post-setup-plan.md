@@ -954,6 +954,8 @@ Candidate Phase 6 surface:
 - Ops Claim Ledger CLI;
 - alert-only pulse check and any accepted manual runner;
 - accepted foreground result-ready inbox and closeout-lock helper;
+- accepted foreground handoff amendment/replan helper;
+- accepted dry-run handoff draft/spec generator helper;
 - dashboard snapshot;
 - Discord card composer, guard, JSON output, and sequence validator;
 - smoke tests and setup docs;
