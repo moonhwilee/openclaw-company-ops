@@ -16,9 +16,27 @@ from typing import Any
 
 ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
+FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
+STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 ROUND_VISIBLE_MODES = {"goal", "convergence"}
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
+DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
+FINAL_REVIEW_KINDS = {"ACCEPTED", "REVISE", "BLOCKED_DETAIL"}
+CLOSEOUT_BY_FINAL_REVIEW = {
+    "ACCEPTED": "COMPLETED",
+    "REVISE": "NEEDS_REVISION",
+    "BLOCKED_DETAIL": "BLOCKED",
+}
+FINAL_REVIEW_BY_RECOMMENDATION = {
+    "accept": "ACCEPTED",
+    "accepted": "ACCEPTED",
+    "revise": "REVISE",
+    "revision": "REVISE",
+    "reject": "REVISE",
+    "blocked": "BLOCKED_DETAIL",
+    "block": "BLOCKED_DETAIL",
+}
 
 
 def required(value: str) -> str:
@@ -138,6 +156,257 @@ def markdown_bullets(items: list[str]) -> str:
 
 def first_line(text: str) -> str:
     return next((line.strip() for line in text.splitlines() if line.strip()), "")
+
+
+def clean_markdown_value(value: str) -> str:
+    cleaned = value.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] == "`":
+        return cleaned[1:-1].strip()
+    return cleaned
+
+
+def parse_markdown_source(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"exists": False, "path": str(path), "status": "", "fields": {}, "text": ""}
+    text = path.read_text(encoding="utf-8")
+    status_match = STATUS_RE.search(text)
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        match = FIELD_RE.match(line)
+        if match:
+            fields[match.group(1).strip().lower()] = clean_markdown_value(match.group(2))
+    return {
+        "exists": True,
+        "path": str(path),
+        "status": clean_markdown_value(status_match.group(1)) if status_match else "",
+        "fields": fields,
+        "text": text,
+    }
+
+
+def parse_timestamp(value: str) -> dt.datetime:
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError("missing timestamp")
+    if cleaned.endswith("Z"):
+        cleaned = cleaned[:-1] + "+00:00"
+    parsed = dt.datetime.fromisoformat(cleaned)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed
+
+
+def read_jsonl_rows(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    if not path.exists():
+        return [], [f"proof log missing: {path}"]
+    rows: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            loaded = json.loads(line)
+        except json.JSONDecodeError as exc:
+            warnings.append(f"{path}:{index}: invalid JSON: {exc}")
+            continue
+        if not isinstance(loaded, dict):
+            warnings.append(f"{path}:{index}: proof row is not an object")
+            continue
+        rows.append(loaded)
+    return rows, warnings
+
+
+def proof_rows_for_work_unit(path: Path, work_unit: str) -> tuple[list[dict[str, Any]], list[str]]:
+    rows, warnings = read_jsonl_rows(path)
+    filtered = [row for row in rows if str(row.get("work_unit_id") or "") == work_unit]
+    for row in filtered:
+        if row.get("dry_run"):
+            warnings.append("dry-run proof row ignored for result-ready inbox")
+        for field in ("transition_at", "discord_timestamp", "readback_at"):
+            value = str(row.get(field) or "")
+            if value:
+                try:
+                    parse_timestamp(value)
+                except ValueError:
+                    warnings.append(f"malformed proof timestamp {field}={value!r}")
+    return [row for row in filtered if not row.get("dry_run")], warnings
+
+
+def latest_progress_timestamp(path: Path, work_unit: str) -> tuple[str, list[str]]:
+    if not path.exists():
+        return "", []
+    latest = ""
+    warnings: list[str] = []
+    for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            warnings.append(f"{path}:{index}: invalid progress JSON: {exc}")
+            continue
+        if not isinstance(row, dict):
+            warnings.append(f"{path}:{index}: progress row is not an object")
+            continue
+        row_work_unit = str(row.get("work_unit_id") or "")
+        if row_work_unit and row_work_unit != work_unit:
+            continue
+        timestamp = str(row.get("transition_at") or row.get("updated_at") or "")
+        if timestamp:
+            latest = timestamp
+    return latest, warnings
+
+
+def first_result_ready_time(proof_rows: list[dict[str, Any]]) -> tuple[str, str]:
+    candidates: list[tuple[dt.datetime, str, str]] = []
+    for row in proof_rows:
+        if row.get("surface") != "team-detail" or row.get("kind") != "RESULT_READY":
+            continue
+        raw_time = str(row.get("discord_timestamp") or row.get("transition_at") or row.get("readback_at") or "")
+        try:
+            candidates.append((parse_timestamp(raw_time), raw_time, str(row.get("proof_id") or row.get("card_id") or "")))
+        except ValueError:
+            continue
+    if not candidates:
+        return "", ""
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1], candidates[0][2]
+
+
+def final_review_kinds(proof_rows: list[dict[str, Any]]) -> list[str]:
+    return [
+        str(row.get("kind"))
+        for row in proof_rows
+        if row.get("surface") == "team-detail" and str(row.get("kind")) in FINAL_REVIEW_KINDS
+    ]
+
+
+def owner_closeout_kinds(proof_rows: list[dict[str, Any]]) -> list[str]:
+    return [
+        str(row.get("kind"))
+        for row in proof_rows
+        if row.get("surface") == "ops-feed" and str(row.get("kind")) in set(CLOSEOUT_BY_FINAL_REVIEW.values())
+    ]
+
+
+def normalized_state(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def is_result_ready(claim_state: str, evidence_status: str) -> bool:
+    return normalized_state(claim_state) == "result_ready" or normalized_state(evidence_status) == "result_ready"
+
+
+def decision_is_final(decision_status: str, decision_text: str = "") -> bool:
+    status = normalized_state(decision_status)
+    decision = normalized_state(decision_text)
+    if status in {"", "pending", "draft"} and decision in {"", "choose_one"}:
+        return False
+    return status not in {"", "pending", "draft"} or decision not in {"", "choose_one"}
+
+
+def extract_recommendation(evidence_text: str) -> str:
+    lines = evidence_text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().lower().startswith("recommended decision"):
+            tokens: list[str] = []
+            for candidate in lines[index + 1 : index + 8]:
+                raw = candidate.strip()
+                if raw.startswith("##"):
+                    break
+                cleaned = clean_markdown_value(raw.lstrip("-").strip())
+                if not cleaned or cleaned.lower() in {"choose one:", "rationale:"}:
+                    continue
+                token = cleaned.split()[0].strip("`:.").lower()
+                if token in {"accept", "accepted", "revise", "revision", "reject", "hold", "blocked", "block"}:
+                    tokens.append(token)
+            distinct = list(dict.fromkeys(tokens))
+            return distinct[0] if len(distinct) == 1 else ""
+    return ""
+
+
+def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, Any]:
+    artifact_dir = artifact_root / work_unit
+    assignment = parse_markdown_source(artifact_dir / "assignment.md")
+    claim = parse_markdown_source(artifact_dir / "claim.md")
+    evidence = parse_markdown_source(artifact_dir / "evidence.md")
+    decision = parse_markdown_source(artifact_dir / "decision.md")
+    proof_path = artifact_dir / DEFAULT_PROOF_LOG_NAME
+    progress_path = artifact_dir / "progress.jsonl"
+    proof_rows, warnings = proof_rows_for_work_unit(proof_path, work_unit)
+    progress_at, progress_warnings = latest_progress_timestamp(progress_path, work_unit)
+    warnings.extend(progress_warnings)
+
+    claim_state = claim["fields"].get("expected state", "")
+    evidence_status = evidence["status"]
+    decision_text = decision["fields"].get("decision", "")
+    decision_final = decision_is_final(decision["status"], decision_text)
+    result_ready_at, result_ready_proof = first_result_ready_time(proof_rows)
+    final_reviews = final_review_kinds(proof_rows)
+    closeouts = owner_closeout_kinds(proof_rows)
+    distinct_final_reviews = sorted(set(final_reviews))
+    stale_reason = ""
+    conflict_reason = ""
+    if decision_final:
+        stale_reason = "decision already recorded"
+    if len(distinct_final_reviews) > 1:
+        conflict_reason = "competing final review kinds: " + ", ".join(distinct_final_reviews)
+    if len(set(row.get("discord_timestamp") or row.get("transition_at") or "" for row in proof_rows if row.get("kind") == "RESULT_READY")) > 1:
+        warnings.append("multiple RESULT_READY proof timestamps found")
+    if len(set(closeouts)) > 1:
+        conflict_reason = "competing owner closeout kinds: " + ", ".join(sorted(set(closeouts)))
+
+    title = assignment["fields"].get("title") or claim["fields"].get("title") or ""
+    team = (
+        assignment["fields"].get("assigned team lead openclaw agent")
+        or evidence["fields"].get("team lead openclaw agent")
+        or claim["fields"].get("owner session ref", "").removeprefix("agent=")
+    )
+    recommendation = extract_recommendation(evidence["text"])
+    suggested_final = FINAL_REVIEW_BY_RECOMMENDATION.get(recommendation, "")
+    suggested_closeout = CLOSEOUT_BY_FINAL_REVIEW.get(suggested_final, "")
+
+    ready = is_result_ready(claim_state, evidence_status)
+    sort_time = result_ready_at or claim["fields"].get("updated at", "") or progress_at or ""
+    sort_key = f"{sort_time or '9999-99-99T99:99:99Z'}|{work_unit}"
+    actionable = ready and not stale_reason and not conflict_reason
+    return {
+        "work_unit_id": work_unit,
+        "title": title,
+        "team": team,
+        "artifact_dir": str(artifact_dir),
+        "claim_state": claim_state,
+        "evidence_status": evidence_status,
+        "result_ready": ready,
+        "result_ready_at": result_ready_at,
+        "result_ready_source": f"{proof_path}#{result_ready_proof}" if result_ready_proof else str(evidence["path"] if evidence["exists"] else claim["path"]),
+        "evidence_path": str(artifact_dir / "evidence.md"),
+        "decision_path": str(artifact_dir / "decision.md"),
+        "decision_exists": bool(decision["exists"]),
+        "decision_status": decision["status"],
+        "decision_final": decision_final,
+        "proof_path": str(proof_path),
+        "progress_path": str(progress_path),
+        "project_dry_run_supported": True,
+        "stale_reason": stale_reason,
+        "conflict_reason": conflict_reason,
+        "warnings": warnings,
+        "sort_key": sort_key,
+        "actionable": actionable,
+        "final_reviews": final_reviews,
+        "owner_closeouts": closeouts,
+        "team_recommendation": recommendation,
+        "suggested_final_review_kind": suggested_final,
+        "suggested_owner_closeout_kind": suggested_closeout,
+    }
+
+
+def iter_work_unit_ids(artifact_root: Path, requested: str = "") -> list[str]:
+    if requested:
+        return [requested]
+    if not artifact_root.exists():
+        return []
+    return sorted(path.name for path in artifact_root.iterdir() if path.is_dir() and WORK_UNIT_RE.match(path.name))
 
 
 def create_work_unit(args: argparse.Namespace) -> int:
@@ -882,6 +1151,134 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
     return 0
 
 
+class CloseoutLock:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.acquired = False
+
+    def __enter__(self) -> "CloseoutLock":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.path.mkdir()
+        except FileExistsError as exc:
+            raise RuntimeError(f"closeout lock already exists: {self.path}") from exc
+        self.acquired = True
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        if not self.acquired:
+            return
+        try:
+            self.path.rmdir()
+        except FileNotFoundError:
+            pass
+
+
+def inbox_result_ready(args: argparse.Namespace) -> int:
+    artifact_root = args.artifact_root.expanduser()
+    work_units = iter_work_unit_ids(artifact_root, args.work_unit_id)
+    items = [build_work_unit_readiness(artifact_root, work_unit) for work_unit in work_units]
+    if args.team:
+        items = [item for item in items if item["team"] == args.team]
+    if args.result_ready:
+        items = [item for item in items if item["result_ready"]]
+    if not args.include_stale and not args.work_unit_id:
+        items = [item for item in items if item["actionable"]]
+    items.sort(key=lambda item: item["sort_key"])
+    if args.limit:
+        items = items[: args.limit]
+
+    payload = {
+        "artifact_root": str(artifact_root),
+        "items": items,
+        "count": len(items),
+        "source": "local-source-artifacts",
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+    if not items:
+        print("No result-ready Work Units found.")
+        return 0
+    for item in items:
+        flags = []
+        if item["stale_reason"]:
+            flags.append(f"stale={item['stale_reason']}")
+        if item["conflict_reason"]:
+            flags.append(f"conflict={item['conflict_reason']}")
+        if item["warnings"]:
+            flags.append(f"warnings={len(item['warnings'])}")
+        suffix = f" ({'; '.join(flags)})" if flags else ""
+        print(
+            f"{item['work_unit_id']} · {item['team'] or 'unknown-team'} · "
+            f"{item['result_ready_at'] or 'no-proof-time'} · {item['evidence_path']}{suffix}"
+        )
+    return 0
+
+
+def closeout_dry_run(args: argparse.Namespace) -> int:
+    artifact_root = args.artifact_root.expanduser()
+    artifact_dir = artifact_root / args.work_unit_id
+    if not artifact_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
+        return 1
+    if not args.dry_run:
+        print("error: closeout currently supports --dry-run only", file=sys.stderr)
+        return 1
+
+    lock_path = args.lock_path.expanduser() if args.lock_path else artifact_dir / ".closeout.lock"
+    try:
+        with CloseoutLock(lock_path):
+            item = build_work_unit_readiness(artifact_root, args.work_unit_id)
+            status = "ready"
+            next_action = "Operations Lead reviews source artifacts before any decision write."
+            if item["decision_final"]:
+                status = "already-decided"
+                next_action = "Do not overwrite, reopen, or append a competing decision."
+            elif item["conflict_reason"]:
+                status = "conflict"
+                next_action = "Resolve competing source/proof rows before closeout."
+            elif not item["result_ready"]:
+                status = "not-result-ready"
+                next_action = "Wait for claim/evidence result_ready before closeout."
+            elif not item["suggested_final_review_kind"]:
+                status = "needs-ops-decision"
+                next_action = "Evidence recommendation is missing or ambiguous; Operations Lead must decide."
+
+            payload = {
+                "dry_run": True,
+                "status": status,
+                "work_unit_id": args.work_unit_id,
+                "lock_path": str(lock_path),
+                "lock_released": True,
+                "item": item,
+                "would_write_decision": False,
+                "would_publish_owner_closeout": False,
+                "would_mutate_project": False,
+                "next_action": next_action,
+                "checks": {
+                    "source_artifacts_reread": True,
+                    "decision_exists_rechecked": True,
+                    "proof_progress_reread": True,
+                    "project_dry_run_state": "supported-but-not-mutated",
+                },
+            }
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"DRY-RUN closeout {args.work_unit_id}: {payload['status']}")
+        print(f"- Evidence: {payload['item']['evidence_path']}")
+        print(f"- Decision: {payload['item']['decision_path']} status={payload['item']['decision_status'] or 'missing'}")
+        print(f"- Suggested review: {payload['item']['suggested_final_review_kind'] or 'needs-ops-decision'}")
+        print(f"- Suggested owner closeout: {payload['item']['suggested_owner_closeout_kind'] or 'none'}")
+        print(f"- Next: {payload['next_action']}")
+    return 0 if payload["status"] in {"ready", "needs-ops-decision"} else 1
+
+
 def render_assignment(context: dict[str, str]) -> str:
     return f"""# Assignment Packet
 
@@ -1397,6 +1794,52 @@ def build_parser() -> argparse.ArgumentParser:
     mode_group.add_argument("--dry-run", action="store_true", help="Validate and preview without writes or sends")
     mode_group.add_argument("--publish", action="store_true", help="Publish/read back Discord, append progress, then sync Project mirror")
     checkpoint.set_defaults(func=checkpoint_work_unit)
+
+    inbox = work_unit_subparsers.add_parser(
+        "inbox",
+        help="List source-backed Work Units ready for Operations Lead review",
+    )
+    inbox.add_argument(
+        "--result-ready",
+        action="store_true",
+        help="Show Work Units whose claim or evidence state is result_ready",
+    )
+    inbox.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id>/ source artifacts",
+    )
+    inbox.add_argument("--work-unit-id", default="", type=lambda value: work_unit_id(value) if value else "")
+    inbox.add_argument("--team", default="", help="Filter by Team Lead")
+    inbox.add_argument("--limit", type=int, default=0, help="Maximum number of rows to return")
+    inbox.add_argument(
+        "--include-stale",
+        action="store_true",
+        help="Include already-decided or conflicted ready items in the listing",
+    )
+    inbox.add_argument("--format", choices=("text", "json"), default="text")
+    inbox.set_defaults(func=inbox_result_ready)
+
+    closeout = work_unit_subparsers.add_parser(
+        "closeout",
+        help="Prepare Operations Lead closeout from source artifacts without mutation",
+    )
+    closeout.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    closeout.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id>/ source artifacts",
+    )
+    closeout.add_argument(
+        "--lock-path",
+        type=Path,
+        help="Optional WU-scoped atomic lock directory, default: <WU>/.closeout.lock",
+    )
+    closeout.add_argument("--dry-run", action="store_true", help="Required; no decision, publish, or Project mutation")
+    closeout.add_argument("--format", choices=("text", "json"), default="text")
+    closeout.set_defaults(func=closeout_dry_run)
     return parser
 
 

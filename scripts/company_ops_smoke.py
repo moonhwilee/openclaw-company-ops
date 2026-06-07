@@ -163,6 +163,49 @@ def update_result_ready(ledger: Path, claim_ref: str, artifact_dir: Path) -> Non
     )
 
 
+def mark_artifact_result_ready(artifact_dir: Path, *, recommendation: str | None = "accept") -> None:
+    claim = artifact_dir / "claim.md"
+    claim_text = claim.read_text(encoding="utf-8")
+    claim_text = claim_text.replace("- Expected state: `assigned`", "- Expected state: `result_ready`")
+    claim_text = claim_text.replace("- Expected state: `working`", "- Expected state: `result_ready`")
+    claim_text = claim_text.replace("- Updated at: `2026-06-05`", "- Updated at: `2026-06-05T12:00:00Z`")
+    claim.write_text(claim_text, encoding="utf-8")
+
+    evidence = artifact_dir / "evidence.md"
+    evidence_text = evidence.read_text(encoding="utf-8")
+    evidence_text = evidence_text.replace("Status: Draft", "Status: Result Ready")
+    if recommendation is not None:
+        evidence_text = evidence_text.replace(
+            "Recommended decision:\n\n- `accept`\n- `revise`\n- `hold`\n- `reject`",
+            f"Recommended decision:\n\n- {recommendation}",
+        )
+    evidence.write_text(evidence_text, encoding="utf-8")
+
+
+def proof_rows(work_unit_id: str, events: list[tuple[str, str, str, str]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "work_unit_id": work_unit_id,
+            "proof_id": f"{work_unit_id}:{surface}:{kind}:{card_id}",
+            "card_id": card_id,
+            "surface": surface,
+            "kind": kind,
+            "target": "local-smoke",
+            "transition_at": timestamp,
+            "sent_at": timestamp,
+            "readback_at": timestamp,
+            "discord_timestamp": timestamp,
+            "discord_message_id": f"msg-{card_id}",
+            "readback_ok": True,
+            "dry_run": False,
+            "error": "",
+            "send_result": {},
+            "readback_result": {},
+        }
+        for surface, kind, card_id, timestamp in events
+    ]
+
+
 def load_claims(ledger: Path) -> list[dict[str, Any]]:
     result = run_command(
         [
@@ -1946,6 +1989,219 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
         raise RuntimeError("project sync suffix dry-run did not preserve Team Lead")
 
 
+def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> None:
+    inbox_work_dir = work_dir / "phase55"
+    ready_late = create_artifacts(args, inbox_work_dir, "WU-260607-101", "build-lab")
+    ready_early = create_artifacts(args, inbox_work_dir, "WU-260607-102", "market")
+    stale_dir = create_artifacts(args, inbox_work_dir, "WU-260607-103", "finance")
+    conflict_dir = create_artifacts(args, inbox_work_dir, "WU-260607-104", "ops")
+    artifact_root = inbox_work_dir / "artifacts"
+
+    mark_artifact_result_ready(ready_late, recommendation="accept")
+    mark_artifact_result_ready(ready_early, recommendation="revise")
+    mark_artifact_result_ready(stale_dir, recommendation="accept")
+    stale_decision = stale_dir / "decision.md"
+    stale_decision.write_text(
+        stale_decision.read_text(encoding="utf-8").replace("Status: Pending", "Status: Accepted"),
+        encoding="utf-8",
+    )
+    mark_artifact_result_ready(conflict_dir, recommendation="accept")
+
+    write_jsonl(
+        ready_late / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-101",
+            [("team-detail", "RESULT_READY", "late-001", "2026-06-07T01:20:00Z")],
+        ),
+    )
+    write_jsonl(
+        ready_early / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-102",
+            [("team-detail", "RESULT_READY", "early-001", "2026-06-07T01:10:00Z")],
+        ),
+    )
+    write_jsonl(
+        stale_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-103",
+            [("team-detail", "RESULT_READY", "stale-001", "2026-06-07T01:05:00Z")],
+        ),
+    )
+    write_jsonl(
+        conflict_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-104",
+            [
+                ("team-detail", "RESULT_READY", "conflict-001", "2026-06-07T01:01:00Z"),
+                ("team-detail", "ACCEPTED", "conflict-002", "2026-06-07T01:02:00Z"),
+                ("team-detail", "REVISE", "conflict-003", "2026-06-07T01:03:00Z"),
+            ],
+        ),
+    )
+    inbox_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "inbox",
+            "--result-ready",
+            "--artifact-root",
+            str(artifact_root),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(inbox_result, "result-ready inbox json")
+    inbox_payload = json.loads(inbox_result.stdout)
+    inbox_ids = [item["work_unit_id"] for item in inbox_payload["items"]]
+    if inbox_ids != ["WU-260607-102", "WU-260607-101"]:
+        raise RuntimeError(f"result-ready inbox did not sort actionable items deterministically: {inbox_ids}")
+
+    ambiguous_dir = create_artifacts(args, inbox_work_dir, "WU-260607-105", "design")
+    mark_artifact_result_ready(ambiguous_dir, recommendation=None)
+    write_jsonl(
+        ambiguous_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-105",
+            [("team-detail", "RESULT_READY", "ambiguous-001", "2026-06-07T01:30:00Z")],
+        ),
+    )
+
+    stale_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "inbox",
+            "--result-ready",
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            "WU-260607-103",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(stale_result, "result-ready stale item json")
+    stale_item = json.loads(stale_result.stdout)["items"][0]
+    if stale_item.get("stale_reason") != "decision already recorded":
+        raise RuntimeError("result-ready inbox did not report already-decided stale item")
+
+    conflict_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "inbox",
+            "--result-ready",
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            "WU-260607-104",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(conflict_result, "result-ready conflict item json")
+    conflict_item = json.loads(conflict_result.stdout)["items"][0]
+    if "competing final review" not in conflict_item.get("conflict_reason", ""):
+        raise RuntimeError("result-ready inbox did not report final-review conflict")
+
+    closeout_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(closeout_result, "closeout dry-run ready")
+    closeout_payload = json.loads(closeout_result.stdout)
+    if closeout_payload.get("status") != "ready":
+        raise RuntimeError(f"closeout dry-run expected ready, got {closeout_payload.get('status')}")
+    if closeout_payload["item"].get("suggested_final_review_kind") != "ACCEPTED":
+        raise RuntimeError("closeout dry-run did not derive accepted review candidate")
+    if closeout_payload.get("would_publish_owner_closeout") is not False:
+        raise RuntimeError("closeout dry-run reported owner closeout mutation")
+    if (ready_late / ".closeout.lock").exists():
+        raise RuntimeError("closeout dry-run left the WU lock behind")
+
+    lock_path = ready_late / ".closeout.lock"
+    lock_path.mkdir()
+    try:
+        locked_result = run_command(
+            [
+                sys.executable,
+                str(ARTIFACTS),
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-101",
+                "--artifact-root",
+                str(artifact_root),
+                "--dry-run",
+                "--format",
+                "json",
+            ]
+        )
+        if locked_result.returncode == 0:
+            raise RuntimeError("closeout dry-run ignored an existing WU lock")
+        if "closeout lock already exists" not in locked_result.stderr:
+            raise RuntimeError(f"closeout lock failed for wrong reason: {locked_result.stderr}")
+    finally:
+        lock_path.rmdir()
+
+    stale_closeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-103",
+            "--artifact-root",
+            str(artifact_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if stale_closeout.returncode == 0:
+        raise RuntimeError("closeout dry-run accepted already-decided Work Unit")
+    if json.loads(stale_closeout.stdout).get("status") != "already-decided":
+        raise RuntimeError("closeout dry-run did not mark stale Work Unit already-decided")
+
+    ambiguous_closeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-105",
+            "--artifact-root",
+            str(artifact_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(ambiguous_closeout, "closeout dry-run ambiguous recommendation")
+    ambiguous_payload = json.loads(ambiguous_closeout.stdout)
+    if ambiguous_payload.get("status") != "needs-ops-decision":
+        raise RuntimeError("closeout dry-run did not require Operations Lead decision for ambiguous template")
+    if ambiguous_payload["item"].get("suggested_final_review_kind"):
+        raise RuntimeError("closeout dry-run guessed a final review from the default recommendation template")
+
+
 def cmd_multi_team(args: argparse.Namespace) -> int:
     work_dir = args.work_dir or Path(tempfile.mkdtemp(prefix="openclaw-company-ops-multi-team-smoke."))
     work_dir = work_dir.expanduser()
@@ -1970,6 +2226,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
         run_project_sync_smoke(ledger, work_dir / "artifacts", "WU-260605-901")
+        run_result_ready_inbox_smoke(args, work_dir)
         claims = load_claims(ledger)
     except (RuntimeError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1992,6 +2249,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "thin handoff dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
+        "result-ready inbox and closeout-lock dry-run safety, "
         "and one result_ready update"
     )
     return 0

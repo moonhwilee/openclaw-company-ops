@@ -153,9 +153,10 @@ Race control:
 - Team Lead result arrival must not mutate GitHub Project, close Work Cards,
   publish owner completion, or overwrite decisions by itself.
 - Run one closeout at a time. Project sync already uses a lock; source decision
-  artifacts should be treated as single-writer Operations Lead outputs. A future
-  result-ready inbox or closeout command should add a Work Unit-specific
-  closeout lock and re-check whether a decision already exists before writing.
+  artifacts are single-writer Operations Lead outputs. The foreground
+  `work-unit closeout --dry-run` command uses a Work Unit-specific closeout lock
+  and re-checks whether a final decision already exists before planning any
+  later write.
 - The closeout lock is a short-lived command guard, not a durable workflow
   owner. If the lock already exists, the command should fail before mutation and
   report the lock path; force-unlock behavior requires a separate stale-lock

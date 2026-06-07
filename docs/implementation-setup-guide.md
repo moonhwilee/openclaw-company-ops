@@ -909,12 +909,14 @@ Status: Active plan
 After the base setup and repo-local scripts exist, continue tracking
 implementation status in `docs/post-setup-plan.md`. Phases 1-4 and Phase 5.1
 have been exercised. Phase 5.2 accepted the narrow repo-local hook guard MVP,
-and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Current work
-is the remaining Phase 5 gates:
+and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Phase 5.5
+implemented the foreground result-ready inbox and closeout dry-run lock gate.
+Current work is the remaining Phase 5 gates:
 
-1. Result-ready inbox / closeout-lock gate.
-2. Scheduled Pulse / daemon gate.
-3. Packaging readiness decision.
+1. Handoff amendment / replan dry-run gate.
+2. Handoff draft / spec generator gate.
+3. Scheduled Pulse / daemon gate.
+4. Packaging readiness decision.
 
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.
@@ -949,10 +951,10 @@ Recommended replacement order:
 6. Replace manual Discord posting with `discord card` plus foreground
    `discord publish-card`; keep publisher proof explicit in
    `visibility-proof.jsonl` and do not add a hidden bridge.
-7. Add `work-unit inbox --result-ready` and closeout-lock dry-run commands
-   before scaling multi-Work Unit result recovery. The first implementation
-   scans only local Work Unit source artifacts and treats Project/chat surfaces
-   as mirrors, not inbox sources.
+7. Use the implemented `work-unit inbox --result-ready` and
+   `work-unit closeout --dry-run` commands before scaling multi-Work Unit result
+   recovery. The implementation scans only local Work Unit source artifacts and
+   treats Project/chat surfaces as mirrors, not inbox sources.
 8. Defer a conservative `route --intent <text>` helper until after the
    result-ready inbox and closeout-lock path are stable. Add it only if it
    remains deterministic and can return `needs-ops-decision` when ambiguous.

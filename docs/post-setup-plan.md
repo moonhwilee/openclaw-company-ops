@@ -686,15 +686,17 @@ Impact on existing docs and repository layout:
 
 ### Phase 5.5: Result Ready Inbox / Closeout Lock Gate
 
+Status: accepted and implemented as a foreground, dry-run-first safety gate.
+
 Purpose: make more than one active Work Unit recoverable without relying on
 chat arrival order, main-session memory, or manual transcript scanning.
 
 Scope:
 
-- Add a foreground/manual result-ready inbox command, for example
+- Added a foreground/manual result-ready inbox command,
   `work-unit inbox --result-ready`, that lists Work Units ready for Operations
   Lead review from source artifacts, claim state, and proof/progress logs.
-- The command should support text and JSON output. JSON output must include at
+- The command supports text and JSON output. JSON output includes at
   least `work_unit_id`, `title`, `team`, `claim_state`, `result_ready_at`,
   `result_ready_source`, `evidence_path`, `decision_path`, `decision_exists`,
   `proof_path`, `project_dry_run_supported`, `stale_reason`, and `sort_key`.
@@ -705,7 +707,7 @@ Scope:
   state, evidence/result records, decisions, and proof/progress logs. It must
   not read Discord history, GitHub Project fields, GitHub comments, or chat
   transcripts to discover result readiness.
-- The initial inbox implementation must scan only the configured artifact root:
+- The implemented inbox scans only the configured artifact root:
   `<artifact-root>/<WU>/assignment.md`, `claim.md`, `evidence.md`,
   `decision.md`, `progress.jsonl`, and `visibility-proof.jsonl`. GitHub Project
   status, Discord/Telegram history, GitHub comments, and OpenClaw session
@@ -714,10 +716,11 @@ Scope:
 - Include `--artifact-root`, `--work-unit-id`, `--team`, `--limit`, and
   `--format text|json` options. The default should scan the configured artifact
   root and show actionable ready items only.
-- Add a WU-scoped closeout preparation path, for example
+- Added a WU-scoped closeout preparation path,
   `work-unit closeout --work-unit-id <id> --dry-run`, that takes a closeout lock,
-  rereads assignment/evidence/claim/proof/progress/project dry-run state, and
-  re-checks whether a decision artifact already exists before any write.
+  rereads assignment/evidence/claim/proof/progress source state, and re-checks
+  whether a final decision artifact already exists before any write. It does not
+  run Project sync or mutate any mirror.
 - The closeout lock should be a local source-adjacent lock file or atomic lock
   directory keyed by Work Unit id. Lock acquisition must happen before any
   decision write, Project mutation, Discord publish, or owner-facing report.
@@ -725,9 +728,8 @@ Scope:
   first implementation should fail clearly when a lock already exists, include
   the lock path in the error, and avoid adding force-unlock behavior until a
   separate stale-lock policy is accepted.
-- `--dry-run` is mandatory for the first implementation and must be the default
-  path used in smoke tests. A later non-dry-run closeout path requires a separate
-  acceptance decision.
+- `--dry-run` is mandatory and is the only implemented closeout path. A later
+  non-dry-run closeout path requires a separate acceptance decision.
 - If a decision already exists, closeout preparation must exit as stale or
   already-decided and must not overwrite, reopen, or append a competing
   decision.
@@ -742,9 +744,9 @@ Scope:
   only if it remains deterministic, conservative, and able to return
   `needs-ops-decision` rather than guessing or calling an LLM.
 
-Decision output: accept the foreground inbox and closeout-lock path as required
-for multi-WU operation, implement a narrower version with rationale, or no-go
-with the remaining race risk stated plainly.
+Decision output: foreground inbox and closeout-lock dry-run are accepted for
+multi-WU operation. Non-dry-run closeout, route helper, and stale-lock recovery
+remain separate decisions.
 
 No-go boundaries:
 
@@ -783,9 +785,9 @@ Acceptance gate:
 Purpose: make post-handoff plan changes source-backed without slowing normal
 Work Units or making the Assignment Packet too rigid.
 
-This phase is accepted only after Phase 5.5's result-ready inbox and closeout
-lock path is implemented. It is not a replacement for the original handoff; it
-is a small foreground helper for the cases where execution discovers new facts.
+This phase is accepted after Phase 5.5's result-ready inbox and closeout lock
+path. It is not a replacement for the original handoff; it is a small foreground
+helper for the cases where execution discovers new facts.
 
 Implement:
 

@@ -463,9 +463,10 @@ The active remaining order is documented in `docs/post-setup-plan.md`. Phases
 MVP and Phase 5.3 accepted the bounded GitHub Project dashboard sync. The
 current work is the remaining Phase 5 activation sub-gates:
 
-1. Result-ready inbox / closeout-lock gate.
-2. Scheduled Pulse / daemon gate.
-3. Packaging readiness decision.
+1. Handoff amendment / replan dry-run gate.
+2. Handoff draft / spec generator gate.
+3. Scheduled Pulse / daemon gate.
+4. Packaging readiness decision.
 
 After Phase 5:
 
