@@ -1306,7 +1306,11 @@ def run_async_work_unit_policy_smoke() -> None:
             "work-unit amend",
             "Do not overwrite the original Assignment Packet",
             "Normal Work Units pay no runtime cost",
-            "Future candidate, not accepted in this phase: a handoff draft/spec generator",
+            "Phase 5.5b: Handoff Draft / Spec Generator Gate (candidate)",
+            "not an accepted implementation",
+            "needs-ops-decision",
+            "six controlled Company Ops requests",
+            "must not replace Operations Lead judgment",
         ),
         "docs/setup-guide.md": (
             "Distribution Surface",

@@ -303,9 +303,12 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    multi-Work Unit review safety.
 6. Phase 5.5a adds only a foreground amendment/replan dry-run gate for
    source-backed post-handoff plan changes, not automatic closeout or rerouting.
-7. Phase 5.6 keeps scheduled daemon or Pulse Monitor activation deferred unless
+7. Phase 5.5b is only a candidate Handoff Draft / Spec Generator gate. It must
+   be evaluated with owner-approved timing evidence before implementation and
+   must not replace Operations Lead judgment.
+8. Phase 5.6 keeps scheduled daemon or Pulse Monitor activation deferred unless
    real stale-claim risk outweighs alert noise and false positives.
-8. Phase 5.7 locks the surfaces allowed to enter packaging/public v1.
+9. Phase 5.7 locks the surfaces allowed to enter packaging/public v1.
 
 ## Recommended Channels
 
