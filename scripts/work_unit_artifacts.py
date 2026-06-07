@@ -289,11 +289,23 @@ def proof_rows_for_work_unit(path: Path, work_unit: str) -> tuple[list[dict[str,
     return [row for row in filtered if not row.get("dry_run")], warnings
 
 
-def latest_progress_timestamp(path: Path, work_unit: str) -> tuple[str, list[str]]:
+def local_source_ref_exists(source_ref: str, artifact_dir: Path) -> bool:
+    cleaned = source_ref.strip()
+    if not cleaned or "://" in cleaned or cleaned.startswith("#"):
+        return True
+    path = Path(cleaned).expanduser()
+    if path.is_absolute():
+        return path.exists()
+    repo_root = SCRIPT_DIR.parent
+    return (repo_root / path).exists() or (artifact_dir / path).exists()
+
+
+def latest_progress_timestamp(path: Path, work_unit: str, artifact_dir: Path) -> tuple[str, list[str], list[str]]:
     if not path.exists():
-        return "", []
+        return "", [], []
     latest = ""
     warnings: list[str] = []
+    missing_source_refs: list[str] = []
     for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
@@ -311,7 +323,10 @@ def latest_progress_timestamp(path: Path, work_unit: str) -> tuple[str, list[str
         timestamp = str(row.get("transition_at") or row.get("updated_at") or "")
         if timestamp:
             latest = timestamp
-    return latest, warnings
+        source_ref = str(row.get("source_ref") or "")
+        if source_ref and not local_source_ref_exists(source_ref, artifact_dir):
+            missing_source_refs.append(f"{path}:{index}: missing source_ref: {source_ref}")
+    return latest, warnings, missing_source_refs
 
 
 def first_result_ready_time(proof_rows: list[dict[str, Any]]) -> tuple[str, str]:
@@ -354,6 +369,24 @@ def is_result_ready(claim_state: str, evidence_status: str) -> bool:
     return normalized_state(claim_state) == "result_ready" or normalized_state(evidence_status) == "result_ready"
 
 
+def result_ready_blockers(
+    claim_state: str,
+    evidence: dict[str, Any],
+    missing_progress_source_refs: list[str],
+) -> list[str]:
+    blockers: list[str] = []
+    claim_is_ready = normalized_state(claim_state) == "result_ready"
+    evidence_status = normalized_state(str(evidence.get("status") or ""))
+    if claim_is_ready:
+        if not evidence.get("exists"):
+            blockers.append("claim result_ready but evidence.md is missing")
+        elif evidence_status in {"", "draft", "pending"}:
+            blockers.append(f"claim result_ready but evidence status is {evidence.get('status') or 'missing'}")
+    if missing_progress_source_refs:
+        blockers.extend(missing_progress_source_refs)
+    return blockers
+
+
 def decision_is_final(decision_status: str, decision_text: str = "") -> bool:
     status = normalized_state(decision_status)
     decision = normalized_state(decision_text)
@@ -391,7 +424,11 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
     proof_path = artifact_dir / DEFAULT_PROOF_LOG_NAME
     progress_path = artifact_dir / "progress.jsonl"
     proof_rows, warnings = proof_rows_for_work_unit(proof_path, work_unit)
-    progress_at, progress_warnings = latest_progress_timestamp(progress_path, work_unit)
+    progress_at, progress_warnings, missing_progress_source_refs = latest_progress_timestamp(
+        progress_path,
+        work_unit,
+        artifact_dir,
+    )
     warnings.extend(progress_warnings)
 
     claim_state = claim["fields"].get("expected state", "")
@@ -423,7 +460,9 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
     suggested_final = FINAL_REVIEW_BY_RECOMMENDATION.get(recommendation, "")
     suggested_closeout = CLOSEOUT_BY_FINAL_REVIEW.get(suggested_final, "")
 
-    ready = is_result_ready(claim_state, evidence_status)
+    readiness_requested = is_result_ready(claim_state, evidence_status)
+    readiness_blockers = result_ready_blockers(claim_state, evidence, missing_progress_source_refs)
+    ready = readiness_requested and not readiness_blockers
     sort_time = result_ready_at or claim["fields"].get("updated at", "") or progress_at or ""
     sort_key = f"{sort_time or '9999-99-99T99:99:99Z'}|{work_unit}"
     actionable = ready and not stale_reason and not conflict_reason
@@ -434,7 +473,9 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
         "artifact_dir": str(artifact_dir),
         "claim_state": claim_state,
         "evidence_status": evidence_status,
+        "result_ready_requested": readiness_requested,
         "result_ready": ready,
+        "result_ready_blockers": readiness_blockers,
         "result_ready_at": result_ready_at,
         "result_ready_source": f"{proof_path}#{result_ready_proof}" if result_ready_proof else str(evidence["path"] if evidence["exists"] else claim["path"]),
         "evidence_path": str(artifact_dir / "evidence.md"),
@@ -1678,6 +1719,8 @@ def inbox_result_ready(args: argparse.Namespace) -> int:
             flags.append(f"stale={item['stale_reason']}")
         if item["conflict_reason"]:
             flags.append(f"conflict={item['conflict_reason']}")
+        if item["result_ready_blockers"]:
+            flags.append(f"blocked={len(item['result_ready_blockers'])}")
         if item["warnings"]:
             flags.append(f"warnings={len(item['warnings'])}")
         suffix = f" ({'; '.join(flags)})" if flags else ""
@@ -1710,6 +1753,9 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             elif item["conflict_reason"]:
                 status = "conflict"
                 next_action = "Resolve competing source/proof rows before closeout."
+            elif item["result_ready_requested"] and item["result_ready_blockers"]:
+                status = "invalid-result-ready"
+                next_action = "Fix result_ready blockers before Operations Lead closeout."
             elif not item["result_ready"]:
                 status = "not-result-ready"
                 next_action = "Wait for claim/evidence result_ready before closeout."

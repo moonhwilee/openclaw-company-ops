@@ -169,7 +169,10 @@ It defines how the Operations Lead recovers and processes ready results after
 delivery: finish or pause the active owner request first, then process ready
 results from the source-backed inbox. The inbox is the set of Work Units whose
 claim or evidence state is `result_ready` and whose team-detail trail has a
-valid `RESULT_READY` proof when live visibility is required.
+valid `RESULT_READY` proof when live visibility is required. If `claim.md` says
+`result_ready`, the referenced Evidence & Result Record must exist and must not
+still be `Draft` or `Pending`. Progress rows used around a ready transition must
+not point at missing local `source_ref` files.
 
 The inbox is discovered from local source artifacts only: Work Unit directories
 under the configured artifact root, `claim.md`, `evidence.md`, `decision.md`,
@@ -590,6 +593,11 @@ Evidence may include:
 
 The Evidence & Result Record must map result evidence back to the Assignment
 Packet done criteria. Status claims alone are not evidence.
+
+A `result_ready` claim without an existing non-draft Evidence & Result Record is
+an invalid ready transition, not a weak ready item. Operations Lead closeout
+must return it to revision/waiting until the missing source artifact or evidence
+is fixed.
 
 ## Decision Rules
 

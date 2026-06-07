@@ -2238,6 +2238,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     ready_early = create_artifacts(args, inbox_work_dir, "WU-260607-102", "market")
     stale_dir = create_artifacts(args, inbox_work_dir, "WU-260607-103", "finance")
     conflict_dir = create_artifacts(args, inbox_work_dir, "WU-260607-104", "ops")
+    invalid_dir = create_artifacts(args, inbox_work_dir, "WU-260607-106", "build-lab")
     artifact_root = inbox_work_dir / "artifacts"
 
     mark_artifact_result_ready(ready_late, recommendation="accept")
@@ -2249,6 +2250,14 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         encoding="utf-8",
     )
     mark_artifact_result_ready(conflict_dir, recommendation="accept")
+    invalid_claim = invalid_dir / "claim.md"
+    invalid_claim.write_text(
+        invalid_claim.read_text(encoding="utf-8").replace(
+            "- Expected state: `assigned`",
+            "- Expected state: `result_ready`",
+        ),
+        encoding="utf-8",
+    )
 
     write_jsonl(
         ready_late / "visibility-proof.jsonl",
@@ -2282,6 +2291,17 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             ],
         ),
     )
+    write_jsonl(
+        invalid_dir / "progress.jsonl",
+        [
+            {
+                "work_unit_id": "WU-260607-106",
+                "transition_kind": "result_ready",
+                "source_ref": "docs/examples/manual-dry-run/WU-260607-106/missing-result.md",
+                "transition_at": "2026-06-07T01:25:00Z",
+            }
+        ],
+    )
     inbox_result = run_command(
         [
             sys.executable,
@@ -2300,6 +2320,32 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     inbox_ids = [item["work_unit_id"] for item in inbox_payload["items"]]
     if inbox_ids != ["WU-260607-102", "WU-260607-101"]:
         raise RuntimeError(f"result-ready inbox did not sort actionable items deterministically: {inbox_ids}")
+
+    invalid_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-106",
+            "--artifact-root",
+            str(artifact_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if invalid_result.returncode == 0:
+        raise RuntimeError("invalid result-ready closeout should fail closed")
+    invalid_payload = json.loads(invalid_result.stdout)
+    if invalid_payload.get("status") != "invalid-result-ready":
+        raise RuntimeError(f"invalid result-ready expected gate failure, got {invalid_payload.get('status')}")
+    blockers = invalid_payload["item"].get("result_ready_blockers", [])
+    if not any("evidence status is Draft" in blocker for blocker in blockers):
+        raise RuntimeError("invalid result-ready gate did not reject draft evidence")
+    if not any("missing source_ref" in blocker for blocker in blockers):
+        raise RuntimeError("invalid result-ready gate did not reject missing progress source_ref")
 
     ambiguous_dir = create_artifacts(args, inbox_work_dir, "WU-260607-105", "design")
     mark_artifact_result_ready(ambiguous_dir, recommendation=None)
