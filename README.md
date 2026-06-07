@@ -28,20 +28,25 @@ Current internal architecture version: v1.
 
 Most operating elements now have either documented manual practices or
 repo-local support scripts. The owner-visible dogfood, friction patch, first
-real Team Lead delegation, Phase 5.1 visibility contract close, and the narrow
-Phase 5.2 hook guard MVP have been exercised. The remaining internal work is to
-complete the later Phase 5 activation sub-gates, then package only the stable
-surface.
+real Team Lead delegation, Phase 5.1 visibility contract, narrow Phase 5.2 hook
+guard MVP, Phase 5.3 GitHub Project dashboard sync, Phase 5.4 foreground
+Discord publisher hardening, Phase 5.5 result-ready inbox and closeout dry-run
+lock, Phase 5.5a amendment dry-run gate, Phase 5.5b draft-handoff dry-run gate,
+and Phase 5.6 Pulse activation decision are complete.
 
-Phase 5.1 has accepted the visibility contract: `discord card`, foreground
+Current Phase 5 work is limited to Phase 5.7 Packaging Readiness Decision:
+lock the Phase 6 included surfaces, deferred surfaces, and no-go surfaces
+before building an installable package.
+
+Phase 5.1 accepted the visibility contract: `discord card`, foreground
 `discord publish-card`, and `discord proof-validate` are the stable live
-visibility path. Phase 5.2 has accepted only a narrow repo-local hook guard:
-`.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`. The guard blocks
-clear red-line commands and checks Work Unit completion/handoff structure; it
-does not publish progress or mutate operating state. Remaining Phase 5 work is
-limited to the later activation decisions before packaging, with the
-result-ready inbox and closeout-lock gate now treated as a required multi-Work
-Unit safety phase rather than an optional post-setup idea.
+visibility path. Phase 5.2 accepted only a narrow, optional repo-local hook
+guard: `.codex/hooks.json` plus `.codex/hooks/company_ops_gate.py`. The guard
+blocks clear red-line commands and checks Work Unit completion/handoff
+structure; it does not publish progress, store state, or replace source
+artifacts. Phase 5.6 accepted manual/foreground `pulse check` and deferred
+scheduled Pulse activation with trigger; daemon installation remains no-go for
+now.
 
 Owner-visible dogfood uses `#ops-feed` as the owner-facing request/result
 briefing timeline and `#team-*` as the detailed Team Lead execution trail.
@@ -97,13 +102,14 @@ agents or external resources.
 
 ## Planned Work
 
-- Follow the post-setup realization plan from the current Phase 5 activation
-  sub-gates: decide the hook/dashboard/publisher-hardening, result-ready inbox,
-  and scheduled-monitor gates, lock the Phase 6 packaging surface, and only
-  then adopt it across product repos.
+- Complete Phase 5.7 by recording the exact Phase 6 packaging scope:
+  included surfaces, deferred surfaces, and no-go surfaces.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.
 - Turn the repo-local entrypoint into the accepted plugin/package plus small
-  skill distribution only after the Phase 5 activation sub-gates pass or record
-  explicit no-go/defer rationale.
+  skill distribution only after Phase 5.7 locks the package boundaries.
+- Keep scheduled Pulse, daemon install, route helpers, non-dry-run closeout or
+  amendment apply, automatic ops-alerts publishing, hidden orchestrators, and
+  fallback truth sources out of public v1 unless a later explicit gate changes
+  that decision.

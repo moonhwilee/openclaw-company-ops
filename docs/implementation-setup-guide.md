@@ -936,6 +936,12 @@ Current work is the remaining Phase 5 gate:
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.
 
+Phase 5.7 must not reopen earlier activation gates as if they were undecided.
+It should record the Phase 6 package boundary: manual/foreground `pulse check`
+is implemented and included; scheduled Pulse and daemon installation remain
+deferred/no-go; Project and Discord live mutation tools remain configured
+foreground-only; hooks remain optional guardrails, not required runtime state.
+
 Final completion requires GitHub Project or equivalent dashboard visibility
 unless the owner explicitly records a no-go decision with rationale.
 
@@ -988,3 +994,17 @@ Recommended replacement order:
 Do not leave manual commands as an alternate legacy operating path after the
 supported command is available. Keep only emergency diagnostics and explicit
 manual repair notes.
+
+Permission and guardrail requirements for Phase 6:
+
+- `project-sync apply` must stay fail-closed: it requires an apply-ready local
+  field map, GitHub issue or pull request Work Card URLs, and `gh auth` with
+  the `project` scope before any Project mutation.
+- `discord publish-card` and `publish-sequence` must stay explicit foreground
+  commands. They require a target and proof log, can enforce expected
+  target/surface before send, record incomplete proof on send/readback failure,
+  and must not treat Discord as source truth.
+- Optional hooks may block clear red-line commands or malformed source
+  artifacts, but Company Ops must remain usable without hooks installed. Hooks
+  must not store operating state, publish messages, run Project sync, or decide
+  Work Unit status.

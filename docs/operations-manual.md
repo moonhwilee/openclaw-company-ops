@@ -604,6 +604,11 @@ If scheduled Pulse is later accepted, it must suppress Work Units that are
 already result-ready or decided by source artifacts. Pulse must remain
 alert-only.
 
+The hook guard, when installed, is optional protection around source artifacts.
+It may block clear red-line commands or malformed completion/handoff structure,
+but it must not be required for normal operation, store Work Unit state, publish
+messages, run Project sync, or decide Work Unit status.
+
 ## No Legacy / No Fallback
 
 These rules apply to every Work Unit:

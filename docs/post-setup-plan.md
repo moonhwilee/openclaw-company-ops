@@ -1059,14 +1059,61 @@ Candidate Phase 6 surface:
   foreground-command instructions;
 - Work Unit artifact generator;
 - Ops Claim Ledger CLI;
-- alert-only pulse check and any accepted manual runner;
+- implemented alert-only `pulse check` for manual/foreground stalled-work
+  inspection;
 - accepted foreground result-ready inbox and closeout-lock helper;
 - accepted foreground handoff amendment/replan helper;
 - accepted dry-run handoff draft/spec generator helper;
 - dashboard snapshot;
 - Discord card composer, guard, JSON output, and sequence validator;
 - smoke tests and setup docs;
-- optional hook guard only if Phase 5.2 accepts it.
+- optional hook guard as a guardrail only, because Phase 5.2 accepted it
+  narrowly.
+
+Phase 6 included surfaces should be limited to:
+
+- small Company Ops skill plus foreground CLI entrypoint;
+- source-backed Work Unit, claim, inbox, closeout dry-run, amendment dry-run,
+  draft-handoff dry-run, and `pulse check` commands;
+- GitHub Project dashboard dry-run/apply tooling only as a configured
+  foreground mirror that requires an explicit local field map and `gh` auth
+  with `project` scope before mutation;
+- Discord card/publish/proof tooling only as configured foreground
+  visibility/proof commands with explicit targets, readback proof, and no
+  bridge or queue;
+- smoke tests, templates, package docs, and optional hook install/disable/smoke
+  instructions.
+
+Phase 6 deferred surfaces should remain:
+
+- scheduled Pulse/cron activation;
+- `pulse_daemon.py daemon run` as anything more than a bounded foreground
+  smoke/debug diagnostic;
+- route helper `route --intent`;
+- closeout non-dry-run and amendment apply/record commands;
+- automatic `#ops-alerts` publishing;
+- broader Discord retry, queue, or bridge behavior.
+
+Phase 6 no-go surfaces should remain:
+
+- installer edits to private user `MEMORY.md`, `AGENTS.md`, or bootstrap files;
+- Discord, GitHub Project, Telegram, or session history as source of truth;
+- automatic restart, reassignment, recovery, cancellation, or completion;
+- hidden orchestrator, command router, protocol runtime, or classifier.
+
+Permission and failure boundary:
+
+- Project live mutation is allowed only after `project-sync field-map` has
+  produced an apply-ready local field map and `gh auth` includes the `project`
+  scope. Missing field map, missing field ids, invalid Work Card URLs, missing
+  auth, or missing scope must fail before mutation.
+- Discord live mutation is allowed only through explicit foreground
+  `discord publish-card`/`publish-sequence` commands with an explicit target
+  and proof log. Target/surface mismatches must fail before send; send/readback
+  failure records incomplete proof and does not mutate source artifacts.
+- Optional hooks must protect source-artifact structure only. They must not be
+  required runtime state, publish messages, run Project sync, or make Work Unit
+  decisions.
 
 Decision output: a Phase 6 scope record that lists included surfaces, deferred
 surfaces, and no-go surfaces.

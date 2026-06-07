@@ -468,9 +468,16 @@ Phase 5.6 records that manual/foreground Pulse checks are accepted while
 scheduled Pulse activation is deferred with trigger; the existing Dashboard,
 Discord proof trail, result-ready inbox, and Pulse detector remain separate
 surfaces with a shared interrupt policy.
-The current work is the remaining Phase 5 activation sub-gates:
+The current work is the last Phase 5 activation gate:
 
 1. Packaging readiness decision.
+
+Phase 5.7 must package only the bounded foreground surface. Manual/foreground
+`pulse check` is implemented; `pulse_daemon.py daemon run` remains a bounded
+smoke/debug diagnostic unless a later gate accepts more. GitHub Project and
+Discord live mutation tools are configured foreground mirrors/proof surfaces
+that fail closed on missing local configuration or auth. Hooks remain optional
+source-artifact guardrails, not required runtime state.
 
 After Phase 5:
 
