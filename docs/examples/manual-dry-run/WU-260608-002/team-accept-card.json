@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "ACCEPTED",
+    "elapsed": "",
+    "evidence": "docs/examples/manual-dry-run/WU-260608-002/evidence.md",
+    "goal": "",
+    "kind": "ACCEPTED",
+    "needed": "",
+    "next": "Keep Work Card visible for owner inspection; continue next workflow test on request.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "Evidence satisfies the Assignment Packet: result-ready and closeout gate docs consistently preserve Operations Lead review authority and do not document Team Lead RESULT_READY as automatic completion.",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "team-detail",
+    "team": "revenue",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260608-002"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "The Team Lead maps result-ready and closeout gate claims to concrete source references.; The Team Lead identifies any inconsistency, missing statement, or overclaim, or states that none were found.; The Team Lead verifies that RESULT_READY is not documented as automatic completion.; No code or documentation body is modified during this verify Work Unit.; The Team Lead returns a decision-ready verify summary with evidence references.",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "ASSIGNED",
+    "needed": "",
+    "next": "revenue verifies result-ready inbox and closeout gate documentation, then submits RESULT_READY with evidence references.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "Verify result-ready inbox and closeout gate authority",
+    "reason": "",
+    "report": "",
+    "request": "Verify that result-ready inbox and closeout gate documentation treats Team Lead results as Operations Lead review input, not automatic completion. Do not modify code or documentation body.",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/27",
+    "status": "",
+    "surface": "ops-feed",
+    "team": "revenue",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260608-002"
+  }
+}

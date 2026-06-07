@@ -1,0 +1,33 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "STARTED",
+    "needed": "",
+    "next": "Run verify and submit RESULT_READY with source references.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "docs/examples/manual-dry-run/WU-260608-002/assignment.md",
+    "status": "revenue verify started from Assignment Packet; no code or documentation body changes.",
+    "surface": "team-detail",
+    "team": "revenue",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260608-002"
+  },
+  "text": "▶️ [STARTED] WU-260608-002 · 💼 revenue\nStatus: revenue verify started from Assignment Packet; no code or documentation body changes.\nNext: Run verify and submit RESULT_READY with source references."
+}

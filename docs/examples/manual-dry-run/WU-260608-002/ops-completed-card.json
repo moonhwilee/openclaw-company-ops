@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "All verify done criteria passed; no contradiction or auto-completion wording found.",
+    "current_slice": "",
+    "decision": "ACCEPTED",
+    "elapsed": "",
+    "evidence": "docs/examples/manual-dry-run/WU-260608-002/evidence.md",
+    "goal": "",
+    "kind": "COMPLETED",
+    "needed": "",
+    "next": "Keep Work Card visible for owner inspection; continue next workflow test on request.",
+    "next_checkpoint": "",
+    "outcome": "Accepted: result-ready and closeout gate authority wording is consistent.",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "ops-feed",
+    "team": "revenue",
+    "team_final_review_kind": "ACCEPTED",
+    "verification": "Reread operations manual and templates; RESULT_READY is review input, Operations Lead owns final closeout, mirrors are not source truth.",
+    "work_unit_id": "WU-260608-002"
+  }
+}
