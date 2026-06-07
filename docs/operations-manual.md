@@ -111,7 +111,7 @@ When the Team Lead discovers a new issue during execution:
 5. Dashboard and Discord updates are mirrors of the source-backed amendment;
    they do not create the amendment by themselves.
 
-Phase 5.5a's first helper is only a planning surface:
+Phase 5.5a's implemented helper is only a planning surface:
 `work-unit amend --spec amendment.json --dry-run`. It must not edit the
 original Assignment Packet, write an amendment artifact, publish Discord,
 mutate Project, or decide the change. Source-backed recording of an amendment

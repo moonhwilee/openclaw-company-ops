@@ -37,6 +37,22 @@ FINAL_REVIEW_BY_RECOMMENDATION = {
     "blocked": "BLOCKED_DETAIL",
     "block": "BLOCKED_DETAIL",
 }
+AMENDMENT_SPEC_FIELDS = {
+    "work_unit_id",
+    "reason",
+    "changed_fields",
+    "proposed_updates",
+    "source_refs",
+    "requested_by",
+}
+STABLE_HANDOFF_FIELDS = {
+    "work unit id",
+    "work card",
+    "operations lead",
+    "assigned team lead openclaw agent",
+    "mode",
+    "created at",
+}
 
 
 def required(value: str) -> str:
@@ -148,6 +164,18 @@ def spec_text_list(spec: dict[str, Any], key: str) -> list[str]:
     if not cleaned:
         raise ValueError(f"handoff spec requires at least one value: {key}")
     return cleaned
+
+
+def amendment_value_needs_decision(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in {"", "needs-ops-decision"}
+    if isinstance(value, list):
+        return not value or any(amendment_value_needs_decision(item) for item in value)
+    if isinstance(value, dict):
+        return not value or any(amendment_value_needs_decision(item) for item in value.values())
+    return False
 
 
 def markdown_bullets(items: list[str]) -> str:
@@ -948,6 +976,132 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     return publish_code
 
 
+def validate_amendment_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    warnings: list[str] = []
+    unknown = sorted(set(spec) - AMENDMENT_SPEC_FIELDS)
+    if unknown:
+        warnings.append("ignored unknown amendment spec fields: " + ", ".join(unknown))
+
+    proposed_updates = spec.get("proposed_updates")
+    if not isinstance(proposed_updates, dict):
+        raise ValueError("amendment spec requires object: proposed_updates")
+    normalized_updates: dict[str, Any] = {}
+    for key, value in proposed_updates.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("amendment spec proposed_updates keys must be non-empty strings")
+        normalized_updates[key.strip()] = value
+
+    normalized = {
+        "work_unit_id": work_unit_id(require_spec_text(spec, "work_unit_id")),
+        "reason": require_spec_text(spec, "reason"),
+        "changed_fields": spec_text_list(spec, "changed_fields"),
+        "proposed_updates": normalized_updates,
+        "source_refs": spec_text_list(spec, "source_refs"),
+        "requested_by": require_spec_text(spec, "requested_by"),
+    }
+    return normalized, warnings
+
+
+def amendment_needs_ops_decision(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
+    reasons: list[str] = []
+    warnings: list[str] = []
+    changed_fields = [field.strip() for field in spec["changed_fields"] if field.strip()]
+    update_keys = set(spec["proposed_updates"])
+    for field in changed_fields:
+        if field not in update_keys:
+            reasons.append(f"missing proposed update for changed field: {field}")
+            continue
+        value = spec["proposed_updates"].get(field)
+        if amendment_value_needs_decision(value):
+            reasons.append(f"proposed update needs Operations Lead decision: {field}")
+
+    extra_updates = sorted(update_keys - set(changed_fields))
+    if extra_updates:
+        warnings.append("proposed_updates contains fields not listed in changed_fields: " + ", ".join(extra_updates))
+
+    return reasons, warnings
+
+
+def handoff_stable_facts(assignment: dict[str, Any], work_unit: str) -> dict[str, str]:
+    fields = assignment.get("fields", {})
+    facts = {key: fields[key] for key in sorted(STABLE_HANDOFF_FIELDS) if fields.get(key)}
+    facts.setdefault("work unit id", work_unit)
+    return facts
+
+
+def amend_work_unit(args: argparse.Namespace) -> int:
+    try:
+        spec, warnings = validate_amendment_spec(read_json_file(args.spec))
+    except (OSError, ValueError, argparse.ArgumentTypeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not args.dry_run:
+        print("error: amend currently supports --dry-run only", file=sys.stderr)
+        return 1
+
+    artifact_root = args.artifact_root.expanduser()
+    artifact_dir = artifact_root / spec["work_unit_id"]
+    assignment_path = artifact_dir / "assignment.md"
+    if not artifact_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
+        return 1
+    assignment = parse_markdown_source(assignment_path)
+    if not assignment["exists"]:
+        print(f"error: Assignment Packet not found: {assignment_path}", file=sys.stderr)
+        return 1
+
+    decision_reasons, decision_warnings = amendment_needs_ops_decision(spec)
+    warnings.extend(decision_warnings)
+    status = "needs-ops-decision" if decision_reasons else "ready"
+    planned_artifact = artifact_dir / "amendment.md"
+    payload = {
+        "dry_run": True,
+        "status": status,
+        "work_unit_id": spec["work_unit_id"],
+        "artifact_dir": str(artifact_dir),
+        "assignment_path": str(assignment_path),
+        "planned_artifact": str(planned_artifact),
+        "requested_by": spec["requested_by"],
+        "reason": spec["reason"],
+        "changed_fields": spec["changed_fields"],
+        "proposed_updates": spec["proposed_updates"],
+        "source_refs": spec["source_refs"],
+        "stable_facts": handoff_stable_facts(assignment, spec["work_unit_id"]),
+        "needs_ops_decision": decision_reasons,
+        "warnings": warnings,
+        "would_update_assignment_packet": False,
+        "would_write_amendment_artifact": False,
+        "would_publish_discord": False,
+        "would_mutate_project": False,
+        "would_send_owner_report": False,
+        "checks": {
+            "local_spec_only": True,
+            "assignment_packet_reread": True,
+            "original_handoff_preserved": True,
+            "external_sources_read": False,
+            "llm_calls": 0,
+        },
+        "next_action": (
+            "Operations Lead resolves missing/ambiguous amendment fields before any write."
+            if decision_reasons
+            else "Operations Lead may review this dry-run before any separately accepted write path."
+        ),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"DRY-RUN amend {spec['work_unit_id']}: {status}")
+        print(f"- Assignment Packet: {assignment_path}")
+        print(f"- Planned artifact: {planned_artifact} (not written)")
+        print(f"- Changed fields: {', '.join(spec['changed_fields'])}")
+        if decision_reasons:
+            print("- Needs Operations Lead decision:")
+            for reason in decision_reasons:
+                print(f"  - {reason}")
+        print(f"- Next: {payload['next_action']}")
+    return 0
+
+
 def append_progress(args: argparse.Namespace) -> int:
     output_dir = args.output_root.expanduser() / args.work_unit_id
     if not output_dir.is_dir():
@@ -1692,6 +1846,21 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without writes or sends")
     handoff_mode.add_argument("--publish", action="store_true", help="Write artifacts, publish/read back Discord, then sync Project mirror")
     handoff.set_defaults(func=handoff_work_unit)
+
+    amend = work_unit_subparsers.add_parser(
+        "amend",
+        help="Preview a source-backed handoff amendment without mutation",
+    )
+    amend.add_argument("--spec", required=True, type=Path, help="Structured amendment JSON fact packet")
+    amend.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id>/ source artifacts",
+    )
+    amend.add_argument("--dry-run", action="store_true", help="Required; no assignment, artifact, Discord, or Project mutation")
+    amend.add_argument("--format", choices=("text", "json"), default="text")
+    amend.set_defaults(func=amend_work_unit)
 
     progress = work_unit_subparsers.add_parser(
         "progress",

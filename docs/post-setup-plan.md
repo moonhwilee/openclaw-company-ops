@@ -785,14 +785,14 @@ Acceptance gate:
 Purpose: make post-handoff plan changes source-backed without slowing normal
 Work Units or making the Assignment Packet too rigid.
 
-This phase is accepted after Phase 5.5's result-ready inbox and closeout lock
-path. It is not a replacement for the original handoff; it is a small foreground
-helper for the cases where execution discovers new facts.
+This phase is implemented after Phase 5.5's result-ready inbox and closeout
+lock path. It is not a replacement for the original handoff; it is a small
+foreground helper for the cases where execution discovers new facts.
 
-Implement:
+Implemented:
 
-- Add a foreground `work-unit amend --spec amendment.json --dry-run` helper.
-- The first implementation plans a source-backed amendment when execution
+- Added a foreground `work-unit amend --spec amendment.json --dry-run` helper.
+- The implementation plans a source-backed amendment when execution
   discovers a new issue that changes scope, done criteria, verification
   criteria, risk, cost, authority, or target artifact paths. It does not record
   or apply the amendment.
@@ -801,7 +801,7 @@ Implement:
   `proposed_updates`, `source_refs`, and `requested_by`.
 - Missing or ambiguous judgment fields must remain `needs-ops-decision`; the
   helper must not invent scope, authority, cost, or route decisions.
-- `--dry-run` is mandatory for the first implementation and must show the
+- `--dry-run` is mandatory and must show the
   planned amendment, affected fields, unchanged handoff facts, source refs, and
   optional visibility/Project mirror plan without writing files or mutating
   external systems.

@@ -303,8 +303,9 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
 5. Phase 5.5 implemented the foreground result-ready inbox and closeout dry-run
    lock gate for multi-Work Unit review safety. It scans only local Work Unit
    source artifacts and keeps route-helper behavior deferred.
-6. Phase 5.5a adds only a foreground amendment/replan dry-run gate for
-   source-backed post-handoff plan changes, not automatic closeout or rerouting.
+6. Phase 5.5a implemented only a foreground amendment/replan dry-run gate for
+   source-backed post-handoff plan changes, not automatic closeout, rerouting,
+   amendment writes, or external mutation.
 7. Phase 5.5b accepts a bounded Handoff Draft / Spec Generator gate. It drafts
    Work Card / Assignment / spec scaffolding only after Operations Lead
    judgment, and must not choose routes, assign Team Leads, publish, mutate

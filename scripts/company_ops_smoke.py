@@ -1410,7 +1410,7 @@ def run_async_work_unit_policy_smoke() -> None:
             "It must not add LLM calls or network reads to list local ready Work Units.",
             "needs-ops-decision",
             "Phase 5.5a: Handoff Amendment / Replan Dry-Run Gate",
-            "work-unit amend",
+            "work-unit amend --spec amendment.json --dry-run",
             "Do not overwrite the original Assignment Packet",
             "Normal Work Units pay no runtime cost",
             "Phase 5.5b: Handoff Draft / Spec Generator Gate",
@@ -1449,7 +1449,7 @@ def run_async_work_unit_policy_smoke() -> None:
                 raise RuntimeError(f"{relative_path} missing async Work Unit policy phrase: {phrase}")
 
 
-def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str) -> None:
+def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root: Path, work_unit_id: str) -> None:
     field_map = artifact_root.parent / "project-field-map.json"
     write_json(
         field_map,
@@ -1924,6 +1924,115 @@ def run_project_sync_smoke(ledger: Path, artifact_root: Path, work_unit_id: str)
     if bad_handoff_result.returncode == 0:
         raise RuntimeError("handoff dry-run accepted missing verification criteria")
 
+    amend_root = artifact_root.parent / "amend-artifacts"
+    amend_dir = create_artifacts(args, amend_root, "WU-260607-106", "build-lab")
+    assignment_before = (amend_dir / "assignment.md").read_text(encoding="utf-8")
+    amend_spec = artifact_root.parent / "amend-spec.json"
+    amend_spec_data = {
+        "work_unit_id": "WU-260607-106",
+        "reason": "New verification target changes the done criteria.",
+        "changed_fields": ["done_criteria", "verification_criteria"],
+        "proposed_updates": {
+            "done_criteria": ["Add source-backed amendment dry-run evidence."],
+            "verification_criteria": ["Prove original Assignment Packet is unchanged."],
+        },
+        "source_refs": ["local-smoke://phase-5.5a/amendment"],
+        "requested_by": "operations-lead",
+    }
+    write_json(amend_spec, amend_spec_data)
+    amend_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "amend",
+            "--spec",
+            str(amend_spec),
+            "--artifact-root",
+            str(amend_root / "artifacts"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(amend_result, "work-unit amend dry-run")
+    amend_payload = json.loads(amend_result.stdout)
+    if amend_payload.get("status") != "ready":
+        raise RuntimeError(f"amend dry-run expected ready, got {amend_payload.get('status')}")
+    if amend_payload.get("would_update_assignment_packet") is not False:
+        raise RuntimeError("amend dry-run reported assignment mutation")
+    if amend_payload.get("would_write_amendment_artifact") is not False:
+        raise RuntimeError("amend dry-run reported amendment artifact write")
+    if (amend_dir / "amendment.md").exists():
+        raise RuntimeError("amend dry-run wrote amendment artifact")
+    if (amend_dir / "assignment.md").read_text(encoding="utf-8") != assignment_before:
+        raise RuntimeError("amend dry-run changed the original Assignment Packet")
+
+    amend_without_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "amend",
+            "--spec",
+            str(amend_spec),
+            "--artifact-root",
+            str(amend_root / "artifacts"),
+        ]
+    )
+    if amend_without_dry_run.returncode == 0:
+        raise RuntimeError("amend accepted a non-dry-run path")
+    if "supports --dry-run only" not in amend_without_dry_run.stderr:
+        raise RuntimeError(f"amend non-dry-run guard failed for wrong reason: {amend_without_dry_run.stderr}")
+
+    ambiguous_amend_spec = artifact_root.parent / "ambiguous-amend-spec.json"
+    ambiguous_amend_data = dict(amend_spec_data)
+    ambiguous_amend_data["proposed_updates"] = {
+        "done_criteria": "needs-ops-decision",
+    }
+    write_json(ambiguous_amend_spec, ambiguous_amend_data)
+    ambiguous_amend = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "amend",
+            "--spec",
+            str(ambiguous_amend_spec),
+            "--artifact-root",
+            str(amend_root / "artifacts"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(ambiguous_amend, "work-unit amend dry-run ambiguous")
+    ambiguous_payload = json.loads(ambiguous_amend.stdout)
+    if ambiguous_payload.get("status") != "needs-ops-decision":
+        raise RuntimeError("amend dry-run did not surface ambiguous updates as needs-ops-decision")
+    if not ambiguous_payload.get("needs_ops_decision"):
+        raise RuntimeError("amend dry-run did not explain why Operations Lead decision is needed")
+
+    source_less_amend_spec = artifact_root.parent / "source-less-amend-spec.json"
+    source_less_data = dict(amend_spec_data)
+    source_less_data.pop("source_refs")
+    write_json(source_less_amend_spec, source_less_data)
+    source_less_amend = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "amend",
+            "--spec",
+            str(source_less_amend_spec),
+            "--artifact-root",
+            str(amend_root / "artifacts"),
+            "--dry-run",
+        ]
+    )
+    if source_less_amend.returncode == 0:
+        raise RuntimeError("amend dry-run accepted an amendment without source refs")
+
     apply_guard = run_command(
         [
             sys.executable,
@@ -2225,7 +2334,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_async_work_unit_policy_smoke()
         run_discord_card_smoke()
         update_result_ready(ledger, build_claim, build_artifacts)
-        run_project_sync_smoke(ledger, work_dir / "artifacts", "WU-260605-901")
+        run_project_sync_smoke(args, ledger, work_dir / "artifacts", "WU-260605-901")
         run_result_ready_inbox_smoke(args, work_dir)
         claims = load_claims(ledger)
     except (RuntimeError, json.JSONDecodeError) as exc:
@@ -2247,6 +2356,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "async Work Unit policy docs, "
         "purpose-specific Discord card/checkpoint composition, "
         "thin handoff dry-run/no-mutation validation, "
+        "handoff amendment dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
         "result-ready inbox and closeout-lock dry-run safety, "
