@@ -111,6 +111,12 @@ When the Team Lead discovers a new issue during execution:
 5. Dashboard and Discord updates are mirrors of the source-backed amendment;
    they do not create the amendment by themselves.
 
+Phase 5.5a's first helper is only a planning surface:
+`work-unit amend --spec amendment.json --dry-run`. It must not edit the
+original Assignment Packet, write an amendment artifact, publish Discord,
+mutate Project, or decide the change. Source-backed recording of an amendment
+requires a later explicit acceptance path.
+
 Rule of thumb: a plan can change, but the change needs a visible source-backed
 reason. The Team Lead can replan within the Assignment Packet; the Operations
 Lead owns scope and closeout changes.

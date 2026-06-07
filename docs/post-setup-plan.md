@@ -791,17 +791,24 @@ helper for the cases where execution discovers new facts.
 
 Implement:
 
-- Add a foreground `work-unit amend` or `work-unit replan --dry-run` helper.
-- The helper records a source-backed amendment when execution discovers a new
-  issue that changes scope, done criteria, verification criteria, risk, cost,
-  authority, or target artifact paths.
+- Add a foreground `work-unit amend --spec amendment.json --dry-run` helper.
+- The first implementation plans a source-backed amendment when execution
+  discovers a new issue that changes scope, done criteria, verification
+  criteria, risk, cost, authority, or target artifact paths. It does not record
+  or apply the amendment.
+- The dry-run spec must be explicit local input, not inferred from chat or
+  mirrors. Required fields: `work_unit_id`, `reason`, `changed_fields`,
+  `proposed_updates`, `source_refs`, and `requested_by`.
+- Missing or ambiguous judgment fields must remain `needs-ops-decision`; the
+  helper must not invent scope, authority, cost, or route decisions.
 - `--dry-run` is mandatory for the first implementation and must show the
-  planned amendment, affected fields, unchanged handoff facts, and optional
-  visibility/Project mirror actions without writing files or mutating external
-  systems.
-- A later non-dry-run path may append an amendment/revision note, update
-  `Updated at`, optionally publish one factual CHECKPOINT or REVISE visibility
-  note, and run Project sync as a mirror.
+  planned amendment, affected fields, unchanged handoff facts, source refs, and
+  optional visibility/Project mirror plan without writing files or mutating
+  external systems.
+- A later non-dry-run path requires a separate acceptance decision. It may then
+  append an amendment/revision note, update `Updated at`, optionally publish one
+  factual CHECKPOINT or REVISE visibility note, and run Project sync as a
+  mirror.
 
 Stable facts that must not be rewritten:
 
@@ -831,19 +838,21 @@ Acceptance gate:
   reports, or LLM calls.
 - The helper preserves a pointer to the original Assignment Packet and proof
   trail.
-- The generated amendment names the changed fields and the reason for change.
+- The planned amendment names the changed fields, reason for change, source
+  refs, unchanged stable facts, and any `needs-ops-decision` fields.
 - Existing scope-contained findings are documented as progress/checkpoint
   examples, not forced into amendment.
-- A smoke fixture proves the original handoff is not overwritten and only the
-  amendment/revision artifact changes.
+- A smoke fixture proves the original handoff is not overwritten, no amendment
+  artifact is written, and the output reports the planned artifact/action for a
+  later explicit acceptance path.
 
 Cost/risk judgment:
 
 - Normal Work Units pay no runtime cost because the helper runs only when a
   meaningful plan change is requested.
-- The implementation should be local-file-first and deterministic, so dry-run
-  should be near-instant and non-dry-run should be seconds plus optional
-  Discord/Project mirror time.
+- The first implementation should be local-file-first and deterministic, so
+  dry-run should be near-instant and add no network, LLM, daemon, or scheduler
+  cost.
 - The main over-tightening risk is using amendments for every small discovery.
   Keep the threshold limited to scope, criteria, risk, cost, authority, or
   target-artifact changes.
