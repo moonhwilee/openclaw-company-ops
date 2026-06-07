@@ -343,9 +343,11 @@ team-final-review-before-ops-completion, and absence of internal fields in
 
 The approved P0 publisher shape is the foreground `publish-card` command. It
 sends one explicit formatted card, immediately reads it back, and appends local
-proof. It must not decide channels by reading message content, batch-replay a
-Work Unit timeline after completion, mutate state, approve results, or become a
-command router.
+proof to the Work Unit `visibility-proof.jsonl`. It refuses duplicate
+successful proof unless `--force` is explicit and can validate expected
+target/surface before sending. It must not decide channels by reading message
+content, batch-replay a Work Unit timeline after completion, mutate state,
+approve results, retry in the background, or become a command router.
 
 One-time route diagnostics may still add one short Team Lead LLM response when
 testing a new Discord channel, thread, binding, agent, or suspected stale

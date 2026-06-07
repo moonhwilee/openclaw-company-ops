@@ -826,6 +826,70 @@ def run_discord_card_smoke() -> None:
         ]:
             raise RuntimeError("publish-sequence did not preserve card order")
 
+        duplicate_guard_proof = pair_dir / "duplicate-guard-proof.jsonl"
+        duplicate_publish_args = [
+            sys.executable,
+            str(DISCORD),
+            "publish-card",
+            "--card-json",
+            str(request_card_json),
+            "--target",
+            "channel:ops-feed-smoke",
+            "--expect-target",
+            "channel:ops-feed-smoke",
+            "--expect-surface",
+            "ops-feed",
+            "--proof-log",
+            str(duplicate_guard_proof),
+            "--dry-run",
+        ]
+        require_success(run_command(duplicate_publish_args), "discord publish duplicate guard seed")
+        duplicate_publish_result = run_command(duplicate_publish_args)
+        if duplicate_publish_result.returncode == 0:
+            raise RuntimeError("publish-card accepted duplicate successful card proof without --force")
+        forced_duplicate_result = run_command([*duplicate_publish_args, "--force"])
+        require_success(forced_duplicate_result, "discord publish duplicate guard force")
+
+        bad_target_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "publish-card",
+                "--card-json",
+                str(request_card_json),
+                "--target",
+                "channel:team-build-lab-smoke",
+                "--expect-target",
+                "channel:ops-feed-smoke",
+                "--proof-log",
+                str(pair_dir / "bad-target-proof.jsonl"),
+                "--dry-run",
+            ]
+        )
+        if bad_target_result.returncode == 0:
+            raise RuntimeError("publish-card accepted a mismatched expected target")
+
+        bad_sequence_target_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "publish-sequence",
+                "--card-target",
+                f"{request_card_json}=channel:team-build-lab-smoke",
+                "--card-target",
+                f"{assigned_card_json}=channel:team-build-lab-smoke",
+                "--ops-feed-target",
+                "channel:ops-feed-smoke",
+                "--team-detail-target",
+                "channel:team-build-lab-smoke",
+                "--proof-log",
+                str(pair_dir / "bad-sequence-target-proof.jsonl"),
+                "--dry-run",
+            ]
+        )
+        if bad_sequence_target_result.returncode == 0:
+            raise RuntimeError("publish-sequence accepted an ops-feed card on the team-detail target")
+
         bad_publish_sequence_result = run_command(
             [
                 sys.executable,

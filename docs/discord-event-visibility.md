@@ -295,9 +295,10 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    Work Cards, source artifacts, issue labels, and `dashboard_snapshot.py`
    remain source-backed inputs, while the Project is a few-minutes-fresh
    visibility mirror for at-a-glance owner review.
-4. Phase 5.4 now considers whether the foreground Discord publisher needs
-   hardening beyond the accepted P0 `publish-card` proof. It must remain an
-   explicit one-card publisher, not a daemon, command router, or timeline
+4. Phase 5.4 accepts narrow foreground publisher hardening: duplicate-card proof
+   guard, expected target/surface checks, and the canonical
+   `visibility-proof.jsonl` proof-log convention. It must remain an explicit
+   one-card publisher, not a daemon, command router, retry loop, or timeline
    replay tool.
 5. Phase 5.5 adds the foreground result-ready inbox and closeout-lock gate for
    multi-Work Unit review safety.
@@ -538,14 +539,15 @@ To publish one prepared card and record timestamped readback proof:
 python3 scripts/openclaw_company_ops.py discord publish-card \
   --card-json team-checkpoint.json \
   --target channel:<discord-channel-id> \
-  --proof-log artifacts/WU-YYMMDD-001/discord-live-proof.jsonl
+  --expect-surface team-detail \
+  --proof-log artifacts/WU-YYMMDD-001/visibility-proof.jsonl
 ```
 
 Validate live proof before accepting a long-running visibility flow:
 
 ```bash
 python3 scripts/openclaw_company_ops.py discord proof-validate \
-  --proof-log artifacts/WU-YYMMDD-001/discord-live-proof.jsonl \
+  --proof-log artifacts/WU-YYMMDD-001/visibility-proof.jsonl \
   --work-unit-id WU-YYMMDD-001 \
   --require-checkpoint \
   --min-live-span-seconds 60

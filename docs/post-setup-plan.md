@@ -570,27 +570,35 @@ Current implementation state:
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 
-Status: open decision. P0 foreground publishing, proof validation, sequence
-ordering, and card-shape guards exist, but Phase 5.4 has not yet recorded a
-formal accept/defer/no-go decision for public v1 packaging.
+Status: accepted narrow hardening. P0 foreground publishing, proof validation,
+sequence ordering, and card-shape guards exist. Public v1 keeps the foreground
+publisher shape and adds only local pre-send guards.
 
-Purpose: decide whether the accepted foreground Discord publisher needs
-additional hardening before packaging.
+Purpose: prevent duplicate or misrouted visibility cards before packaging
+without adding workflow cost, hidden automation, or a second source of truth.
 
 Phase 5.4 does not authorize a daemon, scheduler, Discord bridge, command
 router, or hidden orchestration runtime. The accepted P0 shape is the
 foreground `publish-card` command that sends one explicit, already-formatted
 card at a time.
 
-Evaluate:
+Accepted hardening:
 
-- whether retry/idempotency behavior needs more hardening before public v1;
-- whether proof logs need a stable artifact location convention;
-- whether target route validation should be stricter;
-- whether the current one-card foreground publisher is enough for v1.
+- `publish-card` refuses a card that already has successful proof in the same
+  proof log unless `--force` is explicit.
+- `publish-card` can require an expected target and/or surface before sending.
+- `publish-sequence` can require expected ops-feed and team-detail targets, so
+  assignment/detail cards fail before send when routed to the wrong surface.
+- `visibility-proof.jsonl` is the canonical Work Unit proof log name. This
+  preserves the existing `work-unit` and `project-sync` source-artifact
+  contract instead of introducing a second proof convention.
 
-Decision output: accept current P0 publisher as v1-ready, implement narrow
-hardening, defer hardening with trigger, or no-go with rationale.
+Deferred/no-go:
+
+- Automatic retry loops are not added. Send/readback boundary failures remain
+  explicit proof failures because blind retry can duplicate Discord messages.
+- No background queue, hidden bridge, command reader, or recovery runner is
+  introduced.
 
 Publisher no-go boundaries:
 

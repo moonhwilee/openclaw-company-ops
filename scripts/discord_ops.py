@@ -150,6 +150,8 @@ def parse_timestamp(value: str, field: str) -> datetime:
 def read_jsonl(path: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     source_path = Path(path).expanduser()
+    if not source_path.exists():
+        return rows
     for line_number, raw in enumerate(source_path.read_text(encoding="utf-8").splitlines(), start=1):
         if not raw.strip():
             continue
@@ -168,6 +170,40 @@ def append_jsonl(path: str, row: dict[str, Any]) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+
+
+def successful_duplicate_proof(path: str, card: dict[str, str], card_id: str) -> dict[str, Any] | None:
+    for row in read_jsonl(path):
+        if (
+            str(row.get("work_unit_id") or "") == card["work_unit_id"]
+            and str(row.get("surface") or "") == card["surface"]
+            and str(row.get("kind") or "") == card["kind"]
+            and str(row.get("card_id") or "") == card_id
+            and bool(row.get("readback_ok"))
+        ):
+            return row
+    return None
+
+
+def validate_publish_target(card: dict[str, str], args: argparse.Namespace) -> None:
+    expected_surface = getattr(args, "expect_surface", "") or ""
+    if expected_surface and card["surface"] != expected_surface:
+        raise ValueError(f"card surface {card['surface']} does not match expected surface {expected_surface}")
+
+    expected_target = getattr(args, "expect_target", "") or ""
+    if expected_target and args.target != expected_target:
+        raise ValueError(f"publish target {args.target} does not match expected target {expected_target}")
+
+    expected_ops_target = getattr(args, "ops_feed_target", "") or ""
+    expected_team_target = getattr(args, "team_detail_target", "") or ""
+    expected_by_surface = {
+        "ops-feed": expected_ops_target,
+        "team-detail": expected_team_target,
+    }.get(card["surface"], "")
+    if expected_by_surface and args.target != expected_by_surface:
+        raise ValueError(
+            f"{card['surface']} card target {args.target} does not match expected target {expected_by_surface}"
+        )
 
 
 def run_project_one_shot_sync(card: dict[str, str], args: argparse.Namespace) -> dict[str, Any]:
@@ -928,8 +964,22 @@ def perform_publish_card(args: argparse.Namespace) -> tuple[int, dict[str, Any],
     try:
         card = read_card_json(args.card_json)
         text = format_text_card(card)
+        validate_publish_target(card, args)
     except (OSError, ValueError) as exc:
         return 1, {}, f"error: {exc}"
+
+    card_id = stable_card_id(card, text)
+    try:
+        duplicate = successful_duplicate_proof(args.proof_log, card, card_id)
+    except ValueError as exc:
+        return 1, {}, f"error: {exc}"
+    if duplicate and not args.force:
+        return (
+            1,
+            {"duplicate": duplicate},
+            "error: visibility card already has successful proof in this proof log; "
+            "refusing duplicate publish without --force",
+        )
 
     transition_at = args.transition_at or utc_now_iso()
     sent_at = utc_now_iso()
@@ -1350,6 +1400,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_card.add_argument("--card-json", required=True, help="Card JSON path")
     publish_card.add_argument("--target", required=True, help="Discord target, for example channel:<id>")
+    publish_card.add_argument(
+        "--expect-target",
+        default="",
+        help="Optional expected Discord target; fail before send if --target differs",
+    )
+    publish_card.add_argument(
+        "--expect-surface",
+        choices=tuple(sorted(VISIBILITY_SURFACES)),
+        default="",
+        help="Optional expected card surface; fail before send if the card JSON differs",
+    )
     publish_card.add_argument("--proof-log", required=True, help="JSONL proof log path to append")
     publish_card.add_argument("--channel", default="discord", help="OpenClaw message channel")
     publish_card.add_argument("--account", default="", help="OpenClaw channel account id")
@@ -1357,6 +1418,11 @@ def build_parser() -> argparse.ArgumentParser:
     publish_card.add_argument("--transition-at", default="", help="UTC ISO timestamp for the operating transition")
     publish_card.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
     publish_card.add_argument("--dry-run", action="store_true", help="Record dry-run proof without sending")
+    publish_card.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow publishing even when the same card already has successful proof in this proof log",
+    )
     publish_card.add_argument(
         "--project-sync-field-map",
         default="",
@@ -1391,12 +1457,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ordered CARD_JSON=TARGET pair. Repeat once per card.",
     )
     publish_sequence.add_argument("--proof-log", required=True, help="JSONL proof log path to append")
+    publish_sequence.add_argument(
+        "--ops-feed-target",
+        default="",
+        help="Expected target for every ops-feed card in the sequence",
+    )
+    publish_sequence.add_argument(
+        "--team-detail-target",
+        default="",
+        help="Expected target for every team-detail card in the sequence",
+    )
     publish_sequence.add_argument("--channel", default="discord", help="OpenClaw message channel")
     publish_sequence.add_argument("--account", default="", help="OpenClaw channel account id")
     publish_sequence.add_argument("--thread-id", default="", help="Optional Discord thread id")
     publish_sequence.add_argument("--transition-at", default="", help="UTC ISO timestamp for the operating transition")
     publish_sequence.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
     publish_sequence.add_argument("--dry-run", action="store_true", help="Record dry-run proof without sending")
+    publish_sequence.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow publishing sequence cards that already have successful proof in this proof log",
+    )
     publish_sequence.add_argument(
         "--project-sync-field-map",
         default="",

@@ -176,5 +176,7 @@ Implemented validation:
 - `CHECKPOINT` is the long-running team-detail progress card between
   `STARTED` and `RESULT_READY`.
 - The first publisher surface is the foreground `publish-card` command. It
-  sends one explicit card at a time, reads it back, records JSONL proof, and
-  remains publisher-only. It must not route commands or mutate state.
+  sends one explicit card at a time, reads it back, records JSONL proof in
+  `visibility-proof.jsonl`, and remains publisher-only. It rejects duplicate
+  successful proof by default and can validate expected target/surface before
+  sending. It must not route commands, retry in the background, or mutate state.

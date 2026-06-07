@@ -767,7 +767,9 @@ python3 scripts/openclaw_company_ops.py discord card --surface team-detail --kin
 ```
 
 The foreground `publish-card` publisher sends one card at a time, immediately
-reads it back, and records local proof; it does not batch-replay a Work Unit
+reads it back, and records local proof in `visibility-proof.jsonl`. It refuses
+duplicate successful card proof unless `--force` is explicit and can check the
+expected target/surface before sending. It does not batch-replay a Work Unit
 timeline after completion.
 
 Do not add a Discord command router. The implementation is a publisher-only path
@@ -910,10 +912,9 @@ have been exercised. Phase 5.2 accepted the narrow repo-local hook guard MVP,
 and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Current work
 is the remaining Phase 5 gates:
 
-1. Discord publisher hardening gate.
-2. Result-ready inbox / closeout-lock gate.
-3. Scheduled Pulse / daemon gate.
-4. Packaging readiness decision.
+1. Result-ready inbox / closeout-lock gate.
+2. Scheduled Pulse / daemon gate.
+3. Packaging readiness decision.
 
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.
@@ -946,8 +947,8 @@ Recommended replacement order:
 4. Replace manual claim edits with `claim update`.
 5. Replace manual pulse comparison with `pulse check`.
 6. Replace manual Discord posting with `discord card` plus foreground
-   `discord publish-card`; keep publisher proof explicit and do not add a hidden
-   bridge.
+   `discord publish-card`; keep publisher proof explicit in
+   `visibility-proof.jsonl` and do not add a hidden bridge.
 7. Add `work-unit inbox --result-ready` and closeout-lock dry-run commands
    before scaling multi-Work Unit result recovery.
 8. Add a conservative `route --intent <text>` helper only if it remains

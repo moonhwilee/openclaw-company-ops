@@ -463,10 +463,9 @@ The active remaining order is documented in `docs/post-setup-plan.md`. Phases
 MVP and Phase 5.3 accepted the bounded GitHub Project dashboard sync. The
 current work is the remaining Phase 5 activation sub-gates:
 
-1. Discord publisher hardening gate.
-2. Result-ready inbox / closeout-lock gate.
-3. Scheduled Pulse / daemon gate.
-4. Packaging readiness decision.
+1. Result-ready inbox / closeout-lock gate.
+2. Scheduled Pulse / daemon gate.
+3. Packaging readiness decision.
 
 After Phase 5:
 
@@ -482,8 +481,9 @@ model.
 These decisions are not blockers for the architecture:
 
 - When to install or schedule the Pulse Monitor daemon runner.
-- When to promote the foreground Discord `publish-card` path beyond P0 proof
-  into a broader operating surface.
+- When to add broader Discord publisher behavior beyond the accepted foreground
+  `publish-card` safety guards. Background retry, queues, and command routing
+  remain outside the accepted surface.
 - The exact public-v1 package layout and install mechanism. The accepted
   direction is a Company Ops plugin or package containing a small Company Ops
   skill plus foreground CLI tools, not installer-written user memory and not a
