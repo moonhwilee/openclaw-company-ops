@@ -76,6 +76,19 @@ who start with a single OpenClaw agent, but that setup must be dry-run first
 and must require explicit confirmation before creating or binding Team Lead
 agents or external resources.
 
+Packaged users should operate Pulse the same way as this repo: as an explicit
+foreground check, not as an installed watcher. The packaged CLI should expose
+`pulse check`, read the user's local claim ledger by default, and optionally
+accept a local session snapshot for session/compaction checks. Installation
+must not create cron, launchd, daemon, or `#ops-alerts` delivery.
+
+External mutation setup is also foreground-only. Project mutation requires an
+apply-ready local field map plus GitHub auth with Project scope, and Discord
+publishing requires explicit targets and proof logs. Public v1 should guide
+users through setup/preflight checks and fail closed when configuration or
+permission is missing; it must not auto-create Projects, bind Discord channels,
+guess targets, or grant permissions on the user's behalf.
+
 ## Documents
 
 - [Architecture](docs/architecture.md)

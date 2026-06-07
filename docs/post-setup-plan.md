@@ -1084,6 +1084,20 @@ Phase 6 included surfaces should be limited to:
 - smoke tests, templates, package docs, and optional hook install/disable/smoke
   instructions.
 
+Packaged Pulse operation:
+
+- Public v1 should expose `openclaw-company-ops pulse check` as a normal
+  foreground CLI command.
+- The default ledger path should remain the user's local Company Ops claim
+  ledger under their OpenClaw state directory.
+- Session/compaction checks may use an explicit local session snapshot, but the
+  command must still work without one for claim freshness checks.
+- The small Company Ops skill may tell the Operations Lead when to run
+  `pulse check`, for example after a long Work Unit goes quiet, before owner
+  status reporting on unattended work, or after compaction recovery.
+- Installation must not enable Pulse cron, launchd, daemon, or automatic
+  `#ops-alerts` publishing. Those remain deferred surfaces.
+
 Phase 6 deferred surfaces should remain:
 
 - scheduled Pulse/cron activation;
@@ -1114,6 +1128,18 @@ Permission and failure boundary:
 - Optional hooks must protect source-artifact structure only. They must not be
   required runtime state, publish messages, run Project sync, or make Work Unit
   decisions.
+
+Setup/preflight decision:
+
+- Phase 6 should include setup documentation, and may include a foreground
+  `doctor` or `preflight` helper, that checks Project field-map readiness,
+  GitHub Project scope, Discord target configuration, and proof-log paths.
+- The helper may report missing setup with exact next steps. It must not grant
+  OAuth scopes, create Projects, create Discord channels, choose targets,
+  publish cards, or mutate source artifacts.
+- Missing Project/Discord setup is not a reason to silently degrade into a
+  fallback source of truth. It should disable only that external mirror/proof
+  action while keeping source-backed Work Unit commands usable.
 
 Decision output: a Phase 6 scope record that lists included surfaces, deferred
 surfaces, and no-go surfaces.

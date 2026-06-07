@@ -942,6 +942,14 @@ is implemented and included; scheduled Pulse and daemon installation remain
 deferred/no-go; Project and Discord live mutation tools remain configured
 foreground-only; hooks remain optional guardrails, not required runtime state.
 
+For packaged users, `pulse check` remains a foreground operating command. The
+package should expose it through the installed CLI, read the user's local
+Company Ops claim ledger by default, and optionally accept a local
+session-snapshot file for session mismatch or compaction-suspect checks. The
+small Company Ops skill can instruct an Operations Lead to run it at decision
+points, but install must not turn it into cron, launchd, daemon, or automatic
+alert delivery.
+
 Final completion requires GitHub Project or equivalent dashboard visibility
 unless the owner explicitly records a no-go decision with rationale.
 
@@ -1008,3 +1016,18 @@ Permission and guardrail requirements for Phase 6:
   artifacts, but Company Ops must remain usable without hooks installed. Hooks
   must not store operating state, publish messages, run Project sync, or decide
   Work Unit status.
+
+Public-v1 setup/preflight guidance:
+
+- The install guide should include a foreground setup check for Project and
+  Discord readiness. A future `doctor`/`preflight` helper is acceptable if it
+  only reports readiness and next steps.
+- Project readiness means: existing Project selected, field map generated from
+  that Project, required field ids/options present, GitHub auth includes
+  `project` scope, and source Work Cards are GitHub Issue/PR URLs.
+- Discord readiness means: explicit ops-feed/team-detail targets are known,
+  `publish-card` can be run with expected target/surface checks, proof-log
+  paths are writable, and readback is available.
+- The setup check must not create or bind external resources automatically.
+  Missing readiness should fail only the external mirror/proof action, not the
+  source-backed Work Unit flow.

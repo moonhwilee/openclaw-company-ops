@@ -552,6 +552,12 @@ python3 scripts/openclaw_company_ops.py discord publish-card \
   --proof-log artifacts/WU-YYMMDD-001/visibility-proof.jsonl
 ```
 
+Public v1 setup should treat Discord readiness as explicit foreground
+configuration. The installer or setup/preflight helper may verify that target
+channel ids are known, proof-log paths are writable, expected target/surface
+guards are configured, and readback is available. It must not create channels,
+choose targets, publish cards, or bridge messages automatically.
+
 Validate live proof before accepting a long-running visibility flow:
 
 ```bash

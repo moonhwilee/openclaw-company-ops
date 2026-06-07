@@ -419,4 +419,9 @@ Current implementation state:
 
 Operational enablement still requires a real GitHub Project, text-compatible
 fields, a local field-id map, and `gh auth refresh -s project` on the runner.
-Do not install a long-lived daemon or use LLM interpretation in the sync path.
+Public v1 setup should make this a foreground setup/preflight check: confirm
+that the field map is apply-ready, the `gh` token has Project scope, Work Cards
+are GitHub Issue or PR URLs, and audit/log paths are writable. The check may
+print next steps, but it must not create Projects, grant scopes, add fields, or
+mutate Project items on the user's behalf. Do not install a long-lived daemon
+or use LLM interpretation in the sync path.

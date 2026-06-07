@@ -482,11 +482,25 @@ other private workspace bootstrap files. A development workspace may use a
 memory pointer temporarily, but public install behavior must come from the
 skill/plugin/package and explicit foreground commands.
 
+Packaged Pulse behavior stays manual/foreground for every installer. The
+installed CLI should expose `pulse check`, read the local Company Ops claim
+ledger by default, and accept an optional local session snapshot. The installer
+must not create cron, launchd, daemon, or automatic `#ops-alerts` delivery.
+Operators run Pulse at review points such as long unattended Work Units,
+stale-looking claims, or compaction/session recovery.
+
 Installed target: the package is installed into the OpenClaw runtime/workspace
 where the Operations Lead agent runs. The human owner keeps using natural
 language. The Operations Lead uses the bundled skill as the routing manual and
 uses the packaged foreground CLI as the ticketing, inbox, lock, dashboard, and
 visibility toolset.
+
+Project and Discord setup remains explicit foreground setup. Public v1 should
+guide users through a setup/preflight check for Project field-map readiness,
+GitHub `project` scope, Discord targets, proof-log paths, and readback
+availability. A setup/preflight helper may report missing configuration and
+next steps, but it must not grant scopes, create Projects, create Discord
+channels, bind targets, publish cards, or mutate source artifacts.
 
 Optional guided onboarding for single-agent users is a Phase 6 packaging
 option, not an implemented setup step today. It should start from one OpenClaw
@@ -607,8 +621,8 @@ exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
 `scripts/dashboard_snapshot.py`. The first non-installing Pulse Monitor daemon
 runner exists as `scripts/pulse_daemon.py`.
 
-The next recommended step is still not packaging. Phase 5.1 has accepted the
-visibility contract; continue the remaining activation gates in
-`docs/post-setup-plan.md`: decide the hook/dashboard/publisher-hardening and
-scheduled-monitor gates, lock the Phase 6 surface, then proceed to
-packaging/public v1 and cross-project adoption.
+The next recommended step is still not packaging implementation. Phases 5.1
+through 5.6 have either accepted, implemented, or deferred their activation
+decisions. Continue with Phase 5.7 in `docs/post-setup-plan.md`: lock the
+included, deferred, and no-go public-v1 surfaces and package layout, then
+proceed to Phase 6 packaging/public v1.
