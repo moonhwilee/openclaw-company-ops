@@ -208,6 +208,28 @@ Visibility surfaces such as GitHub labels, GitHub Projects, saved issue views,
 or Discord messages must point back to these artifacts. They are not source
 artifacts.
 
+### Handoff Draft Rule
+
+The Phase 5.5b handoff draft helper is a foreground planning surface for the
+Operations Lead, not a router or source of truth. Its first implementation is
+limited to:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit draft-handoff --spec draft-input.json --dry-run
+```
+
+The input is a structured local spec containing Operations Lead-provided facts.
+Do not use raw owner chat text as enough input to choose `mode`, Team Lead,
+scope, criteria, targets, or no-go boundaries. Missing judgment fields must be
+listed as `needs-ops-decision`, not filled by the helper.
+
+The helper may draft Work Card text, Assignment Packet text, a handoff spec,
+missing fields, and no-go/order checks. It must not create Work Cards, write
+source artifacts, publish Discord cards, mutate GitHub Project, send owner
+completion, call an LLM, or choose a Team Lead. Before any real handoff, the
+Operations Lead must review/fill the draft and validate the completed spec
+through `work-unit handoff --dry-run`.
+
 For Discord-specific event conventions, see
 `docs/discord-event-visibility.md`.
 

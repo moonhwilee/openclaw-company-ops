@@ -871,8 +871,14 @@ The helper must not replace Operations Lead judgment.
 
 Implementation scope:
 
-- Add a foreground dry-run command such as `work-unit draft-handoff --request
-  ...` or `work-unit handoff --draft ...`.
+- Add only the foreground dry-run command
+  `work-unit draft-handoff --spec draft-input.json --dry-run`.
+- The draft input must be a structured local spec, not a free-form owner chat
+  request. Required first-version fields: `requested_by`, `source_refs`, and
+  at least one request summary field such as `title` or `owner_request`.
+- Optional Operations Lead-supplied fields include `work_unit_id`, `mode`,
+  `team`, `scope`, `done_criteria`, `verification_criteria`, `no_go`,
+  `target_paths`, `work_card`, and `targets`.
 - The helper may produce a Work Card draft, Assignment Packet draft, handoff
   spec draft, missing-field list, and no-go/ordering checklist.
 - The helper must make all generated output review-only until Operations Lead
@@ -880,10 +886,13 @@ Implementation scope:
 - The first implementation must be dry-run only: no Work Card creation, no
   source artifact write, no Discord publish, no GitHub Project mutation, no
   owner-facing completion report.
-- The helper should accept Operations Lead-supplied facts such as mode, Team
-  Lead, scope, done criteria, verification criteria, no-go notes, and target
-  paths. It may flag missing fields, but must not invent judgment-sensitive
-  values.
+- The helper must accept only Operations Lead-supplied judgment facts. Missing
+  `mode`, `team`, `scope`, `done_criteria`, `verification_criteria`,
+  `target_paths`, or `targets` are surfaced in `missing_fields` and represented
+  as `needs-ops-decision`; the helper must not invent or infer them.
+- The draft handoff spec must stay aligned with the existing
+  `work-unit handoff` contract. Avoid a second independent handoff template path
+  when the existing spec validation or artifact renderer can be reused.
 
 Current insight:
 
@@ -904,6 +913,8 @@ No-go boundaries:
 
 - No automatic Team Lead selection.
 - No automatic route decision from owner text.
+- No free-form request parsing that turns owner text into mode, team, scope,
+  criteria, or targets.
 - No automatic Work Card creation, Discord publish, GitHub Project mutation, or
   source artifact write from the draft command.
 - No additional LLM calls, token use, network reads, daemon, scheduler,
@@ -921,10 +932,12 @@ Acceptance gate:
 - Draft output includes Work Card, Assignment Packet, handoff spec, missing
   fields, and no-go/order checklist sections.
 - Ambiguous or missing judgment fields are surfaced as `needs-ops-decision`.
-- Generated handoff spec can be passed to `work-unit handoff --dry-run` after
-  Operations Lead fills required values.
+- The raw draft spec is not required to pass handoff validation while judgment
+  fields are missing. A completed draft spec, after Operations Lead fills the
+  required values, can be passed to `work-unit handoff --dry-run`.
 - Smoke coverage proves the helper does not publish, create Work Cards, mutate
-  Project state, call an LLM, or choose a Team Lead by itself.
+  Project state, call an LLM, parse free-form request text into routing
+  decisions, or choose a Team Lead by itself.
 - The helper is documented as an Operations Lead drafting tool, not as a source
   of truth or an autonomous work router.
 

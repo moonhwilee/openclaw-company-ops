@@ -955,12 +955,17 @@ Recommended replacement order:
    `work-unit closeout --dry-run` commands before scaling multi-Work Unit result
    recovery. The implementation scans only local Work Unit source artifacts and
    treats Project/chat surfaces as mirrors, not inbox sources.
-8. Defer a conservative `route --intent <text>` helper until after the
+8. Add the accepted `work-unit draft-handoff --spec draft-input.json --dry-run`
+   helper only as a review-only Operations Lead drafting surface. It must expose
+   missing judgment fields as `needs-ops-decision` and validate completed output
+   through the existing `work-unit handoff --dry-run` path rather than becoming
+   an alternate handoff source of truth.
+9. Defer a conservative `route --intent <text>` helper until after the
    result-ready inbox and closeout-lock path are stable. Add it only if it
    remains deterministic and can return `needs-ops-decision` when ambiguous.
-9. Package the accepted surfaces as a plugin/package with a bundled small skill
+10. Package the accepted surfaces as a plugin/package with a bundled small skill
    only after Phase 5.7 locks the included and deferred surfaces.
-10. Replace the manual smoke test with `smoke`.
+11. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the
 supported command is available. Keep only emergency diagnostics and explicit
