@@ -25,6 +25,33 @@ Owner -> Operations Lead -> Team Lead OpenClaw Agent -> Subagents
 
 A Work Unit is not an actor. It is the task unit owned by a Team Lead session.
 
+## Shared Capability And Role Authority
+
+Company Ops skill, protocol docs, templates, and CLI are shared capabilities in
+the packaged runtime. The Operations Lead and Team Lead agents should be able
+to read the same packaged Company Ops references and call the same installed
+entrypoint when their role permits it. This prevents Team Leads from depending
+only on chat memory or a perfectly copied assignment prompt during long work,
+compaction, or verification.
+
+Shared capability does not grant shared authority:
+
+- Operations Lead authority: route owner requests, create and amend Assignment
+  Packets, run `pulse check` for operating review, process result-ready inbox,
+  record closeout decisions, run configured Project/Discord mutation, and send
+  owner-facing completion.
+- Team Lead authority: execute only the assigned Work Unit, follow the
+  Assignment Packet and Protocol Capsule packet-first, refresh its own claim,
+  run local verification, write progress/evidence/result artifacts, and report
+  blockers.
+
+The Assignment Packet and Protocol Capsule remain the enforcement surface for a
+Team Lead. If a Team Lead can access the shared CLI, it must still stay within
+the assigned Work Unit scope and must not perform Operations Lead decisions,
+automatic recovery, reassignment, completion, Project mutation, or owner-facing
+visibility. Phase 6 packaging may add role-scoped command guards to make these
+authority boundaries fail closed, but the operating rule already applies here.
+
 ## Main Session Nonblocking Rule
 
 The Operations Lead main session must not sit idle waiting for sizeable Team

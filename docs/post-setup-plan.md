@@ -624,6 +624,11 @@ Installed target:
   agent acting as Operations Lead consumes the bundled skill and calls the
   packaged foreground CLI. It is not installed into the human user, and it must
   not treat private memory files as the control plane.
+- In a multi-agent company model, the same packaged Company Ops skill,
+  protocol docs, templates, and CLI should also be discoverable by Team Lead
+  agents. This is shared capability, not shared authority: Team Leads need the
+  references and source-backed commands to execute packet-first work reliably,
+  but Operations Lead commands and decisions remain role-scoped.
 - The owner still uses natural-language requests. The packaged skill tells the
   Operations Lead when Company Ops applies and how to think about `ops-direct`,
   `team-qna`, and `detached-wu`; the packaged CLI provides the ticketing,
@@ -673,6 +678,10 @@ Impact on existing docs and repository layout:
 - Current repo-local scripts and docs are still valid as the development
   surface. Do not restructure the repository into an installable plugin package
   before Phase 5.7 locks the exact packaging surface.
+- There is not yet a published distribution target to install into. Phase 5.7
+  records the package boundary and role-authority model; Phase 6 builds the
+  actual plugin/package layout, shared skill/docs placement, CLI entrypoint,
+  and any role-scoped command guards.
 - Existing manual/setup docs should describe the accepted direction, not present
   skill, CLI, plugin, or setup script as equally open public-v1 choices.
 - Phase 5.7 must produce the concrete packaging layout decision: plugin
@@ -1072,7 +1081,11 @@ Candidate Phase 6 surface:
 
 Phase 6 included surfaces should be limited to:
 
-- small Company Ops skill plus foreground CLI entrypoint;
+- small Company Ops skill plus foreground CLI entrypoint, installed as shared
+  Company Ops capability for Operations Lead and Team Lead agents in the same
+  runtime;
+- packaged protocol docs and templates that Team Leads can reference while
+  executing assigned Work Units;
 - source-backed Work Unit, claim, inbox, closeout dry-run, amendment dry-run,
   draft-handoff dry-run, and `pulse check` commands;
 - GitHub Project dashboard dry-run/apply tooling only as a configured
@@ -1097,6 +1110,25 @@ Packaged Pulse operation:
   status reporting on unattended work, or after compaction recovery.
 - Installation must not enable Pulse cron, launchd, daemon, or automatic
   `#ops-alerts` publishing. Those remain deferred surfaces.
+
+Shared access and role authority:
+
+- The distribution should expose Company Ops skill/protocol/docs/CLI to both
+  Operations Lead and Team Lead agents so Team Leads can re-check packet-first
+  rules, verification expectations, claim/evidence formats, and no-go
+  boundaries during execution.
+- The Operations Lead owns `pulse check`, result-ready inbox review, closeout
+  decisions, configured Project/Discord mutation, and owner-facing completion.
+- Team Leads may use shared tools only for the Work Unit they were assigned:
+  claim refresh, progress/evidence/result writing, local verification, and
+  blocker reporting.
+- Phase 6 may implement role-scoped CLI guards, for example by requiring an
+  Operations Lead context for `pulse check`, inbox/closeout, Project apply, and
+  Discord publish commands. Team Lead commands should fail closed when they try
+  to mutate outside the assigned Work Unit.
+- This is command/protocol-level authority, not a claim that the operating
+  system has per-agent security isolation. Any harder isolation depends on the
+  OpenClaw runtime's agent identity, workspace, and tool-exposure features.
 
 Phase 6 deferred surfaces should remain:
 

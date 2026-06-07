@@ -970,6 +970,20 @@ package that bundles a small Company Ops skill for natural-language routing and
 foreground CLI tools for deterministic source-backed operations. Do not make
 user `MEMORY.md` or `AGENTS.md` edits part of the install path.
 
+Until Phase 6, there is no installable distribution target. The current target
+is the repo-local model: scripts, docs, protocol references, and templates.
+Phase 5.7 records what must be packaged; Phase 6 builds the actual
+plugin/package layout.
+
+The packaged runtime should make Company Ops skill/protocol/docs/CLI visible to
+both the Operations Lead and Team Lead agents. This is required so Team Leads
+can re-check the packet-first protocol, claim/evidence/result formats, and
+verification/no-go rules during long work. Authority remains role-scoped:
+Operations Lead owns route, `pulse check`, inbox/closeout, configured
+Project/Discord mutation, and owner-facing completion; Team Leads may use
+shared tools only within their assigned Work Unit for claim refresh,
+progress/evidence/result writing, local verification, and blocker reporting.
+
 Recommended replacement order:
 
 1. Replace directory/bootstrap commands with `init`.
