@@ -896,6 +896,31 @@ Acceptance trigger for later implementation:
 Decision after the study: accept a narrow dry-run helper, defer until more real
 data exists, or reject as overengineering.
 
+Preliminary dry-run probe:
+
+- On 2026-06-07, Operations Lead ran six controlled dry-run-only requests in two
+  waves of three parallel handoff validations: verify/light, verify/medium,
+  verify/long, goal/light, goal/medium, and goal/long.
+- The first attempt intentionally surfaced a real guardrail: test Work Unit ids
+  that did not match `WU-YYMMDD-NNN` were rejected before any artifact write or
+  external mutation.
+- The corrected run used valid local-study Work Unit ids and passed all six
+  dry-runs with no persistent handoff artifact writes, no Discord sends, no
+  GitHub Project mutation, no Work Card creation, no Team Lead agent spawn, and
+  no LLM calls.
+- Observed local dry-run validation time was about 160-177ms per Work Unit when
+  three requests were validated concurrently; wave spans were about 161ms and
+  178ms.
+- This proves that the existing deterministic handoff validation surface is not
+  the bottleneck and can tolerate small parallel dry-run bursts.
+- It does not prove that live Operations Lead thinking time has been optimized,
+  because the probe measured scripted packet assembly and CLI validation, not
+  real LLM judgment, ambiguity handling, or live Discord/GitHub readback.
+
+Updated interpretation: if later Work Units still show multi-minute pre-handoff
+delay, the likely opportunity is not faster validation. It is reducing repeated
+manual packet/spec assembly while keeping Operations Lead judgment in control.
+
 ### Phase 5.6: Scheduled Pulse / Daemon Gate
 
 Purpose: decide whether to install or schedule alert-only monitoring.
