@@ -45,6 +45,29 @@ AMENDMENT_SPEC_FIELDS = {
     "source_refs",
     "requested_by",
 }
+DRAFT_HANDOFF_SPEC_FIELDS = {
+    "work_unit_id",
+    "title",
+    "owner_request",
+    "requested_by",
+    "source_refs",
+    "operations_lead",
+    "team",
+    "mode",
+    "goal",
+    "scope",
+    "done_criteria",
+    "verification_criteria",
+    "targets",
+    "target_paths",
+    "work_card",
+    "work_card_ref",
+    "work_card_repo",
+    "no_go",
+    "next",
+    "report",
+    "created_at",
+}
 STABLE_HANDOFF_FIELDS = {
     "work unit id",
     "work card",
@@ -164,6 +187,12 @@ def spec_text_list(spec: dict[str, Any], key: str) -> list[str]:
     if not cleaned:
         raise ValueError(f"handoff spec requires at least one value: {key}")
     return cleaned
+
+
+def optional_spec_text_list(spec: dict[str, Any], key: str) -> list[str]:
+    if key not in spec or spec.get(key) is None:
+        return []
+    return spec_text_list(spec, key)
 
 
 def amendment_value_needs_decision(value: Any) -> bool:
@@ -974,6 +1003,295 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     elif publish_code == 0:
         print(f"OK handoff published: {spec['work_unit_id']} · {spec['team']} · source artifacts + ASSIGNED readbacks")
     return publish_code
+
+
+def validate_draft_handoff_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    warnings: list[str] = []
+    unknown = sorted(set(spec) - DRAFT_HANDOFF_SPEC_FIELDS)
+    if unknown:
+        warnings.append("ignored unknown draft handoff spec fields: " + ", ".join(unknown))
+
+    requested_by = require_spec_text(spec, "requested_by")
+    source_refs = spec_text_list(spec, "source_refs")
+    if any(item.strip().lower() == "needs-ops-decision" for item in source_refs):
+        raise ValueError("draft handoff spec requires concrete source_refs")
+
+    title = optional_spec_text(spec, "title")
+    owner_request = optional_spec_text(spec, "owner_request")
+    if not title and not owner_request:
+        raise ValueError("draft handoff spec requires title or owner_request")
+
+    raw_targets = spec.get("targets", {})
+    if raw_targets is None:
+        raw_targets = {}
+    if not isinstance(raw_targets, dict):
+        raise ValueError("draft handoff spec field must be an object: targets")
+    targets = {
+        "ops_feed": optional_spec_text(raw_targets, "ops_feed"),
+        "team_detail": optional_spec_text(raw_targets, "team_detail"),
+    }
+
+    normalized = {
+        "work_unit_id": optional_spec_text(spec, "work_unit_id"),
+        "title": title,
+        "owner_request": owner_request,
+        "requested_by": requested_by,
+        "source_refs": source_refs,
+        "operations_lead": optional_spec_text(spec, "operations_lead", "operations-lead"),
+        "team": optional_spec_text(spec, "team"),
+        "mode": optional_spec_text(spec, "mode"),
+        "goal": optional_spec_text(spec, "goal"),
+        "scope": optional_spec_text_list(spec, "scope"),
+        "done_criteria": optional_spec_text_list(spec, "done_criteria"),
+        "verification_criteria": optional_spec_text_list(spec, "verification_criteria"),
+        "targets": targets,
+        "target_paths": optional_spec_text_list(spec, "target_paths"),
+        "work_card": optional_spec_text(spec, "work_card") or optional_spec_text(spec, "work_card_ref"),
+        "work_card_repo": optional_spec_text(spec, "work_card_repo"),
+        "no_go": optional_spec_text_list(spec, "no_go"),
+        "next": optional_spec_text(spec, "next", "Team Lead starts from the Assignment Packet."),
+        "report": optional_spec_text(
+            spec,
+            "report",
+            "Result summary, evidence links, checks performed, remaining risks, blockers.",
+        ),
+        "created_at": optional_spec_text(spec, "created_at"),
+    }
+    return normalized, warnings
+
+
+def draft_missing_fields(spec: dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+    for key in (
+        "work_unit_id",
+        "title",
+        "team",
+        "mode",
+        "goal",
+        "scope",
+        "done_criteria",
+        "verification_criteria",
+    ):
+        if amendment_value_needs_decision(spec.get(key)):
+            missing.append(key)
+    if amendment_value_needs_decision(spec.get("targets", {}).get("ops_feed")):
+        missing.append("targets.ops_feed")
+    if amendment_value_needs_decision(spec.get("targets", {}).get("team_detail")):
+        missing.append("targets.team_detail")
+    if not spec.get("work_card") and not spec.get("work_card_repo"):
+        missing.append("work_card_or_work_card_repo")
+    return missing
+
+
+def draft_handoff_spec_candidate(spec: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "work_unit_id": spec["work_unit_id"] or "needs-ops-decision",
+        "title": spec["title"] or "needs-ops-decision",
+        "work_card": spec["work_card"] or "",
+        "work_card_repo": spec["work_card_repo"] or "",
+        "operations_lead": spec["operations_lead"],
+        "team": spec["team"] or "needs-ops-decision",
+        "mode": spec["mode"] or "needs-ops-decision",
+        "owner_request": spec["owner_request"],
+        "goal": spec["goal"] or "needs-ops-decision",
+        "scope": spec["scope"] or ["needs-ops-decision"],
+        "done_criteria": spec["done_criteria"] or ["needs-ops-decision"],
+        "verification_criteria": spec["verification_criteria"] or ["needs-ops-decision"],
+        "targets": {
+            "ops_feed": spec["targets"]["ops_feed"] or "needs-ops-decision",
+            "team_detail": spec["targets"]["team_detail"] or "needs-ops-decision",
+        },
+        "source_refs": spec["source_refs"],
+        "next": spec["next"],
+        "report": spec["report"],
+        "created_at": spec["created_at"],
+    }
+
+
+def render_draft_work_card(spec: dict[str, Any]) -> str:
+    source_refs = markdown_bullets(spec["source_refs"])
+    scope = markdown_bullets(spec["scope"] or ["needs-ops-decision"])
+    done = markdown_bullets(spec["done_criteria"] or ["needs-ops-decision"])
+    verification = markdown_bullets(spec["verification_criteria"] or ["needs-ops-decision"])
+    return f"""# Work Card Draft
+
+## Identity
+
+- Work Unit id: `{spec["work_unit_id"] or "needs-ops-decision"}`
+- Assigned Team Lead OpenClaw Agent: `{spec["team"] or "needs-ops-decision"}`
+- Mode: `{spec["mode"] or "needs-ops-decision"}`
+
+## Title
+
+{spec["title"] or "needs-ops-decision"}
+
+## Owner Request
+
+{spec["owner_request"] or "needs-ops-decision"}
+
+## Goal
+
+{spec["goal"] or "needs-ops-decision"}
+
+## Scope
+
+{scope}
+
+## Done Criteria
+
+{done}
+
+## Verification Criteria
+
+{verification}
+
+## Source Refs
+
+{source_refs}
+
+## Rule
+
+This is a review-only draft. It is not a Work Card until the Operations Lead
+creates or links the real Work Card.
+"""
+
+
+def render_draft_assignment(spec: dict[str, Any]) -> str:
+    no_go = markdown_bullets(spec["no_go"] or ["Do not expand beyond Operations Lead-approved scope."])
+    target_paths = markdown_bullets(spec["target_paths"] or ["needs-ops-decision"])
+    return f"""# Assignment Packet Draft
+
+Status: Draft
+
+This is a review-only handoff draft prepared from structured Operations
+Lead-supplied facts. It is not a source artifact.
+
+## Identity
+
+- Work Unit id: `{spec["work_unit_id"] or "needs-ops-decision"}`
+- Title: {spec["title"] or "needs-ops-decision"}
+- Operations Lead: `{spec["operations_lead"]}`
+- Assigned Team Lead OpenClaw Agent: `{spec["team"] or "needs-ops-decision"}`
+- Mode: `{spec["mode"] or "needs-ops-decision"}`
+
+## Owner Request
+
+{spec["owner_request"] or "needs-ops-decision"}
+
+## Goal
+
+{spec["goal"] or "needs-ops-decision"}
+
+## Scope
+
+{markdown_bullets(spec["scope"] or ["needs-ops-decision"])}
+
+## Non-goals
+
+{no_go}
+
+## Target Paths
+
+{target_paths}
+
+## Done Criteria
+
+{markdown_bullets(spec["done_criteria"] or ["needs-ops-decision"])}
+
+## Verification Criteria
+
+{markdown_bullets(spec["verification_criteria"] or ["needs-ops-decision"])}
+
+## Inputs
+
+{markdown_bullets(spec["source_refs"])}
+"""
+
+
+def draft_handoff_work_unit(args: argparse.Namespace) -> int:
+    try:
+        spec, warnings = validate_draft_handoff_spec(read_json_file(args.spec))
+    except (OSError, ValueError, argparse.ArgumentTypeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not args.dry_run:
+        print("error: draft-handoff currently supports --dry-run only", file=sys.stderr)
+        return 1
+
+    missing_fields = draft_missing_fields(spec)
+    status = "needs-ops-decision" if missing_fields else "ready"
+    handoff_spec = draft_handoff_spec_candidate(spec)
+    completed_handoff_spec_valid = False
+    validation_error = ""
+    rendered_preview: dict[str, str] = {}
+    if not missing_fields:
+        try:
+            completed = validate_handoff_spec(handoff_spec)
+            if not completed["work_card"]:
+                completed["work_card"] = f"planned Work Card in {completed['work_card_repo']}"
+            output_root = args.output_root.expanduser()
+            output_dir = output_root / completed["work_unit_id"]
+            created_at = completed["created_at"] or args.created_at or utc_now_iso()
+            rendered_preview = render_handoff_artifacts(completed, output_dir, created_at)
+            completed_handoff_spec_valid = True
+        except (ValueError, argparse.ArgumentTypeError) as exc:
+            status = "needs-ops-decision"
+            validation_error = str(exc)
+
+    payload = {
+        "dry_run": True,
+        "status": status,
+        "requested_by": spec["requested_by"],
+        "missing_fields": missing_fields,
+        "warnings": warnings,
+        "source_refs": spec["source_refs"],
+        "work_card_draft": render_draft_work_card(spec),
+        "assignment_packet_draft": rendered_preview.get("assignment.md") or render_draft_assignment(spec),
+        "handoff_spec_draft": handoff_spec,
+        "no_go_order_checklist": [
+            "Operations Lead reviews every needs-ops-decision field.",
+            "Completed draft spec passes work-unit handoff --dry-run before publish.",
+            "ops-feed ASSIGNED remains before team-detail ASSIGNED_DETAIL.",
+            "Discord and GitHub Project remain mirrors, not source truth.",
+        ],
+        "completed_handoff_spec_valid": completed_handoff_spec_valid,
+        "validation_error": validation_error,
+        "would_create_work_card": False,
+        "would_write_source_artifacts": False,
+        "would_publish_discord": False,
+        "would_mutate_project": False,
+        "would_send_owner_report": False,
+        "checks": {
+            "local_spec_only": True,
+            "structured_input": True,
+            "free_form_request_routing": False,
+            "team_lead_auto_selected": False,
+            "external_sources_read": False,
+            "llm_calls": 0,
+            "uses_handoff_validator_when_complete": completed_handoff_spec_valid,
+        },
+        "next_action": (
+            "Operations Lead fills missing fields before validating with work-unit handoff --dry-run."
+            if status == "needs-ops-decision"
+            else "Operations Lead may validate this completed spec with work-unit handoff --dry-run."
+        ),
+    }
+
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"DRY-RUN draft-handoff: {status}")
+        print(f"- Requested by: {spec['requested_by']}")
+        print(f"- Source refs: {', '.join(spec['source_refs'])}")
+        if missing_fields:
+            print("- Missing fields:")
+            for field in missing_fields:
+                print(f"  - {field}")
+        if validation_error:
+            print(f"- Validation error: {validation_error}")
+        print(f"- Completed handoff spec valid: {completed_handoff_spec_valid}")
+        print(f"- Next: {payload['next_action']}")
+    return 0
 
 
 def validate_amendment_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -1846,6 +2164,22 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without writes or sends")
     handoff_mode.add_argument("--publish", action="store_true", help="Write artifacts, publish/read back Discord, then sync Project mirror")
     handoff.set_defaults(func=handoff_work_unit)
+
+    draft_handoff = work_unit_subparsers.add_parser(
+        "draft-handoff",
+        help="Preview Work Card, Assignment Packet, and handoff spec drafts without mutation",
+    )
+    draft_handoff.add_argument("--spec", required=True, type=Path, help="Structured draft-handoff JSON fact packet")
+    draft_handoff.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Preview root for planned <work-unit-id>/ paths; no files are written",
+    )
+    draft_handoff.add_argument("--created-at", default="", help="Preview timestamp/date, default: now when complete")
+    draft_handoff.add_argument("--dry-run", action="store_true", help="Required; no Work Card, artifact, Discord, or Project mutation")
+    draft_handoff.add_argument("--format", choices=("text", "json"), default="text")
+    draft_handoff.set_defaults(func=draft_handoff_work_unit)
 
     amend = work_unit_subparsers.add_parser(
         "amend",

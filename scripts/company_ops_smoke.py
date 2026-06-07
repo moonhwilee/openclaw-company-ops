@@ -1414,8 +1414,8 @@ def run_async_work_unit_policy_smoke() -> None:
             "Do not overwrite the original Assignment Packet",
             "Normal Work Units pay no runtime cost",
             "Phase 5.5b: Handoff Draft / Spec Generator Gate",
-            "accepted bounded implementation phase",
-            "first implementation must be dry-run only",
+            "implemented bounded phase",
+            "work-unit draft-handoff --spec draft-input.json --dry-run",
             "needs-ops-decision",
             "six controlled Company Ops requests",
             "must not replace Operations Lead judgment",
@@ -1924,6 +1924,140 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     if bad_handoff_result.returncode == 0:
         raise RuntimeError("handoff dry-run accepted missing verification criteria")
 
+    draft_handoff_root = artifact_root.parent / "draft-handoff-artifacts"
+    draft_handoff_spec = artifact_root.parent / "draft-handoff-spec.json"
+    draft_handoff_data = {
+        **handoff_spec_data,
+        "work_unit_id": "WU-260607-206",
+        "title": "Smoke draft handoff bundle",
+        "requested_by": "operations-lead",
+        "source_refs": ["local-smoke://phase-5.5b/draft-handoff"],
+        "no_go": ["Do not publish from the draft command."],
+        "target_paths": ["docs/examples/manual-dry-run/WU-260607-206/assignment.md"],
+    }
+    write_json(draft_handoff_spec, draft_handoff_data)
+    draft_handoff_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "draft-handoff",
+            "--spec",
+            str(draft_handoff_spec),
+            "--output-root",
+            str(draft_handoff_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(draft_handoff_result, "work-unit draft-handoff dry-run")
+    draft_payload = json.loads(draft_handoff_result.stdout)
+    if draft_payload.get("status") != "ready":
+        raise RuntimeError(f"draft-handoff expected ready, got {draft_payload.get('status')}")
+    if draft_payload.get("completed_handoff_spec_valid") is not True:
+        raise RuntimeError("draft-handoff did not validate completed handoff spec")
+    if draft_payload.get("checks", {}).get("llm_calls") != 0:
+        raise RuntimeError("draft-handoff reported LLM calls")
+    if draft_payload.get("checks", {}).get("free_form_request_routing") is not False:
+        raise RuntimeError("draft-handoff reported free-form routing")
+    for mutation_key in (
+        "would_create_work_card",
+        "would_write_source_artifacts",
+        "would_publish_discord",
+        "would_mutate_project",
+        "would_send_owner_report",
+    ):
+        if draft_payload.get(mutation_key) is not False:
+            raise RuntimeError(f"draft-handoff reported mutation: {mutation_key}")
+    if (draft_handoff_root / "WU-260607-206").exists():
+        raise RuntimeError("draft-handoff dry-run wrote persistent artifacts")
+    if "Work Card Draft" not in draft_payload.get("work_card_draft", ""):
+        raise RuntimeError("draft-handoff did not produce a Work Card draft")
+    if "Assignment Packet" not in draft_payload.get("assignment_packet_draft", ""):
+        raise RuntimeError("draft-handoff did not produce an Assignment Packet draft")
+
+    completed_draft_spec = artifact_root.parent / "completed-draft-handoff-spec.json"
+    write_json(completed_draft_spec, draft_payload["handoff_spec_draft"])
+    completed_handoff_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(completed_draft_spec),
+            "--output-root",
+            str(draft_handoff_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(completed_handoff_result, "completed draft spec handoff dry-run")
+
+    missing_draft_spec = artifact_root.parent / "missing-draft-handoff-spec.json"
+    missing_draft_data = dict(draft_handoff_data)
+    missing_draft_data.pop("team")
+    missing_draft_data["done_criteria"] = "needs-ops-decision"
+    write_json(missing_draft_spec, missing_draft_data)
+    missing_draft_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "draft-handoff",
+            "--spec",
+            str(missing_draft_spec),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(missing_draft_result, "work-unit draft-handoff missing fields")
+    missing_draft_payload = json.loads(missing_draft_result.stdout)
+    if missing_draft_payload.get("status") != "needs-ops-decision":
+        raise RuntimeError("draft-handoff did not surface missing fields as needs-ops-decision")
+    if "team" not in missing_draft_payload.get("missing_fields", []):
+        raise RuntimeError("draft-handoff did not list missing Team Lead")
+    if "done_criteria" not in missing_draft_payload.get("missing_fields", []):
+        raise RuntimeError("draft-handoff did not list ambiguous done criteria")
+    if missing_draft_payload.get("completed_handoff_spec_valid") is not False:
+        raise RuntimeError("draft-handoff treated incomplete spec as handoff-valid")
+
+    source_less_draft_spec = artifact_root.parent / "source-less-draft-handoff-spec.json"
+    source_less_draft_data = dict(draft_handoff_data)
+    source_less_draft_data.pop("source_refs")
+    write_json(source_less_draft_spec, source_less_draft_data)
+    source_less_draft = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "draft-handoff",
+            "--spec",
+            str(source_less_draft_spec),
+            "--dry-run",
+        ]
+    )
+    if source_less_draft.returncode == 0:
+        raise RuntimeError("draft-handoff accepted source-less input")
+
+    draft_without_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "draft-handoff",
+            "--spec",
+            str(draft_handoff_spec),
+        ]
+    )
+    if draft_without_dry_run.returncode == 0:
+        raise RuntimeError("draft-handoff accepted a non-dry-run path")
+    if "supports --dry-run only" not in draft_without_dry_run.stderr:
+        raise RuntimeError(f"draft-handoff non-dry-run guard failed for wrong reason: {draft_without_dry_run.stderr}")
+
     amend_root = artifact_root.parent / "amend-artifacts"
     amend_dir = create_artifacts(args, amend_root, "WU-260607-106", "build-lab")
     assignment_before = (amend_dir / "assignment.md").read_text(encoding="utf-8")
@@ -2356,6 +2490,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "async Work Unit policy docs, "
         "purpose-specific Discord card/checkpoint composition, "
         "thin handoff dry-run/no-mutation validation, "
+        "handoff draft dry-run/no-mutation validation, "
         "handoff amendment dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "

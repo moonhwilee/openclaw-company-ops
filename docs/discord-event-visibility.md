@@ -306,12 +306,12 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
 6. Phase 5.5a implemented only a foreground amendment/replan dry-run gate for
    source-backed post-handoff plan changes, not automatic closeout, rerouting,
    amendment writes, or external mutation.
-7. Phase 5.5b accepts a bounded Handoff Draft / Spec Generator gate. Its first
-   command shape is `work-unit draft-handoff --spec draft-input.json --dry-run`.
-   It drafts Work Card / Assignment / spec scaffolding only from structured
-   Operations Lead-supplied facts, and must not parse free-form owner text into
-   routes, assign Team Leads, publish, mutate GitHub, or replace Operations
-   Lead judgment.
+7. Phase 5.5b implemented a bounded Handoff Draft / Spec Generator gate:
+   `work-unit draft-handoff --spec draft-input.json --dry-run`. It drafts Work
+   Card / Assignment / spec scaffolding only from structured Operations
+   Lead-supplied facts, and must not parse free-form owner text into routes,
+   assign Team Leads, publish, mutate GitHub, or replace Operations Lead
+   judgment.
 8. Phase 5.6 keeps scheduled daemon or Pulse Monitor activation deferred unless
    real stale-claim risk outweighs alert noise and false positives.
 9. Phase 5.7 locks the surfaces allowed to enter packaging/public v1.

@@ -911,12 +911,12 @@ implementation status in `docs/post-setup-plan.md`. Phases 1-4 and Phase 5.1
 have been exercised. Phase 5.2 accepted the narrow repo-local hook guard MVP,
 and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Phase 5.5
 implemented the foreground result-ready inbox and closeout dry-run lock gate,
-and Phase 5.5a implemented the foreground handoff amendment dry-run gate.
+Phase 5.5a implemented the foreground handoff amendment dry-run gate, and Phase
+5.5b implemented the foreground handoff draft/spec generator dry-run gate.
 Current work is the remaining Phase 5 gates:
 
-1. Handoff draft / spec generator gate.
-2. Scheduled Pulse / daemon gate.
-3. Packaging readiness decision.
+1. Scheduled Pulse / daemon gate.
+2. Packaging readiness decision.
 
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.

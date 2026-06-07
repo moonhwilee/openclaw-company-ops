@@ -862,8 +862,8 @@ Cost/risk judgment:
 Purpose: reduce repeated Work Card / Assignment Packet / handoff spec assembly
 after Operations Lead judgment is already complete.
 
-This is an accepted bounded implementation phase after Phase 5.5 and Phase
-5.5a. It is not a routing engine, automatic assignment engine, or substitute for
+This is an implemented bounded phase after Phase 5.5 and Phase 5.5a. It is not
+a routing engine, automatic assignment engine, or substitute for
 LLM/Operations Lead judgment. Its value is consistency and reduced repetitive
 formatting, not faster Discord/GitHub validation.
 
@@ -871,7 +871,7 @@ The helper must not replace Operations Lead judgment.
 
 Implementation scope:
 
-- Add only the foreground dry-run command
+- Implemented only the foreground dry-run command
   `work-unit draft-handoff --spec draft-input.json --dry-run`.
 - The draft input must be a structured local spec, not a free-form owner chat
   request. Required first-version fields: `requested_by`, `source_refs`, and
