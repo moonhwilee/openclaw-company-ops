@@ -2348,6 +2348,32 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if not any("missing source_ref" in blocker for blocker in blockers):
         raise RuntimeError("invalid result-ready gate did not reject missing progress source_ref")
 
+    invalid_result_ready_publish = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-106",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "This must not publish because evidence is still draft.",
+            "--evidence",
+            str(invalid_dir / "evidence.md"),
+            "--verification",
+            "Negative smoke for pre-publish gate.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if invalid_result_ready_publish.returncode == 0:
+        raise RuntimeError("result-ready dry-run accepted draft evidence")
+
     invalid_project_field_map = inbox_work_dir / "project-field-map.json"
     write_json(
         invalid_project_field_map,
@@ -2542,6 +2568,139 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if (ready_late / ".closeout.lock").exists():
         raise RuntimeError("closeout dry-run left the WU lock behind")
 
+    result_ready_proof_before = (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8")
+    result_ready_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--result",
+            "Result-ready official transition smoke.",
+            "--evidence",
+            str(ready_late / "evidence.md"),
+            "--verification",
+            "Pre-publish gate passes without requiring live proof.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(result_ready_dry_run, "work-unit result-ready dry-run")
+    result_ready_payload = json.loads(result_ready_dry_run.stdout)
+    if result_ready_payload.get("status") != "ready-to-publish":
+        raise RuntimeError("result-ready dry-run did not report ready-to-publish")
+    if result_ready_payload.get("card", {}).get("kind") != "RESULT_READY":
+        raise RuntimeError("result-ready dry-run did not compose a RESULT_READY card")
+    if result_ready_payload.get("would_append_proof") is not False:
+        raise RuntimeError("result-ready dry-run reported proof mutation")
+    if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
+        raise RuntimeError("result-ready dry-run mutated visibility proof")
+
+    decision_before = (ready_late / "decision.md").read_text(encoding="utf-8")
+    closeout_accept = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(ready_late / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(closeout_accept, "closeout accept decision dry-run")
+    accept_payload = json.loads(closeout_accept.stdout)
+    if accept_payload.get("status") != "decision-ready":
+        raise RuntimeError(f"closeout accept dry-run expected decision-ready, got {accept_payload.get('status')}")
+    if accept_payload.get("team_card", {}).get("kind") != "ACCEPTED":
+        raise RuntimeError("closeout accept dry-run did not compose ACCEPTED team card")
+    if accept_payload.get("owner_card", {}).get("kind") != "COMPLETED":
+        raise RuntimeError("closeout accept dry-run did not compose COMPLETED owner card")
+    if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
+        raise RuntimeError("closeout accept dry-run mutated decision.md")
+    if (ready_late / "team-accept-card.json").exists() or (ready_late / "ops-completed-card.json").exists():
+        raise RuntimeError("closeout accept dry-run wrote card artifacts")
+
+    closeout_revise = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-102",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "revise",
+            "--reason",
+            "Operations Lead needs one more source-backed correction.",
+            "--source-ref",
+            str(ready_early / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(closeout_revise, "closeout revise decision dry-run")
+    revise_payload = json.loads(closeout_revise.stdout)
+    if revise_payload.get("team_card", {}).get("kind") != "REVISE":
+        raise RuntimeError("closeout revise dry-run did not compose REVISE team card")
+    if revise_payload.get("owner_card", {}).get("kind") != "NEEDS_REVISION":
+        raise RuntimeError("closeout revise dry-run did not compose NEEDS_REVISION owner card")
+
+    blocked_dir = create_artifacts(args, inbox_work_dir, "WU-260607-108", "build-lab")
+    blocked_closeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-108",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "blocked",
+            "--reason",
+            "Required owner input is missing.",
+            "--blocker-source",
+            "owner-request://missing-input",
+            "--needed",
+            "Owner provides the missing source input.",
+            "--next-owner",
+            "operations-lead",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(blocked_closeout, "closeout blocked decision dry-run")
+    blocked_payload = json.loads(blocked_closeout.stdout)
+    if blocked_payload.get("status") != "decision-ready":
+        raise RuntimeError("blocked closeout should not require result_ready")
+    if blocked_payload.get("team_card", {}).get("kind") != "BLOCKED_DETAIL":
+        raise RuntimeError("blocked closeout did not compose BLOCKED_DETAIL team card")
+    if blocked_payload.get("owner_card", {}).get("kind") != "BLOCKED":
+        raise RuntimeError("blocked closeout did not compose BLOCKED owner card")
+    if (blocked_dir / "decision.md").read_text(encoding="utf-8").startswith("Status: Blocked"):
+        raise RuntimeError("blocked closeout dry-run mutated decision.md")
+
     lock_path = ready_late / ".closeout.lock"
     lock_path.mkdir()
     try:
@@ -2660,7 +2819,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "handoff amendment dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
-        "result-ready inbox and closeout-lock dry-run safety, "
+        "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"
     )
     return 0

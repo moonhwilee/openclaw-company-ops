@@ -714,6 +714,12 @@ Scope:
 - Added a foreground/manual result-ready inbox command,
   `work-unit inbox --result-ready`, that lists Work Units ready for Operations
   Lead review from source artifacts, claim state, and proof/progress logs.
+- Added an official foreground result-ready publication command,
+  `work-unit result-ready --dry-run/--publish`, that wraps the existing shared
+  Result Ready gate and Discord `RESULT_READY` publish/readback path.
+- The result-ready command deliberately splits pre-publish and post-publish
+  checks: source/evidence must pass before send, live `RESULT_READY` proof is
+  required only after the publish/readback step.
 - The command supports text and JSON output. JSON output includes at
   least `work_unit_id`, `title`, `team`, `claim_state`, `result_ready_at`,
   `result_ready_source`, `evidence_path`, `decision_path`, `decision_exists`,
@@ -734,11 +740,15 @@ Scope:
 - Include `--artifact-root`, `--work-unit-id`, `--team`, `--limit`, and
   `--format text|json` options. The default should scan the configured artifact
   root and show actionable ready items only.
-- Added a WU-scoped closeout preparation path,
-  `work-unit closeout --work-unit-id <id> --dry-run`, that takes a closeout lock,
-  rereads assignment/evidence/claim/proof/progress source state, and re-checks
-  whether a final decision artifact already exists before any write. It does not
-  run Project sync or mutate any mirror.
+- Added a WU-scoped closeout path,
+  `work-unit closeout --work-unit-id <id> --dry-run/--publish`, that takes a
+  closeout lock, rereads assignment/evidence/claim/proof/progress source state,
+  and supports explicit Operations Lead decisions: `accept`, `revise`, or
+  `blocked`.
+- `--dry-run` plans the final review/owner closeout cards without mutating
+  `decision.md`, Discord, Project, or owner completion state. `--publish`
+  records `decision.md`, publishes exactly one team final review followed by
+  exactly one owner closeout, then optionally syncs the Project mirror.
 - The closeout lock should be a local source-adjacent lock file or atomic lock
   directory keyed by Work Unit id. Lock acquisition must happen before any
   decision write, Project mutation, Discord publish, or owner-facing report.
@@ -746,8 +756,9 @@ Scope:
   first implementation should fail clearly when a lock already exists, include
   the lock path in the error, and avoid adding force-unlock behavior until a
   separate stale-lock policy is accepted.
-- `--dry-run` is mandatory and is the only implemented closeout path. A later
-  non-dry-run closeout path requires a separate acceptance decision.
+- `accept` and `revise` require a source-backed `result_ready` submission.
+  `blocked` does not require `result_ready`; it requires blocker source,
+  reason, needed action, and next owner.
 - If a decision already exists, closeout preparation must exit as stale or
   already-decided and must not overwrite, reopen, or append a competing
   decision.
@@ -762,9 +773,9 @@ Scope:
   only if it remains deterministic, conservative, and able to return
   `needs-ops-decision` rather than guessing or calling an LLM.
 
-Decision output: foreground inbox and closeout-lock dry-run are accepted for
-multi-WU operation. Non-dry-run closeout, route helper, and stale-lock recovery
-remain separate decisions.
+Decision output: foreground inbox, official result-ready publish, and explicit
+closeout decision commands are accepted for multi-WU operation. Route helper and
+stale-lock recovery remain separate decisions.
 
 No-go boundaries:
 
@@ -1079,7 +1090,8 @@ Candidate Phase 6 surface:
 - Ops Claim Ledger CLI;
 - implemented alert-only `pulse check` for manual/foreground stalled-work
   inspection;
-- accepted foreground result-ready inbox and closeout-lock helper;
+- accepted foreground result-ready inbox/result-ready publish/closeout decision
+  helper, including the closeout-lock helper;
 - accepted foreground handoff amendment/replan helper;
 - accepted dry-run handoff draft/spec generator helper;
 - dashboard snapshot;

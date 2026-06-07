@@ -180,6 +180,13 @@ under the configured artifact root, `claim.md`, `evidence.md`, `decision.md`,
 or Telegram history, GitHub comments, and OpenClaw session history are mirrors
 or delivery surfaces. They must not create a ready item by themselves.
 
+Official `RESULT_READY` publication should use
+`work-unit result-ready --dry-run` before `work-unit result-ready --publish`.
+The command runs the shared Result Ready gate without live proof before
+publishing, then requires the live `RESULT_READY` readback proof after
+publishing. This prevents the circular failure where proof is required before
+the command has had a chance to create it.
+
 Process pending Team Lead results one at a time in a deterministic order:
 
 1. Earliest valid `RESULT_READY` proof timestamp.
@@ -199,9 +206,13 @@ Race control:
   publish owner completion, or overwrite decisions by itself.
 - Run one closeout at a time. Project sync already uses a lock; source decision
   artifacts are single-writer Operations Lead outputs. The foreground
-  `work-unit closeout --dry-run` command uses a Work Unit-specific closeout lock
-  and re-checks whether a final decision already exists before planning any
-  later write.
+  `work-unit closeout --dry-run` / `work-unit closeout --publish` command uses
+  a Work Unit-specific closeout lock and re-checks whether a final decision
+  already exists before planning or writing any later decision.
+- Explicit `accept` and `revise` closeouts require a source-backed
+  `result_ready` submission. `blocked` closeout does not require
+  `result_ready`; it requires blocker reason/source, needed action, and next
+  owner instead.
 - The closeout lock is a short-lived command guard, not a durable workflow
   owner. If the lock already exists, the command should fail before mutation and
   report the lock path; force-unlock behavior requires a separate stale-lock

@@ -30,9 +30,10 @@ Most operating elements now have either documented manual practices or
 repo-local support scripts. The owner-visible dogfood, friction patch, first
 real Team Lead delegation, Phase 5.1 visibility contract, narrow Phase 5.2 hook
 guard MVP, Phase 5.3 GitHub Project dashboard sync, Phase 5.4 foreground
-Discord publisher hardening, Phase 5.5 result-ready inbox and closeout dry-run
-lock, Phase 5.5a amendment dry-run gate, Phase 5.5b draft-handoff dry-run gate,
-and Phase 5.6 Pulse activation decision are complete.
+Discord publisher hardening, Phase 5.5 result-ready inbox/result-ready
+publish/closeout decision gate, Phase 5.5a amendment dry-run gate, Phase 5.5b
+draft-handoff dry-run gate, and Phase 5.6 Pulse activation decision are
+complete.
 
 Current Phase 5 work is limited to Phase 5.7 Packaging Readiness Decision:
 lock the Phase 6 included surfaces, deferred surfaces, and no-go surfaces

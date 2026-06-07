@@ -39,6 +39,21 @@ FINAL_REVIEW_BY_RECOMMENDATION = {
     "blocked": "BLOCKED_DETAIL",
     "block": "BLOCKED_DETAIL",
 }
+FINAL_REVIEW_BY_DECISION = {
+    "accept": "ACCEPTED",
+    "revise": "REVISE",
+    "blocked": "BLOCKED_DETAIL",
+}
+OWNER_CLOSEOUT_BY_DECISION = {
+    "accept": "COMPLETED",
+    "revise": "NEEDS_REVISION",
+    "blocked": "BLOCKED",
+}
+DECISION_STATUS_BY_DECISION = {
+    "accept": "Accepted",
+    "revise": "Revise",
+    "blocked": "Blocked",
+}
 AMENDMENT_SPEC_FIELDS = {
     "work_unit_id",
     "reason",
@@ -1560,6 +1575,9 @@ def publish_card(
     args: argparse.Namespace,
     card: dict[str, Any],
     proof_log: Path,
+    *,
+    target: str | None = None,
+    expect_surface: str = "team-detail",
 ) -> tuple[int, dict[str, Any], str]:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
         temp_path = Path(handle.name)
@@ -1573,9 +1591,9 @@ def publish_card(
             "--card-json",
             str(temp_path),
             "--target",
-            args.target,
+            target or args.target,
             "--expect-surface",
-            "team-detail",
+            expect_surface,
             "--proof-log",
             str(proof_log),
             "--channel",
@@ -1591,6 +1609,8 @@ def publish_card(
             command.extend(["--account", args.account])
         if args.thread_id:
             command.extend(["--thread-id", args.thread_id])
+        if getattr(args, "force", False):
+            command.append("--force")
         return run_json_command(command)
     finally:
         try:
@@ -1602,6 +1622,7 @@ def publish_card(
 def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
     if not args.project_sync_field_map:
         return {"enabled": False}
+    artifact_root = getattr(args, "artifact_root", None) or args.output_root
     command = [
         sys.executable,
         str(SCRIPT_DIR / "project_sync.py"),
@@ -1610,7 +1631,7 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
         "--work-unit-id",
         args.work_unit_id,
         "--artifact-root",
-        str(args.output_root.expanduser()),
+        str(artifact_root.expanduser()),
         "--field-map",
         args.project_sync_field_map,
         "--audit-log",
@@ -1720,6 +1741,129 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
     return 0
 
 
+def card_from_command(command: list[str], label: str) -> tuple[dict[str, Any], str]:
+    code, payload, error = run_json_command(command)
+    if code != 0:
+        raise RuntimeError(f"{label} card validation failed: {error}")
+    card = payload.get("card") or {}
+    text = payload.get("text") or ""
+    if not isinstance(card, dict) or not text:
+        raise RuntimeError(f"{label} card command returned invalid JSON")
+    return card, text
+
+
+def result_ready_card(args: argparse.Namespace, item: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    command = [
+        sys.executable,
+        str(SCRIPT_DIR / "discord_ops.py"),
+        "card",
+        "--surface",
+        "team-detail",
+        "--kind",
+        "RESULT_READY",
+        "--work-unit-id",
+        args.work_unit_id,
+        "--team",
+        args.team or item["team"],
+        "--result",
+        args.result,
+        "--evidence",
+        args.evidence,
+        "--verification",
+        args.verification,
+        "--next",
+        args.next,
+        "--format",
+        "json",
+    ]
+    if args.risks:
+        command.extend(["--risks", args.risks])
+    if args.source_ref:
+        command.extend(["--source", args.source_ref])
+    return card_from_command(command, "result-ready")
+
+
+def result_ready_work_unit(args: argparse.Namespace) -> int:
+    artifact_root = args.artifact_root.expanduser()
+    artifact_dir = artifact_root / args.work_unit_id
+    if not artifact_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
+        return 1
+    if args.publish and not args.target:
+        print("error: --publish requires --target", file=sys.stderr)
+        return 1
+
+    pre_gate = result_ready_gate(artifact_root, args.work_unit_id, require_live_visibility=False)
+    if not pre_gate["ready"]:
+        print_gate_failure("result-ready pre-publish gate failed", pre_gate)
+        return 1
+    if args.source_ref and not local_source_ref_exists(args.source_ref, artifact_dir):
+        print(f"error: result-ready source_ref does not exist: {args.source_ref}", file=sys.stderr)
+        return 1
+    item = build_work_unit_readiness(artifact_root, args.work_unit_id)
+    if not (args.team or item["team"]):
+        print("error: result-ready requires --team when source artifacts do not name a Team Lead", file=sys.stderr)
+        return 1
+
+    try:
+        card, text = result_ready_card(args, item)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
+    if args.dry_run:
+        payload = {
+            "dry_run": True,
+            "status": "ready-to-publish",
+            "work_unit_id": args.work_unit_id,
+            "pre_publish_gate": pre_gate,
+            "card": card,
+            "text": text,
+            "would_publish_result_ready": True,
+            "would_append_proof": False,
+            "would_mutate_project": False,
+            "post_publish_gate": {
+                "mode": "skipped",
+                "reason": "dry-run does not publish/read back RESULT_READY proof",
+            },
+        }
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(text)
+            print("\nDRY-RUN result-ready: source gate passed; no Discord proof or Project mirror mutated.")
+        return 0
+
+    publish_code, publish_payload, publish_error = publish_card(args, card, proof_log)
+    if publish_code != 0:
+        print(publish_error or "error: result-ready publish failed", file=sys.stderr)
+        return 1
+
+    post_gate = result_ready_gate(artifact_root, args.work_unit_id, require_live_visibility=True)
+    if not post_gate["ready"]:
+        print_gate_failure("result-ready post-publish proof gate failed", post_gate)
+        return 1
+    project_sync = run_project_sync(args)
+    if project_sync.get("enabled") and not project_sync.get("ok"):
+        print(f"warning: Project result-ready sync failed: {project_sync.get('error')}", file=sys.stderr)
+
+    payload = {
+        "dry_run": False,
+        "status": "published",
+        "work_unit_id": args.work_unit_id,
+        "pre_publish_gate": pre_gate,
+        "publish": publish_payload.get("publish", {}),
+        "post_publish_gate": post_gate,
+        "project_sync": project_sync,
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"published result-ready {args.work_unit_id}: {payload['publish'].get('proof_id', '')}")
+    return 0
+
+
 class CloseoutLock:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -1787,14 +1931,261 @@ def inbox_result_ready(args: argparse.Namespace) -> int:
     return 0
 
 
+def closeout_decision_source_refs(args: argparse.Namespace) -> list[str]:
+    refs = [args.source_ref] if args.source_ref else []
+    if args.blocker_source:
+        refs.append(args.blocker_source)
+    return refs
+
+
+def validate_closeout_decision(args: argparse.Namespace, item: dict[str, Any], artifact_dir: Path) -> list[str]:
+    failures: list[str] = []
+    decision = args.decision
+    if item["decision_final"]:
+        failures.append("decision.md already records a final Operations Lead decision")
+    if item["conflict_reason"]:
+        failures.append(item["conflict_reason"])
+    if item["final_reviews"]:
+        failures.append("team final review proof already exists")
+    if item["owner_closeouts"]:
+        failures.append("owner closeout proof already exists")
+    if not args.reason:
+        failures.append("--reason is required for explicit closeout decisions")
+    for source_ref in closeout_decision_source_refs(args):
+        if not local_source_ref_exists(source_ref, artifact_dir):
+            failures.append(f"missing source_ref: {source_ref}")
+
+    if decision in {"accept", "revise"}:
+        if not item["result_ready"]:
+            failures.append(f"{decision} closeout requires a source-backed result_ready submission")
+        if item["result_ready_blockers"]:
+            failures.extend(item["result_ready_blockers"])
+    elif decision == "blocked":
+        if not args.blocker_source:
+            failures.append("blocked closeout requires --blocker-source")
+        if not args.needed:
+            failures.append("blocked closeout requires --needed")
+        if not args.next_owner:
+            failures.append("blocked closeout requires --next-owner")
+    return failures
+
+
+def closeout_cards(args: argparse.Namespace, item: dict[str, Any]) -> tuple[dict[str, Any], str, dict[str, Any], str]:
+    team = args.team or item["team"]
+    final_kind = FINAL_REVIEW_BY_DECISION[args.decision]
+    owner_kind = OWNER_CLOSEOUT_BY_DECISION[args.decision]
+    source_ref = args.source_ref or item["evidence_path"]
+    next_action = args.next or {
+        "accept": "Owner may inspect the accepted Work Unit.",
+        "revise": "Team Lead revises the result from Operations Lead feedback.",
+        "blocked": f"{args.next_owner} resolves the blocker before closeout can continue.",
+    }[args.decision]
+
+    if final_kind == "BLOCKED_DETAIL":
+        team_command = [
+            sys.executable,
+            str(SCRIPT_DIR / "discord_ops.py"),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            final_kind,
+            "--work-unit-id",
+            args.work_unit_id,
+            "--team",
+            team,
+            "--problem",
+            item["title"] or f"{args.work_unit_id} is blocked",
+            "--cause",
+            args.reason,
+            "--needed",
+            args.needed,
+            "--evidence",
+            args.blocker_source or source_ref,
+            "--next",
+            next_action,
+            "--format",
+            "json",
+        ]
+    else:
+        team_command = [
+            sys.executable,
+            str(SCRIPT_DIR / "discord_ops.py"),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            final_kind,
+            "--work-unit-id",
+            args.work_unit_id,
+            "--team",
+            team,
+            "--decision",
+            final_kind,
+            "--reason",
+            args.reason,
+            "--evidence",
+            source_ref,
+            "--next",
+            next_action,
+            "--format",
+            "json",
+        ]
+    team_card, team_text = card_from_command(team_command, "closeout team-final")
+
+    if owner_kind == "BLOCKED":
+        owner_command = [
+            sys.executable,
+            str(SCRIPT_DIR / "discord_ops.py"),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            owner_kind,
+            "--work-unit-id",
+            args.work_unit_id,
+            "--team",
+            team,
+            "--problem",
+            item["title"] or f"{args.work_unit_id} is blocked",
+            "--cause",
+            args.reason,
+            "--needed",
+            args.needed,
+            "--evidence",
+            args.blocker_source or source_ref,
+            "--team-final-review-kind",
+            final_kind,
+            "--next",
+            next_action,
+            "--format",
+            "json",
+        ]
+    else:
+        owner_command = [
+            sys.executable,
+            str(SCRIPT_DIR / "discord_ops.py"),
+            "card",
+            "--surface",
+            "ops-feed",
+            "--kind",
+            owner_kind,
+            "--work-unit-id",
+            args.work_unit_id,
+            "--team",
+            team,
+            "--outcome",
+            args.outcome or args.reason,
+            "--criteria-result",
+            args.criteria_result or args.reason,
+            "--decision",
+            final_kind,
+            "--verification",
+            args.verification or f"Operations Lead reviewed {source_ref}.",
+            "--evidence",
+            source_ref,
+            "--team-final-review-kind",
+            final_kind,
+            "--next",
+            next_action,
+            "--format",
+            "json",
+        ]
+    owner_card, owner_text = card_from_command(owner_command, "closeout owner")
+    return team_card, team_text, owner_card, owner_text
+
+
+def render_closeout_decision(args: argparse.Namespace, item: dict[str, Any], decided_at: str) -> str:
+    status = DECISION_STATUS_BY_DECISION[args.decision]
+    source_refs = closeout_decision_source_refs(args) or [item["evidence_path"]]
+    follow_up = args.needed if args.decision == "blocked" else (args.next or "None.")
+    return f"""# Operations Lead Decision
+
+Status: {status}
+
+The Operations Lead decision records whether the submitted result satisfies the
+Assignment Packet and evidence requirements.
+
+## Identity
+
+- Decision ref: `DECISION-{args.work_unit_id}`
+- Work Unit id: `{args.work_unit_id}`
+- Title: {item["title"]}
+- Work Card:
+- Assignment Packet: `{Path(item["artifact_dir"]) / "assignment.md"}`
+- Evidence & Result Record: `{item["evidence_path"]}`
+- Operations Lead: `{args.recorded_by}`
+- Decided at: `{decided_at}`
+- Updated at: `{decided_at}`
+
+## Decision
+
+- `{args.decision}`
+
+## Rationale
+
+{args.reason}
+
+## Source Refs
+
+{markdown_bullets(source_refs)}
+
+## Required Follow-up
+
+- {follow_up}
+
+## Closure Instruction
+
+- Team final review kind: `{FINAL_REVIEW_BY_DECISION[args.decision]}`
+- Owner closeout kind: `{OWNER_CLOSEOUT_BY_DECISION[args.decision]}`
+
+## No Fallback Rule
+
+This decision must not be inferred from GitHub labels, dashboard status,
+Discord messages, or Team Lead claims.
+"""
+
+
+def write_closeout_card_files(
+    artifact_dir: Path,
+    args: argparse.Namespace,
+    team_card: dict[str, Any],
+    owner_card: dict[str, Any],
+) -> dict[str, Path]:
+    suffix = args.decision.replace("_", "-")
+    paths = {
+        "team_card": artifact_dir / f"team-{suffix}-card.json",
+        "owner_card": artifact_dir / f"ops-{OWNER_CLOSEOUT_BY_DECISION[args.decision].lower().replace('_', '-')}-card.json",
+    }
+    if not args.force:
+        existing = [str(path) for path in paths.values() if path.exists()]
+        if existing:
+            raise FileExistsError("closeout card output already exists: " + ", ".join(existing))
+    paths["team_card"].write_text(
+        json.dumps({"card": team_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    paths["owner_card"].write_text(
+        json.dumps({"card": owner_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return paths
+
+
 def closeout_dry_run(args: argparse.Namespace) -> int:
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
     if not artifact_dir.is_dir():
         print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
         return 1
-    if not args.dry_run:
-        print("error: closeout currently supports --dry-run only", file=sys.stderr)
+    if not args.dry_run and not args.publish:
+        print("error: closeout requires --dry-run or --publish", file=sys.stderr)
+        return 1
+    if args.publish and not args.decision:
+        print("error: --publish requires --decision", file=sys.stderr)
+        return 1
+    if args.publish and (not args.team_target or not args.ops_target):
+        print("error: --publish requires --team-target and --ops-target", file=sys.stderr)
         return 1
 
     lock_path = args.lock_path.expanduser() if args.lock_path else artifact_dir / ".closeout.lock"
@@ -1818,17 +2209,42 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             elif not item["suggested_final_review_kind"]:
                 status = "needs-ops-decision"
                 next_action = "Evidence recommendation is missing or ambiguous; Operations Lead must decide."
+            decision_failures: list[str] = []
+            team_card: dict[str, Any] = {}
+            owner_card: dict[str, Any] = {}
+            team_text = ""
+            owner_text = ""
+            if args.decision:
+                decision_failures = validate_closeout_decision(args, item, artifact_dir)
+                if decision_failures:
+                    status = "repair-needed"
+                    next_action = "Repair closeout decision failures before publishing final review."
+                else:
+                    try:
+                        team_card, team_text, owner_card, owner_text = closeout_cards(args, item)
+                    except RuntimeError as exc:
+                        print(f"error: {exc}", file=sys.stderr)
+                        return 1
+                    status = "decision-ready"
+                    next_action = "Publish records decision.md, team final review, and owner closeout."
 
             payload = {
-                "dry_run": True,
+                "dry_run": bool(args.dry_run),
                 "status": status,
                 "work_unit_id": args.work_unit_id,
                 "lock_path": str(lock_path),
                 "lock_released": True,
                 "item": item,
-                "would_write_decision": False,
-                "would_publish_owner_closeout": False,
-                "would_mutate_project": False,
+                "decision": args.decision,
+                "decision_failures": decision_failures,
+                "team_card": team_card,
+                "owner_card": owner_card,
+                "team_text": team_text,
+                "owner_text": owner_text,
+                "would_write_decision": bool(args.decision),
+                "would_publish_team_final_review": bool(args.decision),
+                "would_publish_owner_closeout": bool(args.decision),
+                "would_mutate_project": bool(args.project_sync_field_map and args.publish),
                 "next_action": next_action,
                 "checks": {
                     "source_artifacts_reread": True,
@@ -1837,20 +2253,66 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     "project_dry_run_state": "supported-but-not-mutated",
                 },
             }
+            if args.dry_run or not args.decision or decision_failures:
+                publish_payload = payload
+            else:
+                decided_at = args.transition_at or utc_now_iso()
+                args.transition_at = decided_at
+                proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
+                decision_path = artifact_dir / "decision.md"
+                card_paths = write_closeout_card_files(artifact_dir, args, team_card, owner_card)
+                decision_path.write_text(render_closeout_decision(args, item, decided_at), encoding="utf-8")
+                team_code, team_publish, team_error = publish_card(
+                    args,
+                    team_card,
+                    proof_log,
+                    target=args.team_target,
+                    expect_surface="team-detail",
+                )
+                if team_code != 0:
+                    print(team_error or "error: team final review publish failed", file=sys.stderr)
+                    return 1
+                owner_code, owner_publish, owner_error = publish_card(
+                    args,
+                    owner_card,
+                    proof_log,
+                    target=args.ops_target,
+                    expect_surface="ops-feed",
+                )
+                if owner_code != 0:
+                    print(owner_error or "error: owner closeout publish failed", file=sys.stderr)
+                    return 1
+                project_sync = run_project_sync(args)
+                if project_sync.get("enabled") and not project_sync.get("ok"):
+                    print(f"warning: Project closeout sync failed: {project_sync.get('error')}", file=sys.stderr)
+                publish_payload = {
+                    **payload,
+                    "dry_run": False,
+                    "status": "published",
+                    "decision_path": str(decision_path),
+                    "card_paths": {key: str(value) for key, value in card_paths.items()},
+                    "team_publish": team_publish.get("publish", {}),
+                    "owner_publish": owner_publish.get("publish", {}),
+                    "project_sync": project_sync,
+                }
     except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except FileExistsError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     if args.format == "json":
-        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        print(json.dumps(publish_payload, indent=2, sort_keys=True, ensure_ascii=False))
     else:
-        print(f"DRY-RUN closeout {args.work_unit_id}: {payload['status']}")
-        print(f"- Evidence: {payload['item']['evidence_path']}")
-        print(f"- Decision: {payload['item']['decision_path']} status={payload['item']['decision_status'] or 'missing'}")
-        print(f"- Suggested review: {payload['item']['suggested_final_review_kind'] or 'needs-ops-decision'}")
-        print(f"- Suggested owner closeout: {payload['item']['suggested_owner_closeout_kind'] or 'none'}")
-        print(f"- Next: {payload['next_action']}")
-    return 0 if payload["status"] in {"ready", "needs-ops-decision"} else 1
+        prefix = "DRY-RUN" if publish_payload["dry_run"] else "PUBLISHED"
+        print(f"{prefix} closeout {args.work_unit_id}: {publish_payload['status']}")
+        print(f"- Evidence: {publish_payload['item']['evidence_path']}")
+        print(f"- Decision: {publish_payload['item']['decision_path']} status={publish_payload['item']['decision_status'] or 'missing'}")
+        print(f"- Suggested review: {publish_payload['item']['suggested_final_review_kind'] or 'needs-ops-decision'}")
+        print(f"- Suggested owner closeout: {publish_payload['item']['suggested_owner_closeout_kind'] or 'none'}")
+        print(f"- Next: {publish_payload['next_action']}")
+    return 0 if publish_payload["status"] in {"ready", "needs-ops-decision", "decision-ready", "published"} else 1
 
 
 def render_assignment(context: dict[str, str]) -> str:
@@ -2400,6 +2862,57 @@ def build_parser() -> argparse.ArgumentParser:
     mode_group.add_argument("--publish", action="store_true", help="Publish/read back Discord, append progress, then sync Project mirror")
     checkpoint.set_defaults(func=checkpoint_work_unit)
 
+    result_ready = work_unit_subparsers.add_parser(
+        "result-ready",
+        help="Official foreground RESULT_READY transition with pre/post shared gate checks",
+    )
+    result_ready.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    result_ready.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id>/ source artifacts",
+    )
+    result_ready.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
+    result_ready.add_argument("--result", required=True, type=required, help="Result summary for the RESULT_READY card")
+    result_ready.add_argument("--evidence", required=True, type=required, help="Evidence reference for the RESULT_READY card")
+    result_ready.add_argument("--verification", required=True, type=required, help="Verification summary for the RESULT_READY card")
+    result_ready.add_argument("--risks", default="", help="Known risks or remaining caveats")
+    result_ready.add_argument("--source-ref", default="", help="Optional source reference for the card")
+    result_ready.add_argument("--next", default="Operations Lead review.", help="Next action after RESULT_READY")
+    result_ready.add_argument(
+        "--proof-log",
+        type=Path,
+        help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
+    )
+    result_ready.add_argument("--target", default="", help="Discord team-detail target for --publish")
+    result_ready.add_argument("--channel", default="discord", help="OpenClaw message channel")
+    result_ready.add_argument("--account", default="", help="OpenClaw channel account id")
+    result_ready.add_argument("--thread-id", default="", help="Optional Discord thread id")
+    result_ready.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    result_ready.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
+    result_ready.add_argument(
+        "--project-sync-field-map",
+        default="",
+        help="Optional Project field-map JSON; runs mirror sync after successful publish",
+    )
+    result_ready.add_argument(
+        "--project-sync-ledger",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "claims" / "ledger.json"),
+        help="Ledger passed to project-sync; empty disables ledger",
+    )
+    result_ready.add_argument(
+        "--project-sync-audit-log",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
+        help="Audit log for successful Project mirror sync",
+    )
+    result_ready.add_argument("--force", action="store_true", help="Allow duplicate publish proof when intentionally rerunning")
+    result_ready.add_argument("--format", choices=("text", "json"), default="text")
+    result_ready_mode = result_ready.add_mutually_exclusive_group(required=True)
+    result_ready_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without sends or proof writes")
+    result_ready_mode.add_argument("--publish", action="store_true", help="Publish/read back RESULT_READY, then run post-proof gate")
+    result_ready.set_defaults(func=result_ready_work_unit)
+
     inbox = work_unit_subparsers.add_parser(
         "inbox",
         help="List source-backed Work Units ready for Operations Lead review",
@@ -2428,7 +2941,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     closeout = work_unit_subparsers.add_parser(
         "closeout",
-        help="Prepare Operations Lead closeout from source artifacts without mutation",
+        help="Prepare or publish an Operations Lead closeout from source artifacts",
     )
     closeout.add_argument("--work-unit-id", required=True, type=work_unit_id)
     closeout.add_argument(
@@ -2442,7 +2955,49 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Optional WU-scoped atomic lock directory, default: <WU>/.closeout.lock",
     )
-    closeout.add_argument("--dry-run", action="store_true", help="Required; no decision, publish, or Project mutation")
+    closeout.add_argument("--decision", choices=("accept", "revise", "blocked"), default="")
+    closeout.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
+    closeout.add_argument("--reason", default="", help="Operations Lead rationale for an explicit decision")
+    closeout.add_argument("--source-ref", default="", help="Decision/evidence source reference")
+    closeout.add_argument("--outcome", default="", help="Owner-facing closeout outcome, default: reason")
+    closeout.add_argument("--criteria-result", default="", help="Owner-facing criteria result, default: reason")
+    closeout.add_argument("--verification", default="", help="Owner-facing verification summary")
+    closeout.add_argument("--needed", default="", help="Required for blocked decisions")
+    closeout.add_argument("--blocker-source", default="", help="Required for blocked decisions")
+    closeout.add_argument("--next-owner", default="", help="Required for blocked decisions")
+    closeout.add_argument("--next", default="", help="Next action for final review and owner closeout cards")
+    closeout.add_argument("--recorded-by", default="operations-lead")
+    closeout.add_argument(
+        "--proof-log",
+        type=Path,
+        help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
+    )
+    closeout.add_argument("--team-target", default="", help="Discord team-detail target for --publish")
+    closeout.add_argument("--ops-target", default="", help="Discord ops-feed target for --publish")
+    closeout.add_argument("--channel", default="discord", help="OpenClaw message channel")
+    closeout.add_argument("--account", default="", help="OpenClaw channel account id")
+    closeout.add_argument("--thread-id", default="", help="Optional Discord thread id")
+    closeout.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    closeout.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
+    closeout.add_argument(
+        "--project-sync-field-map",
+        default="",
+        help="Optional Project field-map JSON; runs mirror sync after successful publish",
+    )
+    closeout.add_argument(
+        "--project-sync-ledger",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "claims" / "ledger.json"),
+        help="Ledger passed to project-sync; empty disables ledger",
+    )
+    closeout.add_argument(
+        "--project-sync-audit-log",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
+        help="Audit log for successful Project mirror sync",
+    )
+    closeout.add_argument("--force", action="store_true", help="Replace closeout card files or duplicate publish proof")
+    closeout_mode = closeout.add_mutually_exclusive_group(required=True)
+    closeout_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without decision, Discord, or Project mutation")
+    closeout_mode.add_argument("--publish", action="store_true", help="Write decision, publish final review/owner closeout, then sync Project mirror")
     closeout.add_argument("--format", choices=("text", "json"), default="text")
     closeout.set_defaults(func=closeout_dry_run)
     return parser

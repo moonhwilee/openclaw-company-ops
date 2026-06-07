@@ -924,8 +924,9 @@ After the base setup and repo-local scripts exist, continue tracking
 implementation status in `docs/post-setup-plan.md`. Phases 1-4 and Phase 5.1
 have been exercised. Phase 5.2 accepted the narrow repo-local hook guard MVP,
 and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Phase 5.5
-implemented the foreground result-ready inbox and closeout dry-run lock gate,
-Phase 5.5a implemented the foreground handoff amendment dry-run gate, and Phase
+implemented the foreground result-ready inbox, official result-ready publish
+command, and closeout decision lock gate, Phase 5.5a implemented the foreground
+handoff amendment dry-run gate, and Phase
 5.5b implemented the foreground handoff draft/spec generator dry-run gate.
 Phase 5.6 recorded the Pulse activation decision: manual/foreground accepted;
 scheduled activation deferred with trigger; daemon install no-go for now.
@@ -1004,10 +1005,12 @@ Recommended replacement order:
 6. Replace manual Discord posting with `discord card` plus foreground
    `discord publish-card`; keep publisher proof explicit in
    `visibility-proof.jsonl` and do not add a hidden bridge.
-7. Use the implemented `work-unit inbox --result-ready` and
-   `work-unit closeout --dry-run` commands before scaling multi-Work Unit result
-   recovery. The implementation scans only local Work Unit source artifacts and
-   treats Project/chat surfaces as mirrors, not inbox sources.
+7. Use the implemented `work-unit inbox --result-ready`,
+   `work-unit result-ready --dry-run/--publish`, and
+   `work-unit closeout --dry-run/--publish` commands before scaling
+   multi-Work Unit result recovery. The implementation scans only local Work
+   Unit source artifacts and treats Project/chat surfaces as mirrors, not inbox
+   sources.
 8. Add the accepted `work-unit draft-handoff --spec draft-input.json --dry-run`
    helper only as a review-only Operations Lead drafting surface. It must expose
    missing judgment fields as `needs-ops-decision` and validate completed output

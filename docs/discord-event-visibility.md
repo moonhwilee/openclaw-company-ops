@@ -300,9 +300,10 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    `visibility-proof.jsonl` proof-log convention. It must remain an explicit
    one-card publisher, not a daemon, command router, retry loop, or timeline
    replay tool.
-5. Phase 5.5 implemented the foreground result-ready inbox and closeout dry-run
-   lock gate for multi-Work Unit review safety. It scans only local Work Unit
-   source artifacts and keeps route-helper behavior deferred.
+5. Phase 5.5 implemented the foreground result-ready inbox, official
+   result-ready publish command, and closeout decision gate for multi-Work Unit
+   review safety. It scans only local Work Unit source artifacts and keeps
+   route-helper behavior deferred.
 6. Phase 5.5a implemented only a foreground amendment/replan dry-run gate for
    source-backed post-handoff plan changes, not automatic closeout, rerouting,
    amendment writes, or external mutation.

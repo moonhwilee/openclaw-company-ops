@@ -473,9 +473,10 @@ entrypoint.
 The active remaining order is documented in `docs/post-setup-plan.md`. Phases
 1-4 and Phase 5.1 have been exercised. Phase 5.2 accepted the narrow hook guard
 MVP and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Phase
-5.5 implemented the foreground result-ready inbox and closeout dry-run lock
-gate, Phase 5.5a implemented the foreground handoff amendment dry-run gate, and
-Phase 5.5b implemented the foreground handoff draft/spec generator dry-run gate.
+5.5 implemented the foreground result-ready inbox, official result-ready
+publish command, and closeout decision lock gate; Phase 5.5a implemented the
+foreground handoff amendment dry-run gate, and Phase 5.5b implemented the
+foreground handoff draft/spec generator dry-run gate.
 Phase 5.6 records that manual/foreground Pulse checks are accepted while
 scheduled Pulse activation is deferred with trigger; the existing Dashboard,
 Discord proof trail, result-ready inbox, and Pulse detector remain separate
