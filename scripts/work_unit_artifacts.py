@@ -13,6 +13,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from result_ready_gate import result_ready_gate
+
 
 ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
@@ -387,6 +389,33 @@ def result_ready_blockers(
     return blockers
 
 
+def source_ref_failures_for_row(output_dir: Path, row: dict[str, Any]) -> list[dict[str, str]]:
+    source_ref = str(row.get("source_ref") or "")
+    if not source_ref or local_source_ref_exists(source_ref, output_dir):
+        return []
+    return [
+        {
+            "class": "repairable",
+            "path": str(output_dir / "progress.jsonl"),
+            "field": "progress.source_ref",
+            "message": f"missing source_ref: {source_ref}",
+            "repair_hint": "Point source_ref at an existing local source artifact before appending progress.",
+        }
+    ]
+
+
+def print_gate_failure(prefix: str, gate: dict[str, Any]) -> None:
+    failures = gate.get("failures") or []
+    print(f"error: {prefix}: {gate.get('status') or 'repair-needed'}", file=sys.stderr)
+    for failure in failures:
+        print(
+            "  - "
+            f"{failure.get('class')}: {failure.get('field')}: {failure.get('message')} "
+            f"({failure.get('repair_hint')})",
+            file=sys.stderr,
+        )
+
+
 def decision_is_final(decision_status: str, decision_text: str = "") -> bool:
     status = normalized_state(decision_status)
     decision = normalized_state(decision_text)
@@ -460,9 +489,10 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
     suggested_final = FINAL_REVIEW_BY_RECOMMENDATION.get(recommendation, "")
     suggested_closeout = CLOSEOUT_BY_FINAL_REVIEW.get(suggested_final, "")
 
-    readiness_requested = is_result_ready(claim_state, evidence_status)
-    readiness_blockers = result_ready_blockers(claim_state, evidence, missing_progress_source_refs)
-    ready = readiness_requested and not readiness_blockers
+    gate = result_ready_gate(artifact_root, work_unit)
+    readiness_requested = bool(gate["requested"])
+    readiness_blockers = list(gate["blockers"])
+    ready = bool(gate["ready"])
     sort_time = result_ready_at or claim["fields"].get("updated at", "") or progress_at or ""
     sort_key = f"{sort_time or '9999-99-99T99:99:99Z'}|{work_unit}"
     actionable = ready and not stale_reason and not conflict_reason
@@ -476,6 +506,8 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
         "result_ready_requested": readiness_requested,
         "result_ready": ready,
         "result_ready_blockers": readiness_blockers,
+        "result_ready_gate": gate,
+        "result_ready_gate_failures": gate["failures"],
         "result_ready_at": result_ready_at,
         "result_ready_source": f"{proof_path}#{result_ready_proof}" if result_ready_proof else str(evidence["path"] if evidence["exists"] else claim["path"]),
         "evidence_path": str(artifact_dir / "evidence.md"),
@@ -1473,6 +1505,18 @@ def append_progress(args: argparse.Namespace) -> int:
         )
         return 1
     row = progress_row_from_args(args, transition_at=args.transition_at or utc_now_iso())
+    source_failures = source_ref_failures_for_row(output_dir, row)
+    if source_failures:
+        print_gate_failure(
+            "progress source_ref preflight failed",
+            {"status": "repair-needed", "failures": source_failures},
+        )
+        return 1
+    if normalized_state(str(row.get("transition_kind") or "")) == "result_ready":
+        gate = result_ready_gate(args.output_root, args.work_unit_id, projected_progress_rows=[row])
+        if not gate["ready"]:
+            print_gate_failure("result_ready progress gate failed", gate)
+            return 1
     progress_path = append_progress_row(output_dir, row)
     print(f"recorded progress {args.work_unit_id}: {progress_path}")
     return 0
@@ -1604,6 +1648,19 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
     transition_at = args.transition_at or utc_now_iso()
     args.transition_at = transition_at
     proof_log = args.proof_log.expanduser() if args.proof_log else output_dir / DEFAULT_PROOF_LOG_NAME
+    projected_row = progress_row_from_args(args, transition_at=transition_at, proof_ref="")
+    source_failures = source_ref_failures_for_row(output_dir, projected_row)
+    if source_failures:
+        print_gate_failure(
+            "checkpoint source_ref preflight failed",
+            {"status": "repair-needed", "failures": source_failures},
+        )
+        return 1
+    if normalized_state(str(projected_row.get("transition_kind") or "")) == "result_ready":
+        gate = result_ready_gate(args.output_root, args.work_unit_id, projected_progress_rows=[projected_row])
+        if not gate["ready"]:
+            print_gate_failure("result_ready checkpoint gate failed", gate)
+            return 1
 
     card_code, card_payload, card_error = run_json_command(checkpoint_card_args(args))
     if card_code != 0:
@@ -1615,13 +1672,12 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
         print("error: checkpoint card command returned invalid JSON", file=sys.stderr)
         return 1
 
-    preview_row = progress_row_from_args(args, transition_at=transition_at, proof_ref="")
     if args.dry_run:
         payload = {
             "dry_run": True,
             "card": card,
             "text": text,
-            "progress_row": preview_row,
+            "progress_row": projected_row,
             "project_sync": {
                 "enabled": bool(args.project_sync_field_map),
                 "mode": "skipped",
@@ -1632,7 +1688,7 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
             print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
         else:
             print(text)
-            print(f"\nDRY-RUN checkpoint progress: {preview_row['work_unit_id']} show_round={str(preview_row['show_round']).lower()}")
+            print(f"\nDRY-RUN checkpoint progress: {projected_row['work_unit_id']} show_round={str(projected_row['show_round']).lower()}")
         return 0
 
     publish_code, publish_payload, publish_error = publish_card(args, card, proof_log)
@@ -1720,7 +1776,7 @@ def inbox_result_ready(args: argparse.Namespace) -> int:
         if item["conflict_reason"]:
             flags.append(f"conflict={item['conflict_reason']}")
         if item["result_ready_blockers"]:
-            flags.append(f"blocked={len(item['result_ready_blockers'])}")
+            flags.append(f"repair-needed={len(item['result_ready_blockers'])}")
         if item["warnings"]:
             flags.append(f"warnings={len(item['warnings'])}")
         suffix = f" ({'; '.join(flags)})" if flags else ""
@@ -1754,8 +1810,8 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 status = "conflict"
                 next_action = "Resolve competing source/proof rows before closeout."
             elif item["result_ready_requested"] and item["result_ready_blockers"]:
-                status = "invalid-result-ready"
-                next_action = "Fix result_ready blockers before Operations Lead closeout."
+                status = "repair-needed"
+                next_action = "Repair result_ready gate failures before Operations Lead closeout."
             elif not item["result_ready"]:
                 status = "not-result-ready"
                 next_action = "Wait for claim/evidence result_ready before closeout."

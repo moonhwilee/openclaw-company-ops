@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ops_claim_ledger import DEFAULT_LEDGER
+from result_ready_gate import result_ready_gate
 from work_unit_status import DEFAULT_ARTIFACT_ROOT, build_summary
 
 
@@ -338,6 +339,20 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     lifecycle_projection = proof_lifecycle_projection(summary)
     progress_display = format_progress(progress) or lifecycle_projection["progress"]
     last_update = progress.get("updated_at") or lifecycle_projection["timestamp"]
+    gate: dict[str, Any] = {}
+    if status == "Result Ready":
+        artifact_dir = Path(str(summary.get("artifact_dir") or ""))
+        artifact_root = artifact_dir.parent if artifact_dir.name else DEFAULT_ARTIFACT_ROOT
+        gate = result_ready_gate(
+            artifact_root,
+            str(summary.get("work_unit_id") or ""),
+            claim_state_override=str(claim.get("expected_state") or ""),
+            evidence_status_override=str(evidence.get("status") or ""),
+        )
+        if not gate["ready"]:
+            status = "In Progress"
+            reason = "result_ready gate requires repair"
+            progress_display = "result preflight repair needed"
     fields = {
         "Work Unit id": summary["work_unit_id"],
         "Repository": repository,
@@ -346,7 +361,7 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
         "Status": status,
         "Progress": progress_display,
         "Priority": "",
-        "Blocker": derive_blocker(summary, status, reason),
+        "Blocker": "" if gate and not gate.get("ready") else derive_blocker(summary, status, reason),
         "Evidence present": "yes" if evidence["exists"] and has_real_ref(evidence["ref"]) else "no",
         "Decision": decision_value(summary),
         "Last proof or last source update": format_dashboard_timestamp(last_update),

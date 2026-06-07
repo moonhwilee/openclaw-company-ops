@@ -595,9 +595,10 @@ The Evidence & Result Record must map result evidence back to the Assignment
 Packet done criteria. Status claims alone are not evidence.
 
 A `result_ready` claim without an existing non-draft Evidence & Result Record is
-an invalid ready transition, not a weak ready item. Operations Lead closeout
-must return it to revision/waiting until the missing source artifact or evidence
-is fixed.
+a repair-needed ready transition, not a weak ready item and not Work Unit
+failure. The shared Result Ready Gate must keep the Work Unit `In Progress`,
+avoid writing or mirroring `Result Ready`, and return structured repair hints
+until the missing source artifact, evidence, or proof is fixed.
 
 ## Decision Rules
 
@@ -621,8 +622,9 @@ Use `blocked` when:
 - Assignment Packet is missing or unreadable.
 - Required input is missing.
 - Permission or environment access is missing.
-- Evidence cannot be produced.
-- The Team Lead cannot verify the result.
+- Evidence or source truth cannot be produced.
+- Verification cannot be rerun or repaired because required input, authority,
+  access, safety, or budget is missing.
 - The Operations Lead decision is waiting on unresolved context.
 
 Blocked work should include the blocker, owner of the next action, and the next

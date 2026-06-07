@@ -11,8 +11,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from result_ready_gate import result_ready_gate
+
 
 DEFAULT_LEDGER = Path("~/.openclaw/state/openclaw-company-ops/claims/ledger.json")
+DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
 LEDGER_VERSION = 1
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 CLAIM_RE = re.compile(r"^CLAIM-.+")
@@ -29,6 +32,42 @@ UPDATE_FIELDS = (
     "evidence_ref",
     "operations_lead_decision_ref",
 )
+
+
+def infer_artifact_root(work_unit: str, *refs: str) -> Path | None:
+    for ref in refs:
+        cleaned = str(ref or "").strip()
+        if not cleaned or cleaned == "pending" or "://" in cleaned or cleaned.startswith("#"):
+            continue
+        path = Path(cleaned).expanduser()
+        parent = path.parent
+        if parent.name == work_unit:
+            return parent.parent
+    return None
+
+
+def validate_result_ready_claim(
+    args: argparse.Namespace,
+    work_unit: str,
+    claim_state: str,
+    *refs: str,
+) -> tuple[bool, dict[str, Any]]:
+    if claim_state != "result_ready":
+        return True, {}
+    artifact_root = infer_artifact_root(work_unit, *refs) or args.artifact_root
+    gate = result_ready_gate(artifact_root, work_unit, claim_state_override=claim_state)
+    return bool(gate["ready"]), gate
+
+
+def print_gate_failure(gate: dict[str, Any]) -> None:
+    print(f"error: result_ready claim gate failed: {gate.get('status') or 'repair-needed'}", file=sys.stderr)
+    for failure in gate.get("failures") or []:
+        print(
+            "  - "
+            f"{failure.get('class')}: {failure.get('field')}: {failure.get('message')} "
+            f"({failure.get('repair_hint')})",
+            file=sys.stderr,
+        )
 
 
 def required(value: str) -> str:
@@ -106,6 +145,17 @@ def cmd_create(args: argparse.Namespace) -> int:
         return 1
 
     timestamp = args.created_at or now_iso()
+    ok, gate = validate_result_ready_claim(
+        args,
+        args.work_unit_id,
+        args.expected_state,
+        args.assignment_packet,
+        args.evidence_ref,
+        args.operations_lead_decision_ref,
+    )
+    if not ok:
+        print_gate_failure(gate)
+        return 1
     claims[ref] = {
         "claim_ref": ref,
         "work_unit_id": args.work_unit_id,
@@ -144,6 +194,20 @@ def cmd_update(args: argparse.Namespace) -> int:
     if not changes:
         print("error: provide at least one field to update", file=sys.stderr)
         return 2
+
+    projected = dict(claim)
+    projected.update(changes)
+    ok, gate = validate_result_ready_claim(
+        args,
+        str(projected.get("work_unit_id") or ""),
+        str(projected.get("expected_state") or ""),
+        str(projected.get("assignment_packet") or ""),
+        str(projected.get("evidence_ref") or ""),
+        str(projected.get("operations_lead_decision_ref") or ""),
+    )
+    if not ok:
+        print_gate_failure(gate)
+        return 1
 
     claim.update(changes)
     claim["updated_at"] = args.updated_at or now_iso()
@@ -222,6 +286,12 @@ def add_common(parser: argparse.ArgumentParser) -> None:
         type=Path,
         default=DEFAULT_LEDGER,
         help=f"JSON ledger path, default: {DEFAULT_LEDGER}",
+    )
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help=f"Root containing <work-unit-id>/ source artifacts, default: {DEFAULT_ARTIFACT_ROOT}",
     )
 
 

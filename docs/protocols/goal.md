@@ -33,7 +33,10 @@ condition is met.
    the work.
 6. Repeat `verify` after each improvement.
 7. Submit an Evidence & Result Record only when done criteria pass with
-   evidence, or report a true blocker.
+   evidence, then pass the shared Result Ready Gate before any `result_ready`
+   claim, progress row, Discord `RESULT_READY`, or Project `Result Ready` mirror.
+   If the gate fails, treat it as repair-needed unless the failure is a true
+   missing input, authority, access, safety, budget, or source-truth blocker.
 
 ## Live Visibility During Long Work
 

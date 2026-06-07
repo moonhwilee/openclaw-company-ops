@@ -1499,7 +1499,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "--next-checkpoint",
             "local-smoke://next-checkpoint",
             "--source-ref",
-            f"{artifact_root / work_unit_id / 'progress.jsonl'}",
+            f"{artifact_root / work_unit_id / 'evidence.md'}",
             "--transition-at",
             "2026-06-06T12:00:00Z",
         ]
@@ -2239,6 +2239,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     stale_dir = create_artifacts(args, inbox_work_dir, "WU-260607-103", "finance")
     conflict_dir = create_artifacts(args, inbox_work_dir, "WU-260607-104", "ops")
     invalid_dir = create_artifacts(args, inbox_work_dir, "WU-260607-106", "build-lab")
+    invalid_progress_dir = create_artifacts(args, inbox_work_dir, "WU-260607-107", "build-lab")
     artifact_root = inbox_work_dir / "artifacts"
 
     mark_artifact_result_ready(ready_late, recommendation="accept")
@@ -2339,13 +2340,131 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if invalid_result.returncode == 0:
         raise RuntimeError("invalid result-ready closeout should fail closed")
     invalid_payload = json.loads(invalid_result.stdout)
-    if invalid_payload.get("status") != "invalid-result-ready":
+    if invalid_payload.get("status") != "repair-needed":
         raise RuntimeError(f"invalid result-ready expected gate failure, got {invalid_payload.get('status')}")
     blockers = invalid_payload["item"].get("result_ready_blockers", [])
     if not any("evidence status is Draft" in blocker for blocker in blockers):
         raise RuntimeError("invalid result-ready gate did not reject draft evidence")
     if not any("missing source_ref" in blocker for blocker in blockers):
         raise RuntimeError("invalid result-ready gate did not reject missing progress source_ref")
+
+    invalid_project_field_map = inbox_work_dir / "project-field-map.json"
+    write_json(
+        invalid_project_field_map,
+        {
+            "owner": "@me",
+            "project_number": 1,
+            "project_id": "PVT_local_smoke",
+            "fields": {
+                "Work Unit id": "field_work_unit",
+                "Repository": "field_repository",
+                "Work Card": "field_work_card",
+                "Team Lead": "field_team_lead",
+                "Status": "field_status",
+                "Progress": "field_progress",
+                "Priority": "field_priority",
+                "Blocker": "field_blocker",
+                "Evidence present": "field_evidence_present",
+                "Decision": "field_decision",
+                "Last proof or last source update": "field_last_update",
+                "Assignment Packet reference": "field_assignment",
+                "Ops Claim Ledger reference": "field_claim",
+                "Evidence & Result Record reference": "field_evidence",
+                "Operations Lead Decision reference": "field_ops_decision",
+            },
+        },
+    )
+    invalid_project_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--no-ledger",
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            "WU-260607-106",
+            "--field-map",
+            str(invalid_project_field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(invalid_project_result, "invalid result-ready project dry-run")
+    invalid_project_fields = json.loads(invalid_project_result.stdout)["work_units"][0]["desired_fields"]
+    if invalid_project_fields.get("Status") != "In Progress":
+        raise RuntimeError("Project sync mirrored invalid result_ready as Result Ready")
+    if invalid_project_fields.get("Progress") != "result preflight repair needed":
+        raise RuntimeError("Project sync did not show repair-needed progress for invalid result_ready")
+    if invalid_project_fields.get("Blocker"):
+        raise RuntimeError("Project sync treated repair-needed result_ready as a Blocked Work Unit")
+
+    invalid_progress_path = invalid_progress_dir / "progress.jsonl"
+    before_invalid_progress = invalid_progress_path.read_text(encoding="utf-8") if invalid_progress_path.exists() else ""
+    invalid_progress_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "progress",
+            "--work-unit-id",
+            "WU-260607-107",
+            "--output-root",
+            str(artifact_root),
+            "--phase",
+            "invalid source smoke",
+            "--source-ref",
+            "docs/examples/manual-dry-run/WU-260607-107/missing-source.md",
+            "--transition-at",
+            "2026-06-07T01:26:00Z",
+        ]
+    )
+    if invalid_progress_result.returncode == 0:
+        raise RuntimeError("progress append accepted a missing source_ref")
+    after_invalid_progress = invalid_progress_path.read_text(encoding="utf-8") if invalid_progress_path.exists() else ""
+    if before_invalid_progress != after_invalid_progress:
+        raise RuntimeError("failed progress gate mutated progress.jsonl")
+
+    invalid_claim_ledger = inbox_work_dir / "invalid-claim-ledger.json"
+    invalid_claim_ref = create_claim(args, invalid_claim_ledger, "WU-260607-107", "build-lab", invalid_progress_dir)
+    invalid_claim_result = run_command(
+        [
+            sys.executable,
+            str(CLAIMS),
+            "claim",
+            "update",
+            "--ledger",
+            str(invalid_claim_ledger),
+            "--claim-ref",
+            invalid_claim_ref,
+            "--expected-state",
+            "result_ready",
+            "--last-claim",
+            "Trying to mark result_ready before evidence is ready.",
+            "--evidence-ref",
+            str(invalid_progress_dir / "evidence.md"),
+        ]
+    )
+    if invalid_claim_result.returncode == 0:
+        raise RuntimeError("claim update accepted result_ready with draft evidence")
+    invalid_claim_status = run_command(
+        [
+            sys.executable,
+            str(CLAIMS),
+            "claim",
+            "status",
+            "--ledger",
+            str(invalid_claim_ledger),
+            "--claim-ref",
+            invalid_claim_ref,
+            "--format",
+            "json",
+        ]
+    )
+    require_success(invalid_claim_status, "invalid claim status readback")
+    if json.loads(invalid_claim_status.stdout).get("expected_state") != "working":
+        raise RuntimeError("failed claim gate mutated the ledger expected_state")
 
     ambiguous_dir = create_artifacts(args, inbox_work_dir, "WU-260607-105", "design")
     mark_artifact_result_ready(ambiguous_dir, recommendation=None)
@@ -2513,6 +2632,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_hook_guard_smoke()
         run_async_work_unit_policy_smoke()
         run_discord_card_smoke()
+        mark_artifact_result_ready(build_artifacts)
         update_result_ready(ledger, build_claim, build_artifacts)
         run_project_sync_smoke(args, ledger, work_dir / "artifacts", "WU-260605-901")
         run_result_ready_inbox_smoke(args, work_dir)
