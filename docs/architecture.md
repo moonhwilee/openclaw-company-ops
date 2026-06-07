@@ -464,10 +464,13 @@ MVP and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Phase
 5.5 implemented the foreground result-ready inbox and closeout dry-run lock
 gate, Phase 5.5a implemented the foreground handoff amendment dry-run gate, and
 Phase 5.5b implemented the foreground handoff draft/spec generator dry-run gate.
+Phase 5.6 records that manual/foreground Pulse checks are accepted while
+scheduled Pulse activation is deferred with trigger; the existing Dashboard,
+Discord proof trail, result-ready inbox, and Pulse detector remain separate
+surfaces with a shared interrupt policy.
 The current work is the remaining Phase 5 activation sub-gates:
 
-1. Scheduled Pulse / daemon gate.
-2. Packaging readiness decision.
+1. Packaging readiness decision.
 
 After Phase 5:
 
@@ -482,7 +485,9 @@ model.
 
 These decisions are not blockers for the architecture:
 
-- When to install or schedule the Pulse Monitor daemon runner.
+- Whether future trigger evidence justifies one-shot scheduled Pulse checks.
+  Long-running daemon/launchd installation and automatic `#ops-alerts` publish
+  remain no-go until separately accepted.
 - When to add broader Discord publisher behavior beyond the accepted foreground
   `publish-card` safety guards. Background retry, queues, and command routing
   remain outside the accepted surface.

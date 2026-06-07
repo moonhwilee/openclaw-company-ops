@@ -596,8 +596,13 @@ Review a Work Unit when:
 - Evidence is missing after the Team Lead reports completion.
 - A blocker has no owner or next review time.
 
-Future Pulse Monitor automation may alert on stale claims, session mismatches,
-or suspected compaction recovery issues. It must remain alert-only.
+Manual/foreground Pulse checks may alert on stale claims, session mismatches, or
+suspected compaction recovery issues. Current Phase 5.6 policy keeps scheduled
+Pulse activation deferred with trigger because the Dashboard, Discord proof
+timeline, and result-ready inbox already cover distinct visibility/review roles.
+If scheduled Pulse is later accepted, it must suppress Work Units that are
+already result-ready or decided by source artifacts. Pulse must remain
+alert-only.
 
 ## No Legacy / No Fallback
 

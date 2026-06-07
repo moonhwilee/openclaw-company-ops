@@ -971,26 +971,83 @@ manual packet/spec assembly while keeping Operations Lead judgment in control.
 
 ### Phase 5.6: Scheduled Pulse / Daemon Gate
 
-Purpose: decide whether to install or schedule alert-only monitoring.
+Decision: defer scheduled Pulse activation with trigger. Manual/foreground
+Pulse checks are accepted; scheduled Pulse is not a required public-v1 surface
+today.
+
+Purpose: decide whether alert-only stalled-work detection should ever interrupt
+the owner automatically.
+
+Current user-facing judgment:
+
+- The current surfaces are not duplicate alerts. They have separate roles:
+  - GitHub Project Dashboard: status board for pull-based inspection.
+  - Discord visibility/proof: event trail and readback proof.
+  - `work-unit inbox --result-ready`: foreground review queue for submitted
+    results.
+  - Pulse Monitor: stalled-work detector for claims that go quiet before a
+    result exists.
+- The current system is close to "required visibility only"; alert noise is not
+  currently high.
+- The risk is future interrupt noise if scheduled Pulse alerts run alongside
+  result-ready review signals without suppression.
+
+Optimization principle:
+
+- Do not merge role-distinct surfaces into one tool just to reduce apparent
+  overlap.
+- Keep dashboards, proof trails, review inboxes, and stalled-work detection
+  separate.
+- Consolidate only the interrupting alert policy: what is allowed to wake the
+  owner, when it is suppressed, and which channel may receive it.
 
 Evaluate:
 
 - whether manual pulse checks reveal repeated stale-claim risk;
-- whether alert noise and false positives are acceptable;
+- whether scheduled Pulse would add actionable signal beyond existing
+  Dashboard, Discord proof, and result-ready inbox surfaces;
 - whether a foreground/manual runner is enough for public v1.
 - whether Phase 5.5's foreground result-ready inbox is enough before any
   scheduled monitoring.
 
-Decision output: accept scheduled install, keep manual/foreground only, defer
-with trigger, or no-go with rationale.
+Accepted now:
+
+- Manual `pulse check`.
+- Foreground bounded runner for smoke/debug only.
+
+Deferred unless trigger:
+
+- Any cron/scheduled Pulse install.
+- Any long-running daemon/launchd install.
+- Any automatic `#ops-alerts` Pulse publish.
+
+Trigger to revisit scheduled Pulse:
+
+- two or more meaningful real Work Units show stale-claim, session-mismatch, or
+  compaction-suspect conditions that were not caught soon enough by manual
+  review and the result-ready inbox; or
+- the owner explicitly accepts unattended monitoring for long-running Work
+  Units.
+
+If scheduled Pulse is later accepted:
+
+- Prefer one-shot scheduled `pulse check` over a long-running daemon.
+- Keep `pulse_daemon.py daemon run` as a foreground smoke/debug runner unless a
+  separate gate accepts installation.
+- Suppress Pulse alerts for Work Units that are already result-ready, accepted,
+  revise-requested, blocked, or otherwise decided by source artifacts.
+- Do not publish automatic `#ops-alerts` messages without a separate delivery
+  gate and proof/readback check.
+
+Decision output: manual/foreground accepted, scheduled activation deferred with
+trigger, daemon install no-go for now.
 
 No-go boundaries:
 
 - Pulse Monitor remains alert-only.
 - No daemon restarts, reassigns, recovers, cancels, or completes work.
 - Phase 5.5 result-ready inbox remains foreground/manual and source-backed.
-  Scheduled pulse may alert that review is needed, but it must not run closeout
-  or decisions.
+  Scheduled Pulse must not compete with it, run closeout, or make decisions.
 
 ### Phase 5.7: Packaging Readiness Decision
 

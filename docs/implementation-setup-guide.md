@@ -562,10 +562,16 @@ openclaw-company-ops claim update ...
 
 ## Pulse Monitor Setup
 
-Status: Repo-local script supported, alert-only
+Status: Repo-local script supported, alert-only; scheduled activation deferred
 
 The Pulse Monitor compares the expected responsibility claim with available
 OpenClaw/session signals.
+
+Current Phase 5.6 decision: keep Pulse as a manual/foreground stalled-work
+detector for now. The existing Dashboard, Discord proof timeline, and
+`work-unit inbox --result-ready` are not duplicate alerts; they serve different
+visibility and review roles. Do not schedule Pulse just because the command
+exists.
 
 Run the repo-local alert-only check against the JSON ledger:
 
@@ -619,13 +625,19 @@ Future packaging can expose the same behavior as:
 openclaw-company-ops pulse check --claim-ref <claim-ref>
 ```
 
-or a scheduled alert-only job:
+Future trigger-only path, not current setup:
 
 ```bash
 openclaw cron add company-ops-pulse -- <command>
 ```
 
-Run the non-installing daemon runner in the foreground:
+Only revisit scheduled Pulse after real stale-claim/session-mismatch evidence
+shows that manual checks and the result-ready inbox miss meaningful unattended
+work. If accepted later, prefer a one-shot scheduled `pulse check` over a
+long-running daemon and suppress Work Units that are already result-ready or
+decided by source artifacts.
+
+Run the non-installing daemon runner in the foreground for bounded smoke/debug:
 
 ```bash
 python3 scripts/pulse_daemon.py daemon run \
@@ -635,7 +647,9 @@ python3 scripts/pulse_daemon.py daemon run \
 ```
 
 Use `--max-runs 1` for a bounded smoke. This runner does not install cron,
-launchd, or any background job by itself.
+launchd, or any background job by itself. Automatic `#ops-alerts` delivery is
+also deferred until a separate delivery gate accepts channel, suppression, and
+readback behavior.
 
 ## Discord Visibility Setup
 
@@ -913,10 +927,11 @@ and Phase 5.3 accepted the bounded GitHub Project dashboard sync. Phase 5.5
 implemented the foreground result-ready inbox and closeout dry-run lock gate,
 Phase 5.5a implemented the foreground handoff amendment dry-run gate, and Phase
 5.5b implemented the foreground handoff draft/spec generator dry-run gate.
-Current work is the remaining Phase 5 gates:
+Phase 5.6 recorded the Pulse activation decision: manual/foreground accepted;
+scheduled activation deferred with trigger; daemon install no-go for now.
+Current work is the remaining Phase 5 gate:
 
-1. Scheduled Pulse / daemon gate.
-2. Packaging readiness decision.
+1. Packaging readiness decision.
 
 This keeps the original architecture intact while ensuring optional automation
 is explicitly accepted, deferred, or rejected before packaging.
@@ -960,12 +975,15 @@ Recommended replacement order:
    missing judgment fields as `needs-ops-decision` and validate completed output
    through the existing `work-unit handoff --dry-run` path rather than becoming
    an alternate handoff source of truth.
-9. Defer a conservative `route --intent <text>` helper until after the
+9. Keep scheduled Pulse activation deferred unless the Phase 5.6 trigger is
+   later met. If accepted, use one-shot scheduled `pulse check`, not a
+   long-running daemon by default, and suppress result-ready/decided Work Units.
+10. Defer a conservative `route --intent <text>` helper until after the
    result-ready inbox and closeout-lock path are stable. Add it only if it
    remains deterministic and can return `needs-ops-decision` when ambiguous.
-10. Package the accepted surfaces as a plugin/package with a bundled small skill
+11. Package the accepted surfaces as a plugin/package with a bundled small skill
    only after Phase 5.7 locks the included and deferred surfaces.
-11. Replace the manual smoke test with `smoke`.
+12. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the
 supported command is available. Keep only emergency diagnostics and explicit

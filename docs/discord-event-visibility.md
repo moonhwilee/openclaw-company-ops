@@ -312,8 +312,13 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    Lead-supplied facts, and must not parse free-form owner text into routes,
    assign Team Leads, publish, mutate GitHub, or replace Operations Lead
    judgment.
-8. Phase 5.6 keeps scheduled daemon or Pulse Monitor activation deferred unless
-   real stale-claim risk outweighs alert noise and false positives.
+8. Phase 5.6 records that current visibility surfaces are not duplicate
+   alerts: Dashboard is the status board, Discord is proof/event visibility,
+   result-ready inbox is the review queue, and Pulse is stalled-work detection.
+   Manual/foreground Pulse checks are accepted, but scheduled Pulse activation
+   is deferred with trigger. Automatic `#ops-alerts` Pulse publish remains
+   deferred until a separate delivery gate accepts channel, suppression, and
+   readback behavior.
 9. Phase 5.7 locks the surfaces allowed to enter packaging/public v1.
 
 ## Recommended Channels
