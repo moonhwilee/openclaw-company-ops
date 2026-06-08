@@ -119,6 +119,37 @@ def create_claim(args: argparse.Namespace, ledger: Path, work_unit_id: str, team
     return claim_ref
 
 
+def mark_artifact_started(artifact_dir: Path, *, work_unit_id: str | None = None) -> None:
+    work_unit = work_unit_id or artifact_dir.name
+    progress_path = artifact_dir / "progress.jsonl"
+    rows = []
+    if progress_path.exists():
+        rows = [line for line in progress_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows.append(
+        json.dumps(
+            {
+                "work_unit_id": work_unit,
+                "transition_kind": "started",
+                "mode": "smoke",
+                "phase": "started",
+                "phase_index": "",
+                "phase_total": "",
+                "round": "",
+                "show_round": False,
+                "current_slice": "started",
+                "next_checkpoint": "Return RESULT_READY.",
+                "source_ref": str(artifact_dir / "assignment.md"),
+                "proof_ref": "",
+                "transition_at": "2026-06-07T01:00:00Z",
+                "recorded_by": "operations-lead",
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+    )
+    progress_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
 def run_pulse_ok(args: argparse.Namespace, ledger: Path, snapshot: Path) -> None:
     result = run_command(
         [
@@ -1576,6 +1607,14 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             },
             {
                 "work_unit_id": work_unit_id,
+                "surface": "team-detail",
+                "kind": "RESULT_READY",
+                "dry_run": False,
+                "readback_ok": True,
+                "discord_timestamp": "2026-06-06T13:02:00Z",
+            },
+            {
+                "work_unit_id": work_unit_id,
                 "surface": "ops-feed",
                 "kind": "COMPLETED",
                 "dry_run": False,
@@ -1665,8 +1704,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     require_success(invalid_proof_result, "project sync invalid proof display dry-run")
     invalid_proof_fields = json.loads(invalid_proof_result.stdout)["work_units"][0]["desired_fields"]
-    if invalid_proof_fields.get("Progress") != "":
-        raise RuntimeError("project sync dry-run used invalid proof rows for Progress")
+    if invalid_proof_fields.get("Progress") != "result preflight repair needed":
+        raise RuntimeError("project sync dry-run did not surface invalid proof repair state")
     if invalid_proof_fields.get("Last proof or last source update") not in {"", "pending"}:
         raise RuntimeError("project sync dry-run used narrative or invalid proof timestamp as last update")
 
@@ -1674,6 +1713,18 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     shutil.copytree(artifact_root / work_unit_id, round_only_root / work_unit_id)
     round_only_progress = round_only_root / work_unit_id / "progress.jsonl"
     round_only_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "started",
+                "source_ref": str(round_only_root / work_unit_id / "assignment.md"),
+                "transition_at": "2026-06-06T12:00:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n"
+        +
         json.dumps(
             {
                 "work_unit_id": work_unit_id,
@@ -1716,6 +1767,18 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     shutil.copytree(artifact_root / work_unit_id, show_round_root / work_unit_id)
     show_round_progress = show_round_root / work_unit_id / "progress.jsonl"
     show_round_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "started",
+                "source_ref": str(show_round_root / work_unit_id / "assignment.md"),
+                "transition_at": "2026-06-06T12:00:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n"
+        +
         json.dumps(
             {
                 "work_unit_id": work_unit_id,
@@ -1762,6 +1825,18 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     shutil.copytree(artifact_root / work_unit_id, goal_round_root / work_unit_id)
     goal_round_progress = goal_round_root / work_unit_id / "progress.jsonl"
     goal_round_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "started",
+                "source_ref": str(goal_round_root / work_unit_id / "assignment.md"),
+                "transition_at": "2026-06-06T12:00:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n"
+        +
         json.dumps(
             {
                 "work_unit_id": work_unit_id,
@@ -2240,8 +2315,13 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     conflict_dir = create_artifacts(args, inbox_work_dir, "WU-260607-104", "ops")
     invalid_dir = create_artifacts(args, inbox_work_dir, "WU-260607-106", "build-lab")
     invalid_progress_dir = create_artifacts(args, inbox_work_dir, "WU-260607-107", "build-lab")
+    start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-110", "ops")
+    missing_started_dir = create_artifacts(args, inbox_work_dir, "WU-260607-111", "market")
+    live_start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-112", "ops")
     artifact_root = inbox_work_dir / "artifacts"
 
+    for artifact_dir in (ready_late, ready_early, stale_dir, conflict_dir, invalid_dir, invalid_progress_dir):
+        mark_artifact_started(artifact_dir)
     mark_artifact_result_ready(ready_late, recommendation="accept")
     mark_artifact_result_ready(ready_early, recommendation="revise")
     mark_artifact_result_ready(stale_dir, recommendation="accept")
@@ -2259,6 +2339,137 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         ),
         encoding="utf-8",
     )
+    mark_artifact_result_ready(missing_started_dir, recommendation="accept")
+
+    start_progress_before = (start_dir / "progress.jsonl").read_text(encoding="utf-8") if (start_dir / "progress.jsonl").exists() else ""
+    start_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "start",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(start_dry_run, "work-unit start dry-run")
+    if (start_dir / "progress.jsonl").exists() and (start_dir / "progress.jsonl").read_text(encoding="utf-8") != start_progress_before:
+        raise RuntimeError("start dry-run mutated progress.jsonl")
+    start_payload = json.loads(start_dry_run.stdout)
+    if start_payload.get("status") != "ready-to-start" or start_payload.get("would_append_progress") is not True:
+        raise RuntimeError("start dry-run did not report the planned started source event")
+    start_publish = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "start",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(start_publish, "work-unit start publish local source")
+    if '"transition_kind": "started"' not in (start_dir / "progress.jsonl").read_text(encoding="utf-8"):
+        raise RuntimeError("start publish did not append a started progress row")
+    if "- Expected state: `working`" not in (start_dir / "claim.md").read_text(encoding="utf-8"):
+        raise RuntimeError("start publish did not update claim expected state to working")
+    duplicate_start = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "start",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if duplicate_start.returncode == 0:
+        raise RuntimeError("start publish accepted duplicate STARTED without --force")
+    live_assignment = live_start_dir / "assignment.md"
+    live_assignment.write_text(
+        live_assignment.read_text(encoding="utf-8").replace(
+            "- Assigned Team Lead OpenClaw Agent: `ops`",
+            "- Assigned Team Lead OpenClaw Agent: `ops`\n- Execution route: `discord-bound`",
+        ),
+        encoding="utf-8",
+    )
+    live_start_without_target = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "start",
+            "--work-unit-id",
+            "WU-260607-112",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(live_start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if live_start_without_target.returncode == 0:
+        raise RuntimeError("discord-bound start publish accepted missing --target")
+    mark_artifact_started(live_start_dir)
+    mark_artifact_result_ready(live_start_dir, recommendation="accept")
+    live_result_ready_without_started_proof = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-112",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--result",
+            "This must not publish because live STARTED proof is missing.",
+            "--evidence",
+            str(live_start_dir / "evidence.md"),
+            "--verification",
+            "Negative smoke for live STARTED proof precondition.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if live_result_ready_without_started_proof.returncode == 0:
+        raise RuntimeError("discord-bound result-ready dry-run accepted missing STARTED proof")
+    if "visibility-proof.STARTED" not in live_result_ready_without_started_proof.stderr:
+        raise RuntimeError("missing live STARTED proof failure did not point at visibility-proof.STARTED")
 
     write_jsonl(
         ready_late / "visibility-proof.jsonl",
@@ -2373,6 +2584,34 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     )
     if invalid_result_ready_publish.returncode == 0:
         raise RuntimeError("result-ready dry-run accepted draft evidence")
+
+    missing_started_result_ready = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-111",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "market",
+            "--result",
+            "This must not publish because STARTED source is missing.",
+            "--evidence",
+            str(missing_started_dir / "evidence.md"),
+            "--verification",
+            "Negative smoke for STARTED precondition.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if missing_started_result_ready.returncode == 0:
+        raise RuntimeError("result-ready dry-run accepted missing STARTED source")
+    if "progress.STARTED" not in missing_started_result_ready.stderr:
+        raise RuntimeError("missing STARTED failure did not point at progress.STARTED")
 
     invalid_project_field_map = inbox_work_dir / "project-field-map.json"
     write_json(
@@ -2493,6 +2732,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("failed claim gate mutated the ledger expected_state")
 
     ambiguous_dir = create_artifacts(args, inbox_work_dir, "WU-260607-105", "design")
+    mark_artifact_started(ambiguous_dir)
     mark_artifact_result_ready(ambiguous_dir, recommendation=None)
     write_jsonl(
         ambiguous_dir / "visibility-proof.jsonl",
@@ -2584,7 +2824,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--evidence",
             str(ready_late / "evidence.md"),
             "--verification",
-            "Pre-publish gate passes without requiring live proof.",
+            "Pre-publish gate passes after STARTED source evidence exists.",
             "--dry-run",
             "--format",
             "json",
@@ -2791,6 +3031,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_hook_guard_smoke()
         run_async_work_unit_policy_smoke()
         run_discord_card_smoke()
+        mark_artifact_started(build_artifacts)
         mark_artifact_result_ready(build_artifacts)
         update_result_ready(ledger, build_claim, build_artifacts)
         run_project_sync_smoke(args, ledger, work_dir / "artifacts", "WU-260605-901")

@@ -192,12 +192,21 @@ under the configured artifact root, `claim.md`, `evidence.md`, `decision.md`,
 or Telegram history, GitHub comments, and OpenClaw session history are mirrors
 or delivery surfaces. They must not create a ready item by themselves.
 
+Official `STARTED` publication should use `work-unit start --dry-run` before
+`work-unit start --publish`. The command validates the local source reference,
+previews the STARTED card and claim/progress changes, then records a
+source-backed `started` progress row and moves the claim to `working` only on
+publish. When the Assignment Packet uses a live Discord-bound execution route,
+the command must also publish/read back the team-detail `STARTED` proof.
+
 Official `RESULT_READY` publication should use
 `work-unit result-ready --dry-run` before `work-unit result-ready --publish`.
-The command runs the shared Result Ready gate without live proof before
-publishing, then requires the live `RESULT_READY` readback proof after
-publishing. This prevents the circular failure where proof is required before
-the command has had a chance to create it.
+The command runs the shared Result Ready gate before publishing. The gate
+requires a prior `started` source event, and live Discord-bound routes require a
+valid team-detail `STARTED` proof. After publishing, the gate also requires the
+live `RESULT_READY` readback proof. This prevents the circular failure where
+RESULT_READY proof is required before the command has had a chance to create it,
+while still blocking result-ready submissions for Work Units that never started.
 
 Process pending Team Lead results one at a time in a deterministic order:
 
@@ -332,8 +341,8 @@ The default flow is:
 2. Operations Lead posts one `[ASSIGNED_DETAIL]` entry in the relevant
    `#team-*` channel.
 3. Operations Lead assigns the Team Lead through CLI or a local agent session.
-4. Operations Lead posts `[STARTED]` when the Team Lead starts or claims the
-   work.
+4. Operations Lead runs `work-unit start --dry-run`, then
+   `work-unit start --publish` when the Team Lead starts or claims the work.
 5. For long `goal` work, Operations Lead runs `work-unit checkpoint` at major
    slice boundaries or at least every 10-15 minutes while work remains active.
    This publishes/readbacks the team `CHECKPOINT`, then records matching

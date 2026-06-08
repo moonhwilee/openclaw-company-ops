@@ -14,6 +14,7 @@ DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
 STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 RESULT_READY_PROOF_REQUIRED_ROUTES = {"discord-bound"}
+STARTED_PROGRESS_KINDS = {"start", "started"}
 
 
 def clean_markdown_value(value: str) -> str:
@@ -69,6 +70,13 @@ def result_ready_requested(claim_state: str, evidence_status: str, progress_rows
     return any(normalized_state(str(row.get("transition_kind") or "")) == "result_ready" for row in progress_rows)
 
 
+def has_started_source(progress_rows: list[dict[str, Any]], proof_path: Path, work_unit_id: str) -> bool:
+    return any(
+        normalized_state(str(row.get("transition_kind") or "")) in STARTED_PROGRESS_KINDS
+        for row in progress_rows
+    ) or has_started_proof(proof_path, work_unit_id)
+
+
 def read_progress_rows(path: Path, work_unit_id: str) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     if not path.exists():
         return [], []
@@ -109,6 +117,14 @@ def read_progress_rows(path: Path, work_unit_id: str) -> tuple[list[dict[str, An
 
 
 def has_result_ready_proof(proof_path: Path, work_unit_id: str) -> bool:
+    return has_visibility_proof(proof_path, work_unit_id, "RESULT_READY")
+
+
+def has_started_proof(proof_path: Path, work_unit_id: str) -> bool:
+    return has_visibility_proof(proof_path, work_unit_id, "STARTED")
+
+
+def has_visibility_proof(proof_path: Path, work_unit_id: str, kind: str) -> bool:
     if not proof_path.exists():
         return False
     for line in proof_path.read_text(encoding="utf-8").splitlines():
@@ -124,7 +140,7 @@ def has_result_ready_proof(proof_path: Path, work_unit_id: str) -> bool:
             continue
         if row.get("dry_run") is True:
             continue
-        if row.get("surface") != "team-detail" or row.get("kind") != "RESULT_READY":
+        if row.get("surface") != "team-detail" or row.get("kind") != kind:
             continue
         if row.get("readback_ok") is False:
             continue
@@ -156,6 +172,7 @@ def result_ready_gate(
     evidence_status_override: str = "",
     projected_progress_rows: list[dict[str, Any]] | None = None,
     require_live_visibility: bool | None = None,
+    require_started_visibility: bool | None = None,
 ) -> dict[str, Any]:
     artifact_root = artifact_root.expanduser()
     artifact_dir = artifact_root / work_unit_id
@@ -193,6 +210,16 @@ def result_ready_gate(
                 "Restore or create the Assignment Packet before declaring result_ready.",
             )
         )
+    if not has_started_source(progress_rows, proof_path, work_unit_id):
+        failures.append(
+            structured_failure(
+                "blocked",
+                str(progress_path),
+                "progress.STARTED",
+                "result_ready requires prior STARTED source event",
+                "Run the canonical start transition before declaring result_ready.",
+            )
+        )
     if normalized_state(claim_state) == "result_ready":
         if not evidence.get("exists"):
             failures.append(
@@ -228,13 +255,16 @@ def result_ready_gate(
                 )
             )
 
+    route = ""
+    for field in ("execution route", "execution route for this work unit"):
+        route = normalize_route(str(assignment["fields"].get(field) or ""))
+        if route:
+            break
+    route_requires_live_visibility = route in RESULT_READY_PROOF_REQUIRED_ROUTES
     if require_live_visibility is None:
-        route = ""
-        for field in ("execution route", "execution route for this work unit"):
-            route = normalize_route(str(assignment["fields"].get(field) or ""))
-            if route:
-                break
-        require_live_visibility = route in RESULT_READY_PROOF_REQUIRED_ROUTES
+        require_live_visibility = route_requires_live_visibility
+    if require_started_visibility is None:
+        require_started_visibility = route_requires_live_visibility or bool(require_live_visibility)
     if require_live_visibility and not has_result_ready_proof(proof_path, work_unit_id):
         failures.append(
             structured_failure(
@@ -243,6 +273,16 @@ def result_ready_gate(
                 "visibility-proof.RESULT_READY",
                 "live visibility requires RESULT_READY proof but no valid proof row exists",
                 "Publish/read back RESULT_READY or rerun the visible result-ready transition.",
+            )
+        )
+    if require_started_visibility and not has_started_proof(proof_path, work_unit_id):
+        failures.append(
+            structured_failure(
+                "rerun-required",
+                str(proof_path),
+                "visibility-proof.STARTED",
+                "live visibility requires STARTED proof but no valid proof row exists",
+                "Publish/read back STARTED or rerun the visible start transition.",
             )
         )
 

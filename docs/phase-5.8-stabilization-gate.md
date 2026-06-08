@@ -118,10 +118,9 @@ Impact:
 
 Fix direction:
 
-Introduce a canonical start transition, either as:
+Introduce a canonical start transition as:
 
-- `work-unit start --work-unit-id <id> --team <team> --publish`, or
-- part of a higher-level `work-unit dispatch/run --detach` command.
+- `work-unit start --work-unit-id <id> --team <team> --source-ref <ref> --publish`.
 
 The transition must update source state, publish/read back `STARTED` when live
 visibility is enabled, and make result-ready publication fail closed when the
@@ -304,7 +303,7 @@ Depends on:
 
 Scope:
 
-- Implement the canonical `STARTED` transition.
+- Implement the canonical `work-unit start` transition.
 - Update claim/source state when a Team Lead starts work.
 - Publish/read back `STARTED` when live visibility is enabled.
 - Make result-ready fail closed when required start evidence is missing.
@@ -314,6 +313,8 @@ Acceptance:
 - A Work Unit can move from assigned to working through one standard command.
 - Missing `STARTED` is caught before result-ready publication.
 - Proof validation passes without manual lifecycle event insertion.
+- Dry-run start/result-ready paths do not mutate source artifacts, visibility,
+  Project mirrors, or owner reports.
 
 ### Phase 5.8.3: Closeout Finalization And Decision Rehydration
 

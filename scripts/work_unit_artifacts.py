@@ -316,6 +316,44 @@ def local_source_ref_exists(source_ref: str, artifact_dir: Path) -> bool:
     return (repo_root / path).exists() or (artifact_dir / path).exists()
 
 
+def assignment_requires_live_visibility(assignment: dict[str, Any]) -> bool:
+    for field in ("execution route", "execution route for this work unit"):
+        route = clean_markdown_value(str(assignment.get("fields", {}).get(field) or "")).strip().lower().rstrip(".")
+        if route:
+            return route == "discord-bound"
+    return False
+
+
+def progress_has_transition(progress_path: Path, work_unit: str, transition_kinds: set[str]) -> bool:
+    if not progress_path.exists():
+        return False
+    for line in progress_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        row_work_unit = str(row.get("work_unit_id") or "")
+        if row_work_unit and row_work_unit != work_unit:
+            continue
+        if normalized_state(str(row.get("transition_kind") or "")) in transition_kinds:
+            return True
+    return False
+
+
+def proof_has_event(proof_path: Path, work_unit: str, kind: str) -> bool:
+    rows, _warnings = proof_rows_for_work_unit(proof_path, work_unit)
+    return any(
+        row.get("surface") == "team-detail"
+        and row.get("kind") == kind
+        and row.get("readback_ok") is not False
+        for row in rows
+    )
+
+
 def latest_progress_timestamp(path: Path, work_unit: str, artifact_dir: Path) -> tuple[str, list[str], list[str]]:
     if not path.exists():
         return "", [], []
@@ -428,6 +466,33 @@ def print_gate_failure(prefix: str, gate: dict[str, Any]) -> None:
             f"({failure.get('repair_hint')})",
             file=sys.stderr,
         )
+
+
+def replace_markdown_field(text: str, field: str, value: str) -> tuple[str, bool]:
+    pattern = re.compile(rf"^- {re.escape(field)}:\s*.*$", re.MULTILINE)
+    replacement = f"- {field}: {value}"
+    updated, count = pattern.subn(replacement, text, count=1)
+    return updated, count > 0
+
+
+def render_started_claim_text(claim_path: Path, *, team: str, transition_at: str, source_ref: str) -> str:
+    if not claim_path.exists():
+        raise FileNotFoundError(f"claim.md is missing: {claim_path}")
+    text = claim_path.read_text(encoding="utf-8")
+    updates = {
+        "Expected state": "`working`",
+        "Updated at": f"`{transition_at}`",
+        "Last claim": f"`{team}` started work. Source: `{source_ref}`.",
+    }
+    updated = text
+    missing: list[str] = []
+    for field, value in updates.items():
+        updated, ok = replace_markdown_field(updated, field, value)
+        if not ok:
+            missing.append(field)
+    if missing:
+        raise ValueError(f"claim.md missing required field(s): {', '.join(missing)}")
+    return updated
 
 
 def decision_is_final(decision_status: str, decision_text: str = "") -> bool:
@@ -1653,6 +1718,155 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def started_card(args: argparse.Namespace, assignment: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    command = [
+        sys.executable,
+        str(SCRIPT_DIR / "discord_ops.py"),
+        "card",
+        "--surface",
+        "team-detail",
+        "--kind",
+        "STARTED",
+        "--work-unit-id",
+        args.work_unit_id,
+        "--team",
+        args.team or assignment["fields"].get("assigned team lead openclaw agent", ""),
+        "--status",
+        args.status,
+        "--next",
+        args.next,
+        "--format",
+        "json",
+    ]
+    return card_from_command(command, "start")
+
+
+def started_progress_row(args: argparse.Namespace, *, transition_at: str, proof_ref: str = "") -> dict[str, Any]:
+    return {
+        "work_unit_id": args.work_unit_id,
+        "transition_kind": "started",
+        "mode": args.mode.strip().lower(),
+        "phase": args.phase,
+        "phase_index": "",
+        "phase_total": "",
+        "round": "",
+        "show_round": False,
+        "current_slice": args.current_slice,
+        "next_checkpoint": args.next_checkpoint,
+        "source_ref": args.source_ref,
+        "proof_ref": proof_ref,
+        "transition_at": transition_at,
+        "recorded_by": args.recorded_by,
+    }
+
+
+def start_work_unit(args: argparse.Namespace) -> int:
+    artifact_root = args.artifact_root.expanduser()
+    artifact_dir = artifact_root / args.work_unit_id
+    if not artifact_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
+        return 1
+    assignment = parse_markdown_source(artifact_dir / "assignment.md")
+    if not assignment.get("exists"):
+        print(f"error: assignment.md is missing: {artifact_dir / 'assignment.md'}", file=sys.stderr)
+        return 1
+    claim_path = artifact_dir / "claim.md"
+    if not args.team:
+        args.team = assignment["fields"].get("assigned team lead openclaw agent", "")
+    if not args.team:
+        print("error: start requires --team when assignment.md does not name a Team Lead", file=sys.stderr)
+        return 1
+    if not args.source_ref:
+        print("error: start requires --source-ref", file=sys.stderr)
+        return 1
+    if not local_source_ref_exists(args.source_ref, artifact_dir):
+        print(f"error: start source_ref does not exist: {args.source_ref}", file=sys.stderr)
+        return 1
+    transition_at = args.transition_at or utc_now_iso()
+    args.transition_at = transition_at
+    proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
+    live_required = assignment_requires_live_visibility(assignment)
+    if args.publish and live_required and not args.target:
+        print("error: discord-bound start requires --target", file=sys.stderr)
+        return 1
+    if not args.force:
+        if progress_has_transition(artifact_dir / "progress.jsonl", args.work_unit_id, {"start", "started"}):
+            print("error: STARTED source event already exists; use --force to rerun intentionally", file=sys.stderr)
+            return 1
+        if proof_has_event(proof_log, args.work_unit_id, "STARTED"):
+            print("error: STARTED proof already exists; use --force to rerun intentionally", file=sys.stderr)
+            return 1
+    try:
+        updated_claim = render_started_claim_text(
+            claim_path,
+            team=args.team,
+            transition_at=transition_at,
+            source_ref=args.source_ref,
+        )
+        card, text = started_card(args, assignment)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"error: start preflight failed: {exc}", file=sys.stderr)
+        return 1
+
+    projected_row = started_progress_row(args, transition_at=transition_at)
+    if args.dry_run:
+        payload = {
+            "dry_run": True,
+            "status": "ready-to-start",
+            "work_unit_id": args.work_unit_id,
+            "card": card,
+            "text": text,
+            "progress_row": projected_row,
+            "claim_path": str(claim_path),
+            "would_update_claim": True,
+            "would_append_progress": True,
+            "would_publish_started": bool(args.target),
+            "would_mutate_project": False,
+        }
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(text)
+            print("\nDRY-RUN start: no claim, progress, Discord proof, or Project mirror mutated.")
+        return 0
+
+    publish_payload: dict[str, Any] = {"enabled": bool(args.target)}
+    proof_ref = ""
+    if args.target:
+        publish_code, publish_payload, publish_error = publish_card(args, card, proof_log)
+        if publish_code != 0:
+            print(publish_error or "error: STARTED publish failed", file=sys.stderr)
+            return 1
+        proof = publish_payload.get("publish") or {}
+        proof_ref = str(proof_log)
+        if proof.get("proof_id"):
+            proof_ref = f"{proof_ref}#{proof['proof_id']}"
+
+    claim_path.write_text(updated_claim, encoding="utf-8")
+    progress_path = append_progress_row(
+        artifact_dir,
+        started_progress_row(args, transition_at=transition_at, proof_ref=proof_ref),
+    )
+    project_sync = run_project_sync(args)
+    if project_sync.get("enabled") and not project_sync.get("ok"):
+        print(f"warning: Project start sync failed: {project_sync.get('error')}", file=sys.stderr)
+
+    payload = {
+        "dry_run": False,
+        "status": "started",
+        "work_unit_id": args.work_unit_id,
+        "publish": publish_payload.get("publish", publish_payload),
+        "claim_path": str(claim_path),
+        "progress_path": str(progress_path),
+        "project_sync": project_sync,
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"started {args.work_unit_id}: {progress_path}")
+    return 0
+
+
 def checkpoint_work_unit(args: argparse.Namespace) -> int:
     output_dir = args.output_root.expanduser() / args.work_unit_id
     if not output_dir.is_dir():
@@ -2798,6 +3012,59 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
     progress.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
     progress.set_defaults(func=append_progress)
+
+    start = work_unit_subparsers.add_parser(
+        "start",
+        help="Move a Work Unit from assigned to working with a source-backed STARTED transition",
+    )
+    start.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    start.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id>/ source artifacts",
+    )
+    start.add_argument("--team", default="", help="Team Lead; defaults from assignment.md")
+    start.add_argument("--status", default="Team Lead started work.", help="Status line for the STARTED card")
+    start.add_argument("--current-slice", default="started", help="Initial execution slice for progress metadata")
+    start.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
+    start.add_argument("--mode", default="", help="Progress mode for dashboard sync")
+    start.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
+    start.add_argument("--source-ref", required=True, help="Source artifact reference for the start decision")
+    start.add_argument("--next", default="Publish checkpoint before RESULT_READY if work runs long.", help="Discord next action")
+    start.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    start.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
+    start.add_argument(
+        "--proof-log",
+        type=Path,
+        help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
+    )
+    start.add_argument("--target", default="", help="Discord team-detail target for live visibility")
+    start.add_argument("--channel", default="discord", help="OpenClaw message channel")
+    start.add_argument("--account", default="", help="OpenClaw channel account id")
+    start.add_argument("--thread-id", default="", help="Optional Discord thread id")
+    start.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
+    start.add_argument(
+        "--project-sync-field-map",
+        default="",
+        help="Optional Project field-map JSON; runs mirror sync after successful start",
+    )
+    start.add_argument(
+        "--project-sync-ledger",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "claims" / "ledger.json"),
+        help="Ledger passed to project-sync; empty disables ledger",
+    )
+    start.add_argument(
+        "--project-sync-audit-log",
+        default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
+        help="Audit log for successful Project mirror sync",
+    )
+    start.add_argument("--force", action="store_true", help="Allow duplicate STARTED proof/source when intentionally rerunning")
+    start.add_argument("--format", choices=("text", "json"), default="text")
+    start_mode = start.add_mutually_exclusive_group(required=True)
+    start_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without writes or sends")
+    start_mode.add_argument("--publish", action="store_true", help="Record STARTED source state and optionally publish/read back")
+    start.set_defaults(func=start_work_unit)
 
     checkpoint = work_unit_subparsers.add_parser(
         "checkpoint",
