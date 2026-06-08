@@ -257,6 +257,18 @@ def parse_markdown_source(path: Path) -> dict[str, Any]:
     }
 
 
+def source_field_value(
+    sources: list[tuple[str, dict[str, Any]]],
+    field: str,
+) -> tuple[str, str]:
+    normalized_field = field.strip().lower()
+    for source_name, source in sources:
+        value = clean_markdown_value(str(source.get("fields", {}).get(normalized_field, "") or ""))
+        if value:
+            return value, source_name
+    return "", ""
+
+
 def parse_timestamp(value: str) -> dt.datetime:
     cleaned = value.strip()
     if not cleaned:
@@ -564,6 +576,15 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
         or evidence["fields"].get("team lead openclaw agent")
         or claim["fields"].get("owner session ref", "").removeprefix("agent=")
     )
+    work_card, work_card_source = source_field_value(
+        [
+            ("assignment.md", assignment),
+            ("claim.md", claim),
+            ("evidence.md", evidence),
+            ("decision.md", decision),
+        ],
+        "work card",
+    )
     recommendation = extract_recommendation(evidence["text"])
     suggested_final = FINAL_REVIEW_BY_RECOMMENDATION.get(recommendation, "")
     suggested_closeout = CLOSEOUT_BY_FINAL_REVIEW.get(suggested_final, "")
@@ -578,6 +599,8 @@ def build_work_unit_readiness(artifact_root: Path, work_unit: str) -> dict[str, 
     return {
         "work_unit_id": work_unit,
         "title": title,
+        "work_card": work_card,
+        "work_card_source": work_card_source,
         "team": team,
         "artifact_dir": str(artifact_dir),
         "claim_state": claim_state,
@@ -2164,6 +2187,8 @@ def validate_closeout_decision(args: argparse.Namespace, item: dict[str, Any], a
         failures.append("owner closeout proof already exists")
     if not args.reason:
         failures.append("--reason is required for explicit closeout decisions")
+    if not item.get("work_card"):
+        failures.append("closeout decision requires a source Work Card in assignment.md, claim.md, evidence.md, or decision.md")
     for source_ref in closeout_decision_source_refs(args):
         if not local_source_ref_exists(source_ref, artifact_dir):
             failures.append(f"missing source_ref: {source_ref}")
@@ -2324,7 +2349,7 @@ Assignment Packet and evidence requirements.
 - Decision ref: `DECISION-{args.work_unit_id}`
 - Work Unit id: `{args.work_unit_id}`
 - Title: {item["title"]}
-- Work Card:
+- Work Card: {item["work_card"]}
 - Assignment Packet: `{Path(item["artifact_dir"]) / "assignment.md"}`
 - Evidence & Result Record: `{item["evidence_path"]}`
 - Operations Lead: `{args.recorded_by}`
@@ -2427,6 +2452,8 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             owner_card: dict[str, Any] = {}
             team_text = ""
             owner_text = ""
+            decision_preview = ""
+            decision_decided_at = ""
             if args.decision:
                 decision_failures = validate_closeout_decision(args, item, artifact_dir)
                 if decision_failures:
@@ -2438,6 +2465,8 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     except RuntimeError as exc:
                         print(f"error: {exc}", file=sys.stderr)
                         return 1
+                    decision_decided_at = args.transition_at or utc_now_iso()
+                    decision_preview = render_closeout_decision(args, item, decision_decided_at)
                     status = "decision-ready"
                     next_action = "Publish records decision.md, team final review, and owner closeout."
 
@@ -2454,10 +2483,13 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "owner_card": owner_card,
                 "team_text": team_text,
                 "owner_text": owner_text,
-                "would_write_decision": bool(args.decision),
-                "would_publish_team_final_review": bool(args.decision),
-                "would_publish_owner_closeout": bool(args.decision),
-                "would_mutate_project": bool(args.project_sync_field_map and args.publish),
+                "decision_preview": decision_preview,
+                "resolved_work_card": item.get("work_card", ""),
+                "work_card_source": item.get("work_card_source", ""),
+                "would_write_decision": bool(args.decision and not decision_failures),
+                "would_publish_team_final_review": bool(args.decision and not decision_failures),
+                "would_publish_owner_closeout": bool(args.decision and not decision_failures),
+                "would_mutate_project": bool(args.project_sync_field_map and args.publish and not decision_failures),
                 "next_action": next_action,
                 "checks": {
                     "source_artifacts_reread": True,
@@ -2469,12 +2501,12 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             if args.dry_run or not args.decision or decision_failures:
                 publish_payload = payload
             else:
-                decided_at = args.transition_at or utc_now_iso()
+                decided_at = decision_decided_at
                 args.transition_at = decided_at
                 proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
                 decision_path = artifact_dir / "decision.md"
                 card_paths = write_closeout_card_files(artifact_dir, args, team_card, owner_card)
-                decision_path.write_text(render_closeout_decision(args, item, decided_at), encoding="utf-8")
+                decision_path.write_text(decision_preview, encoding="utf-8")
                 team_code, team_publish, team_error = publish_card(
                     args,
                     team_card,

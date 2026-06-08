@@ -150,6 +150,65 @@ def mark_artifact_started(artifact_dir: Path, *, work_unit_id: str | None = None
     progress_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
+def remove_work_card_fields(artifact_dir: Path) -> None:
+    for filename in ("assignment.md", "claim.md", "evidence.md", "decision.md"):
+        path = artifact_dir / filename
+        text = path.read_text(encoding="utf-8")
+        lines = [line for line in text.splitlines() if not line.startswith("- Work Card:")]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def assert_status_lifecycle(artifact_root: Path, work_unit_id: str, expected_lifecycle: str) -> None:
+    result = run_command(
+        [
+            sys.executable,
+            str(SCRIPT_DIR / "work_unit_status.py"),
+            "status",
+            "work-unit",
+            "--work-unit-id",
+            work_unit_id,
+            "--artifact-root",
+            str(artifact_root),
+            "--no-ledger",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(result, f"status lifecycle {work_unit_id}")
+    lifecycle = json.loads(result.stdout)["lifecycle"]["state"]
+    if lifecycle != expected_lifecycle:
+        raise RuntimeError(f"{work_unit_id} lifecycle expected {expected_lifecycle}, got {lifecycle}")
+
+
+def assert_project_status(
+    artifact_root: Path,
+    field_map: Path,
+    work_unit_id: str,
+    expected_status: str,
+) -> None:
+    result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--no-ledger",
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(result, f"project status {work_unit_id}")
+    status = json.loads(result.stdout)["work_units"][0]["desired_fields"]["Status"]
+    if status != expected_status:
+        raise RuntimeError(f"{work_unit_id} Project Status expected {expected_status}, got {status}")
+
+
 def run_pulse_ok(args: argparse.Namespace, ledger: Path, snapshot: Path) -> None:
     result = run_command(
         [
@@ -2871,10 +2930,19 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout accept dry-run did not compose ACCEPTED team card")
     if accept_payload.get("owner_card", {}).get("kind") != "COMPLETED":
         raise RuntimeError("closeout accept dry-run did not compose COMPLETED owner card")
+    if accept_payload.get("resolved_work_card") != "local-smoke://WU-260607-101":
+        raise RuntimeError("closeout accept dry-run did not resolve Work Card")
+    if accept_payload.get("work_card_source") != "assignment.md":
+        raise RuntimeError("closeout accept dry-run used the wrong Work Card source")
+    if "- Work Card: local-smoke://WU-260607-101" not in accept_payload.get("decision_preview", ""):
+        raise RuntimeError("closeout accept decision preview did not preserve Work Card")
     if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
         raise RuntimeError("closeout accept dry-run mutated decision.md")
     if (ready_late / "team-accept-card.json").exists() or (ready_late / "ops-completed-card.json").exists():
         raise RuntimeError("closeout accept dry-run wrote card artifacts")
+    (ready_late / "decision.md").write_text(accept_payload["decision_preview"], encoding="utf-8")
+    assert_status_lifecycle(artifact_root, "WU-260607-101", "accepted")
+    assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-101", "Accepted")
 
     closeout_revise = run_command(
         [
@@ -2903,6 +2971,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout revise dry-run did not compose REVISE team card")
     if revise_payload.get("owner_card", {}).get("kind") != "NEEDS_REVISION":
         raise RuntimeError("closeout revise dry-run did not compose NEEDS_REVISION owner card")
+    if "- Work Card: local-smoke://WU-260607-102" not in revise_payload.get("decision_preview", ""):
+        raise RuntimeError("closeout revise decision preview did not preserve Work Card")
+    (ready_early / "decision.md").write_text(revise_payload["decision_preview"], encoding="utf-8")
+    assert_status_lifecycle(artifact_root, "WU-260607-102", "revision_requested")
+    assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-102", "Revise")
 
     blocked_dir = create_artifacts(args, inbox_work_dir, "WU-260607-108", "build-lab")
     blocked_closeout = run_command(
@@ -2938,8 +3011,48 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("blocked closeout did not compose BLOCKED_DETAIL team card")
     if blocked_payload.get("owner_card", {}).get("kind") != "BLOCKED":
         raise RuntimeError("blocked closeout did not compose BLOCKED owner card")
+    if "- Work Card: local-smoke://WU-260607-108" not in blocked_payload.get("decision_preview", ""):
+        raise RuntimeError("blocked closeout decision preview did not preserve Work Card")
     if (blocked_dir / "decision.md").read_text(encoding="utf-8").startswith("Status: Blocked"):
         raise RuntimeError("blocked closeout dry-run mutated decision.md")
+    (blocked_dir / "decision.md").write_text(blocked_payload["decision_preview"], encoding="utf-8")
+    assert_status_lifecycle(artifact_root, "WU-260607-108", "blocked")
+    assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-108", "Blocked")
+
+    missing_work_card_dir = create_artifacts(args, inbox_work_dir, "WU-260607-109", "build-lab")
+    mark_artifact_started(missing_work_card_dir)
+    mark_artifact_result_ready(missing_work_card_dir, recommendation="accept")
+    remove_work_card_fields(missing_work_card_dir)
+    missing_work_card_closeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-109",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(missing_work_card_dir / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if missing_work_card_closeout.returncode == 0:
+        raise RuntimeError("closeout accepted missing Work Card source")
+    missing_work_card_payload = json.loads(missing_work_card_closeout.stdout)
+    if missing_work_card_payload.get("status") != "repair-needed":
+        raise RuntimeError("missing Work Card closeout did not return repair-needed")
+    if missing_work_card_payload.get("decision_preview"):
+        raise RuntimeError("missing Work Card closeout produced a decision preview")
+    if "source Work Card" not in " ".join(missing_work_card_payload.get("decision_failures", [])):
+        raise RuntimeError("missing Work Card closeout did not explain the source Work Card failure")
 
     lock_path = ready_late / ".closeout.lock"
     lock_path.mkdir()
