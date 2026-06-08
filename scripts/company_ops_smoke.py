@@ -2639,6 +2639,56 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         + "\n",
         encoding="utf-8",
     )
+    hanging_adapter_script = work_dir / "hanging_dispatch_adapter.py"
+    hanging_adapter_script.write_text(
+        "\n".join(
+            [
+                "import time",
+                "time.sleep(2)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    command_adapter_progress_before = (command_adapter_dir / "progress.jsonl").read_text(
+        encoding="utf-8"
+    )
+    dispatch_busy_timeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-114",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--adapter",
+            "command",
+            "--adapter-command",
+            f"{sys.executable} {hanging_adapter_script}",
+            "--adapter-timeout-seconds",
+            "1",
+            "--source-ref",
+            str(command_adapter_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if dispatch_busy_timeout.returncode == 0:
+        raise RuntimeError("busy Team Lead adapter timeout was accepted as dispatch success")
+    dispatch_busy_timeout_payload = json.loads(dispatch_busy_timeout.stdout)
+    if dispatch_busy_timeout_payload.get("status") != "setup-needed":
+        raise RuntimeError("busy Team Lead adapter timeout did not fail as setup-needed")
+    if "runtime adapter timed out" not in str(dispatch_busy_timeout_payload.get("reason") or ""):
+        raise RuntimeError("busy Team Lead adapter timeout did not explain the timeout")
+    if (command_adapter_dir / "dispatch.json").exists():
+        raise RuntimeError("busy Team Lead adapter timeout wrote dispatch.json")
+    if (command_adapter_dir / "progress.jsonl").read_text(encoding="utf-8") != command_adapter_progress_before:
+        raise RuntimeError("busy Team Lead adapter timeout mutated progress.jsonl")
     dispatch_command_adapter = run_command(
         [
             sys.executable,

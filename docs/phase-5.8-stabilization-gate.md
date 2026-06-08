@@ -401,17 +401,21 @@ Depends on:
 
 Current status:
 
-- Required before Phase 6. Not implemented.
+- Live busy-session experiment completed on 2026-06-09 KST.
+- Implemented as a dispatch policy/regression gate: prefer fresh
+  Work Unit-specific Team Lead sessions, bound adapter waits, and fail closed
+  without source mutation when acceptance cannot return current proof.
 - This phase is needed because detached dispatch proof hardening prevents false
-  success, but it does not by itself prove that a busy Team Lead path is
-  operationally acceptable.
+  success, but it does not by itself make shared busy Team Lead sessions an
+  acceptable dispatch target.
 
 Problem:
 
 - A Team Lead session may already have an active run when Operations Lead tries
   to dispatch the next Work Unit.
-- The acceptance turn can timeout, queue behind current work, or be steered into
-  an active run depending on OpenClaw session queue behavior.
+- Live evidence showed that a same-session acceptance turn can remain queued
+  behind active work, outlive the Operations Lead adapter timeout, and later run
+  as a follow-up acceptance response.
 - `sessions.describe` / `sessions.list` can be used as diagnostics, but they are
   snapshots rather than a lease or lock. They must not be treated as dispatch
   proof.
@@ -420,8 +424,8 @@ Problem:
 
 Goal:
 
-- Prove the busy Team Lead dispatch behavior with live or live-equivalent tests
-  before packaging the workflow.
+- Fix the busy Team Lead dispatch policy with live evidence and regression
+  coverage before packaging the workflow.
 - Keep the Operations Lead nonblocking while preserving receipt-first,
   fail-closed source truth.
 - Choose the smallest safe policy for busy Team Lead handling.
@@ -434,28 +438,39 @@ Required boundary:
   proof are both real and current.
 - Treat idle/busy preflight as advisory only unless OpenClaw later provides a
   documented lock/lease contract.
-- Prefer fresh Work Unit-specific Team Lead sessions and bounded acceptance
-  timeouts over shared-session waiting.
+- Use fresh Work Unit-specific Team Lead sessions as the default dispatch
+  target. Do not route new dispatches through a known shared busy Team Lead
+  session.
+- Bound acceptance/adapter waits. If the current proof does not arrive within
+  that bound, fail closed as `setup-needed` and write no `dispatch.json` or
+  `dispatched` progress row.
 
-Pre-design information to settle before implementation:
+Live findings:
 
-- Whether a busy Team Lead acceptance turn times out, queues as a later run, or
-  steers into the current active run in the actual OpenClaw deployment.
-- Whether fresh Work Unit-specific Team Lead sessions avoid the busy-session
-  conflict enough to make `sessions.describe` unnecessary.
-- The exact fail-closed owner/operator message when Team Lead is busy.
-- Whether an expiring source-local attempt record is needed for idempotency, or
-  whether proof hardening plus explicit re-run is sufficient.
+- Idle baseline dispatch to a Team Lead session succeeded and wrote
+  `dispatch.json` only after acceptance and execution enqueue proof.
+- Dispatch to a busy same-session Team Lead failed closed through the bounded
+  adapter path. It wrote no `dispatch.json` and appended no `dispatched` row.
+- After the active run completed, OpenClaw processed the earlier same-session
+  acceptance prompt as a later run. That late acceptance remained session
+  history only and did not mutate Company Ops source truth.
+- Dispatch to a fresh Work Unit-specific Team Lead session succeeded while
+  another same-agent session was still busy.
+- `sessions.describe` and `sessions.list` showed useful status snapshots, but no
+  queue-depth, lock, or lease contract strong enough to gate dispatch success.
 
-Acceptance, once implemented:
+Acceptance:
 
 - A busy Team Lead scenario cannot leave `dispatch.json` or `progress.jsonl`
   claiming success without real current proof.
-- A late or fallback acceptance cannot become dispatch success after the source
-  state has expired, failed, or moved on.
-- The Operations Lead is not held indefinitely by a busy Team Lead receipt wait.
-- The chosen policy is covered by smoke/regression tests and, where possible, a
-  live busy-session runbook or test.
+- A late or fallback acceptance cannot become dispatch success after the adapter
+  path has failed closed.
+- The Operations Lead is bounded by the adapter timeout rather than held
+  indefinitely by a busy Team Lead receipt wait.
+- Fresh Work Unit-specific Team Lead sessions are the default recommended live
+  dispatch path.
+- The chosen policy is covered by smoke/regression tests and the live
+  busy-session experiment record.
 - The implementation still has no hidden orchestrator, daemon, automatic retry,
   automatic reassignment, or automatic completion path.
 
