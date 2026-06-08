@@ -199,6 +199,27 @@ source-backed `started` progress row and moves the claim to `working` only on
 publish. When the Assignment Packet uses a live Discord-bound execution route,
 the command must also publish/read back the team-detail `STARTED` proof.
 
+Official detached execution reference recording should use
+`work-unit dispatch --dry-run` before `work-unit dispatch --publish`. Dispatch
+does not create a new lifecycle state and does not replace `start`; it requires
+prior source-backed STARTED evidence, prepares the Team Lead dispatch packet,
+and records a recoverable session/job/message reference in `dispatch.json` plus
+a `dispatched` progress row only on publish.
+
+For `--runtime record-ref`, dispatch records a manually obtained
+`--session-ref`, `--job-ref`, or `--message-ref`. For
+`--runtime openclaw-agent`, manual refs are not enough: the runtime adapter must
+return accepted/readback proof before source artifacts are written. The smoke
+adapter is `--adapter fake`; live OpenClaw delivery should use
+`--adapter command` or `COMPANY_OPS_DISPATCH_ADAPTER_COMMAND` with
+`scripts/openclaw_dispatch_sessions_send.py`. The standard adapter runs a short
+`openclaw agent --json` turn against the target Team Lead session to receive
+the accepted envelope, then enqueues the execution message through Gateway
+`sessions.send` with `timeoutMs=0`. If no detached runtime adapter is
+configured, automatic dispatch requests must fail closed as `setup-needed`
+instead of spawning a hidden orchestrator, daemon, auto-retry loop, or
+automatic completion path.
+
 Official `RESULT_READY` publication should use
 `work-unit result-ready --dry-run` before `work-unit result-ready --publish`.
 The command runs the shared Result Ready gate before publishing. The gate
@@ -272,6 +293,24 @@ Race control:
   first valid Operations Lead decision wins until the owner explicitly asks for
   a revision or reopen.
 
+Goal/convergence revision boundary:
+
+- A `goal` or `convergence` Work Unit is allowed to iterate inside the Team
+  Lead execution loop before `result-ready`: plan, act or improve, verify, then
+  repeat until done criteria pass with evidence or a true blocker appears.
+- Use `work-unit checkpoint` and `progress.jsonl` rows for Team Lead-owned
+  round visibility during that internal loop. In a detached path, those
+  checkpoints are Team Lead execution visibility, not Operations Lead closeout.
+- Operations Lead `revise` is different. It happens only after a source-backed
+  `result-ready` submission is reviewed and found insufficient against the
+  Assignment Packet. It produces lifecycle `revision_requested` and default
+  responsibility `operations_lead_replan`; Team Lead responsibility resumes
+  only after a revised packet or explicit revision assignment exists.
+- Do not use Operations Lead `revise` as the normal mechanism for every failed
+  Team Lead verification round. Failed internal verification should stay inside
+  the selected `goal` loop until it converges, blocks, or hits a safety/budget
+  limit.
+
 ## Operating Surfaces
 
 Use the smallest surface that preserves truth and visibility.
@@ -343,19 +382,33 @@ The default flow is:
 3. Operations Lead assigns the Team Lead through CLI or a local agent session.
 4. Operations Lead runs `work-unit start --dry-run`, then
    `work-unit start --publish` when the Team Lead starts or claims the work.
-5. For long `goal` work, Operations Lead runs `work-unit checkpoint` at major
-   slice boundaries or at least every 10-15 minutes while work remains active.
-   This publishes/readbacks the team `CHECKPOINT`, then records matching
-   source-backed `progress.jsonl` metadata and can run one Project mirror sync.
-6. For standalone progress metadata without Discord visibility, Operations Lead
+5. Operations Lead runs `work-unit dispatch --dry-run`, then
+   `work-unit dispatch --publish --runtime openclaw-agent` with a configured
+   adapter command. The adapter receives a short Team Lead accepted/readback
+   envelope through `openclaw agent --json`, enqueues the execution message via
+   Gateway `sessions.send`, and only then records
+   `dispatch.json` plus the `dispatched` progress row. If the live adapter is
+   not configured, use `--runtime record-ref` only for an explicitly manual,
+   audit-safe reference.
+6. For long `goal` work, publish `work-unit checkpoint` at major slice
+   boundaries or at least every 10-15 minutes while work remains active. In the
+   current foreground/manual flow, Operations Lead may perform this while
+   holding the execution session. In the detached flow, this becomes Team
+   Lead-owned execution visibility. The command publishes/readbacks the team
+   `CHECKPOINT`, then records matching source-backed `progress.jsonl` metadata
+   and can run one Project mirror sync.
+7. For standalone progress metadata without Discord visibility, Operations Lead
    may still use `work-unit progress`, but it must not replace the normal
    checkpoint briefing path during live long work.
-7. Operations Lead posts `[RESULT_READY]` when the Team Lead result is actually
-   available.
-8. Operations Lead performs lightweight verification before final reporting.
-9. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
+8. Publish `[RESULT_READY]` when the Team Lead result is actually available.
+   In the current foreground/manual flow, Operations Lead may post it after
+   confirming the Team Lead result. In the detached flow, this is Team
+   Lead-owned result submission through `work-unit result-ready`; Operations
+   Lead later consumes it from the result-ready inbox.
+9. Operations Lead performs lightweight verification before final reporting.
+10. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
    `[BLOCKED_DETAIL]` review note in the relevant `#team-*` channel.
-10. Operations Lead posts one owner-facing `[COMPLETED]`, `[NEEDS_REVISION]`,
+11. Operations Lead posts one owner-facing `[COMPLETED]`, `[NEEDS_REVISION]`,
    or `[BLOCKED]` summary in `#ops-feed`.
 
 `[RESULT_READY]` is a Team Lead result-submission signal, not an Operations

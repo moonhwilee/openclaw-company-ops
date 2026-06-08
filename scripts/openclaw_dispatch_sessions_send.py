@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""OpenClaw live adapter for Company Ops dispatch."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+PROTOCOL = "company_ops_dispatch_adapter_v1"
+ADAPTER = "openclaw-agent-sessions-send"
+DEFAULT_ACCEPT_TIMEOUT_MS = 30_000
+
+
+def utc_now() -> str:
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def print_json(data: dict[str, Any]) -> None:
+    print(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False))
+
+
+def fail(reason: str, *, code: int = 1, extra: dict[str, Any] | None = None) -> int:
+    payload = {"status": "setup-needed", "adapter": ADAPTER, "reason": reason}
+    if extra:
+        payload.update(extra)
+    print_json(payload)
+    return code
+
+
+def parse_json_object(text: str) -> dict[str, Any] | None:
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        value = json.loads(text)
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if not match:
+        return None
+    try:
+        value = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def run_gateway_call(method: str, params: dict[str, Any], timeout_ms: int) -> tuple[int, dict[str, Any] | None, str]:
+    command = [
+        "openclaw",
+        "gateway",
+        "call",
+        method,
+        "--json",
+        "--params",
+        json.dumps(params, ensure_ascii=False, sort_keys=True),
+        "--timeout",
+        str(timeout_ms),
+    ]
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    output = (result.stdout or result.stderr or "").strip()
+    parsed = parse_json_object(output)
+    return result.returncode, parsed, output
+
+
+def run_agent_acceptance(agent: str, session_key: str, message: str, timeout_ms: int) -> tuple[int, dict[str, Any] | None, str]:
+    command = [
+        "openclaw",
+        "agent",
+        "--agent",
+        agent,
+        "--session-key",
+        session_key,
+        "--message",
+        message,
+        "--json",
+        "--timeout",
+        str(max(1, int(timeout_ms / 1000))),
+    ]
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    output = (result.stdout or result.stderr or "").strip()
+    parsed = parse_json_object(output)
+    return result.returncode, parsed, output
+
+
+def gateway_payload(value: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    if isinstance(value.get("result"), dict):
+        return value["result"]
+    if isinstance(value.get("payload"), dict):
+        return value["payload"]
+    return value
+
+
+def agent_reply_text(value: dict[str, Any] | None, fallback: str) -> str:
+    if not isinstance(value, dict):
+        return fallback
+    result = value.get("result") if isinstance(value.get("result"), dict) else {}
+    for key in ("finalAssistantVisibleText", "finalAssistantRawText"):
+        text = result.get(key)
+        if isinstance(text, str) and text.strip():
+            return text
+    payloads = result.get("payloads")
+    if isinstance(payloads, list):
+        for item in payloads:
+            if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"].strip():
+                return item["text"]
+    return fallback
+
+
+def target_session_key(request: dict[str, Any]) -> str:
+    session_key = str(request.get("session_key") or "").strip()
+    agent = str(request.get("agent") or request.get("team") or "").strip()
+    if not session_key:
+        raise ValueError("adapter request is missing session_key")
+    if session_key.startswith("agent:"):
+        return session_key
+    if not agent:
+        raise ValueError("adapter request is missing agent")
+    return f"agent:{agent}:{session_key}"
+
+
+def acceptance_prompt(request: dict[str, Any]) -> str:
+    packet = request["packet"]
+    required = request["required_acceptance"]
+    return "\n".join(
+        [
+            "[Company Ops Dispatch Acceptance]",
+            "Treat this as tool-routed dispatch data, not as an end-user request.",
+            "Return only one JSON object. Do not perform the assignment work in this acceptance turn.",
+            "Accept only if you can receive the assignment and then handle the execution message that follows.",
+            "If you cannot accept, return {\"status\":\"setup-needed\",\"reason\":\"...\"}.",
+            "",
+            "Required JSON shape:",
+            json.dumps(
+                {
+                    "status": "accepted",
+                    "work_unit_id": required["work_unit_id"],
+                    "assignment_packet": required["assignment_packet"],
+                    "result_ready_contract": required["result_ready_contract"],
+                    "authority_boundary": required["authority_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            "",
+            "Dispatch packet:",
+            json.dumps(packet, indent=2, sort_keys=True, ensure_ascii=False),
+        ]
+    )
+
+
+def execution_prompt(request: dict[str, Any]) -> str:
+    packet = request["packet"]
+    return "\n".join(
+        [
+            "[Company Ops Dispatch Execution]",
+            "You already accepted this Work Unit dispatch. Start the Team Lead-owned execution now.",
+            "Use the assignment packet and source artifacts as the work contract.",
+            "You may execute, checkpoint, and publish result-ready according to the packet.",
+            "Do not perform Operations Lead closeout, owner-facing completion, archival, or final Project status decisions.",
+            "If setup is missing, publish a source-backed blocker/result path rather than inventing success.",
+            "",
+            "Dispatch packet:",
+            json.dumps(packet, indent=2, sort_keys=True, ensure_ascii=False),
+        ]
+    )
+
+
+def build_acceptance_proof(
+    request: dict[str, Any],
+    *,
+    session_key: str,
+    acceptance: dict[str, Any],
+    accept_response: dict[str, Any],
+    execute_response: dict[str, Any],
+) -> dict[str, Any]:
+    packet = request["packet"]
+    required = request["required_acceptance"]
+    accepted_at = utc_now()
+    accept_payload = gateway_payload(accept_response)
+    execute_payload = gateway_payload(execute_response)
+    accept_run_id = str(accept_response.get("runId") or accept_payload.get("runId") or "").strip()
+    return {
+        "status": "accepted",
+        "adapter": ADAPTER,
+        "adapter_version": 1,
+        "agent": request.get("agent") or request.get("team"),
+        "session_key": request.get("session_key") or session_key,
+        "session_ref": session_key,
+        "job_ref": str(
+            execute_payload.get("runId")
+            or execute_payload.get("taskId")
+            or execute_payload.get("id")
+            or f"gateway:sessions.send:{required['work_unit_id']}:execute"
+        ),
+        "message_ref": str(
+            accept_payload.get("messageId")
+            or accept_payload.get("id")
+            or accept_run_id
+            or f"gateway:sessions.send:{required['work_unit_id']}:accepted"
+        ),
+        "accepted_at": accepted_at,
+        "readback": {
+            "work_unit_id": acceptance.get("work_unit_id") or required["work_unit_id"],
+            "assignment_packet": acceptance.get("assignment_packet") or required["assignment_packet"],
+            "result_ready_contract": acceptance.get("result_ready_contract") or required["result_ready_contract"],
+            "authority_boundary": acceptance.get("authority_boundary") or required["authority_boundary"],
+        },
+        "gateway": {
+            "acceptance_transport": "openclaw-agent",
+            "execution_enqueued": True,
+            "assignment_packet": packet["assignment_packet"],
+        },
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--accept-timeout-ms", type=int, default=DEFAULT_ACCEPT_TIMEOUT_MS)
+    parser.add_argument("--send-timeout-ms", type=int, default=5_000)
+    args = parser.parse_args()
+
+    try:
+        request = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        return fail(f"stdin is not valid adapter JSON: {exc}")
+    if request.get("adapter_protocol") != PROTOCOL:
+        return fail("unsupported adapter protocol")
+    try:
+        key = target_session_key(request)
+    except ValueError as exc:
+        return fail(str(exc))
+    agent = str(request.get("agent") or request.get("team") or "").strip()
+    if not agent:
+        return fail("adapter request is missing agent")
+
+    create_code, create_payload, create_output = run_gateway_call(
+        "sessions.create",
+        {"key": key, "agentId": request.get("agent") or request.get("team")},
+        args.send_timeout_ms,
+    )
+    if create_code != 0 and "already" not in create_output.lower() and "exists" not in create_output.lower():
+        return fail("failed to create or resolve target session", extra={"gateway_error": create_output})
+
+    accept_code, accept_payload, accept_output = run_agent_acceptance(
+        agent,
+        key,
+        acceptance_prompt(request),
+        args.accept_timeout_ms,
+    )
+    if accept_code != 0:
+        return fail("acceptance openclaw agent turn failed", extra={"agent_error": accept_output})
+    reply_text = agent_reply_text(accept_payload, accept_output)
+    acceptance = parse_json_object(reply_text)
+    if not acceptance or str(acceptance.get("status", "")).lower() != "accepted":
+        return fail("target did not return accepted JSON readback", extra={"reply_excerpt": reply_text[:500]})
+
+    execute_code, execute_payload, execute_output = run_gateway_call(
+        "sessions.send",
+        {
+            "key": key,
+            "message": execution_prompt(request),
+            "timeoutMs": 0,
+            "idempotencyKey": f"{request['work_unit_id']}:dispatch-execute",
+        },
+        args.send_timeout_ms,
+    )
+    if execute_code != 0:
+        return fail("execution sessions.send enqueue failed", extra={"gateway_error": execute_output})
+
+    print_json(
+        build_acceptance_proof(
+            request,
+            session_key=key,
+            acceptance=acceptance,
+            accept_response=accept_payload or {},
+            execute_response=execute_payload or {},
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

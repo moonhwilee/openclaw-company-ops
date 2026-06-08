@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,9 @@ ROUND_VISIBLE_MODES = {"goal", "convergence"}
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
+DISPATCH_RUNTIME_CHOICES = ("record-ref", "openclaw-agent")
+DISPATCH_ADAPTER_CHOICES = ("auto", "fake", "command")
+DISPATCH_ADAPTER_COMMAND_ENV = "COMPANY_OPS_DISPATCH_ADAPTER_COMMAND"
 FINAL_REVIEW_KINDS = {"ACCEPTED", "REVISE", "BLOCKED_DETAIL"}
 CLOSEOUT_BY_FINAL_REVIEW = {
     "ACCEPTED": "COMPLETED",
@@ -150,6 +155,29 @@ def append_progress_row(output_dir: Path, row: dict[str, Any]) -> Path:
 
 def run_json_command(command: list[str]) -> tuple[int, dict[str, Any], str]:
     result = subprocess.run(command, check=False, text=True, capture_output=True)
+    parsed: dict[str, Any] = {}
+    if result.stdout.strip():
+        try:
+            loaded = json.loads(result.stdout)
+            if isinstance(loaded, dict):
+                parsed = loaded
+        except json.JSONDecodeError:
+            parsed = {}
+    return result.returncode, parsed, result.stderr.strip() or result.stdout.strip()
+
+
+def run_json_stdin_command(command: list[str], payload: dict[str, Any], timeout_seconds: int) -> tuple[int, dict[str, Any], str]:
+    try:
+        result = subprocess.run(
+            command,
+            input=json.dumps(payload, sort_keys=True, ensure_ascii=False),
+            check=False,
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return 124, {}, f"runtime adapter timed out after {timeout_seconds}s: {' '.join(command)}"
     parsed: dict[str, Any] = {}
     if result.stdout.strip():
         try:
@@ -1783,6 +1811,402 @@ def started_progress_row(args: argparse.Namespace, *, transition_at: str, proof_
     }
 
 
+def normalized_session_key(work_unit_id: str, team: str) -> str:
+    cleaned_team = re.sub(r"[^a-z0-9]+", "-", team.strip().lower()).strip("-") or "team"
+    return f"company-ops-{cleaned_team}-{work_unit_id.lower()}"
+
+
+def dispatch_ref(args: argparse.Namespace) -> str:
+    return args.job_ref or args.session_ref or args.message_ref
+
+
+def dispatch_adapter_command(args: argparse.Namespace) -> str:
+    return args.adapter_command.strip() or os.environ.get(DISPATCH_ADAPTER_COMMAND_ENV, "").strip()
+
+
+def dispatch_adapter_request(
+    args: argparse.Namespace,
+    *,
+    packet: dict[str, Any],
+    artifact_dir: Path,
+    transition_at: str,
+) -> dict[str, Any]:
+    return {
+        "adapter_protocol": "company_ops_dispatch_adapter_v1",
+        "work_unit_id": args.work_unit_id,
+        "team": args.team,
+        "agent": args.agent,
+        "runtime": args.runtime,
+        "session_key": args.session_key,
+        "artifact_dir": str(artifact_dir),
+        "transition_at": transition_at,
+        "packet": packet,
+        "required_acceptance": {
+            "work_unit_id": args.work_unit_id,
+            "assignment_packet": packet["assignment_packet"],
+            "result_ready_contract": packet["result_ready_contract"]["command"],
+            "authority_boundary": "team_lead_result_ready_only",
+        },
+    }
+
+
+def fake_dispatch_acceptance(args: argparse.Namespace, packet: dict[str, Any], accepted_at: str) -> dict[str, Any]:
+    return {
+        "status": "accepted",
+        "adapter": "fake",
+        "adapter_version": 1,
+        "agent": args.agent,
+        "session_key": args.session_key,
+        "session_ref": f"session:{args.session_key}",
+        "job_ref": f"job:{args.work_unit_id}:dispatch-execute",
+        "message_ref": f"message:{args.work_unit_id}:dispatch-accepted",
+        "accepted_at": accepted_at,
+        "readback": {
+            "work_unit_id": args.work_unit_id,
+            "assignment_packet": packet["assignment_packet"],
+            "result_ready_contract": packet["result_ready_contract"]["command"],
+            "authority_boundary": "team_lead_result_ready_only",
+        },
+    }
+
+
+def compact_acceptance(proof: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in proof.items()
+        if key
+        in {
+            "status",
+            "adapter",
+            "adapter_version",
+            "agent",
+            "session_key",
+            "session_ref",
+            "job_ref",
+            "message_ref",
+            "accepted_at",
+            "readback",
+            "gateway",
+        }
+    }
+
+
+def validate_dispatch_acceptance(args: argparse.Namespace, packet: dict[str, Any], proof: dict[str, Any]) -> str:
+    if not proof:
+        return "runtime adapter did not return JSON acceptance proof"
+    candidate = proof.get("result") if isinstance(proof.get("result"), dict) else proof
+    if not isinstance(candidate, dict):
+        return "runtime adapter acceptance proof must be a JSON object"
+    if str(candidate.get("status", "")).strip().lower() != "accepted":
+        return "runtime adapter did not return status=accepted"
+    readback = candidate.get("readback") if isinstance(candidate.get("readback"), dict) else {}
+    if (readback.get("work_unit_id") or candidate.get("work_unit_id")) != args.work_unit_id:
+        return "runtime adapter accepted proof has mismatched work_unit_id"
+    if (readback.get("assignment_packet") or candidate.get("assignment_packet")) != packet["assignment_packet"]:
+        return "runtime adapter accepted proof has mismatched assignment_packet"
+    expected_contract = packet["result_ready_contract"]["command"]
+    if (readback.get("result_ready_contract") or candidate.get("result_ready_contract")) != expected_contract:
+        return "runtime adapter accepted proof did not confirm result_ready_contract"
+    if not (readback.get("authority_boundary") or candidate.get("authority_boundary")):
+        return "runtime adapter accepted proof did not confirm authority boundary"
+    if not candidate.get("job_ref"):
+        return "runtime adapter accepted proof did not return an execution enqueue reference"
+    if not (candidate.get("session_ref") or candidate.get("message_ref")):
+        return "runtime adapter accepted proof did not return a recoverable acceptance reference"
+    return ""
+
+
+def apply_dispatch_acceptance(args: argparse.Namespace, proof: dict[str, Any]) -> dict[str, Any]:
+    candidate = proof.get("result") if isinstance(proof.get("result"), dict) else proof
+    assert isinstance(candidate, dict)
+    for field in ("session_ref", "job_ref", "message_ref"):
+        if not getattr(args, field, "") and isinstance(candidate.get(field), str):
+            setattr(args, field, candidate[field].strip())
+    return compact_acceptance(candidate)
+
+
+def run_dispatch_adapter(
+    args: argparse.Namespace,
+    *,
+    packet: dict[str, Any],
+    artifact_dir: Path,
+    transition_at: str,
+) -> tuple[dict[str, Any] | None, str]:
+    if args.runtime == "record-ref":
+        return None, ""
+    adapter = args.adapter
+    command_text = dispatch_adapter_command(args)
+    if adapter == "auto":
+        adapter = "command" if command_text else ""
+    if not adapter:
+        return None, (
+            "automatic runtime dispatch adapter is not configured; configure "
+            f"{DISPATCH_ADAPTER_COMMAND_ENV} or pass --adapter-command for OpenClaw sessions.send"
+        )
+    if adapter == "fake":
+        proof = fake_dispatch_acceptance(args, packet, transition_at)
+        reason = validate_dispatch_acceptance(args, packet, proof)
+        return (proof, "" if not reason else reason)
+    if adapter == "command":
+        if not command_text:
+            return None, f"--adapter command requires --adapter-command or {DISPATCH_ADAPTER_COMMAND_ENV}"
+        command = shlex.split(command_text)
+        if not command:
+            return None, "runtime adapter command is empty"
+        request = dispatch_adapter_request(args, packet=packet, artifact_dir=artifact_dir, transition_at=transition_at)
+        returncode, proof, output = run_json_stdin_command(command, request, args.adapter_timeout_seconds)
+        if returncode != 0:
+            return None, f"runtime adapter command failed ({returncode}): {output}"
+        reason = validate_dispatch_acceptance(args, packet, proof)
+        return (proof, "" if not reason else reason)
+    return None, f"unsupported runtime adapter: {args.adapter}"
+
+
+def dispatch_progress_row(
+    args: argparse.Namespace,
+    *,
+    transition_at: str,
+    assignment: dict[str, Any],
+) -> dict[str, Any]:
+    mode = args.mode or clean_markdown_value(str(assignment["fields"].get("mode") or ""))
+    return {
+        "work_unit_id": args.work_unit_id,
+        "transition_kind": "dispatched",
+        "mode": mode.strip().lower(),
+        "phase": args.phase,
+        "phase_index": "",
+        "phase_total": "",
+        "round": "",
+        "show_round": False,
+        "current_slice": args.current_slice,
+        "next_checkpoint": args.next_checkpoint,
+        "source_ref": args.source_ref,
+        "proof_ref": dispatch_ref(args),
+        "runtime": args.runtime,
+        "agent": args.agent,
+        "session_key": args.session_key,
+        "session_ref": args.session_ref,
+        "job_ref": args.job_ref,
+        "message_ref": args.message_ref,
+        "transition_at": transition_at,
+        "recorded_by": args.recorded_by,
+    }
+
+
+def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifact_dir: Path) -> dict[str, Any]:
+    evidence_path = artifact_dir / "evidence.md"
+    return {
+        "protocol": "company_ops_detached_dispatch_v1",
+        "work_unit_id": args.work_unit_id,
+        "title": clean_markdown_value(str(assignment["fields"].get("title") or "")),
+        "team": args.team,
+        "agent": args.agent,
+        "runtime": args.runtime,
+        "session_key": args.session_key,
+        "work_card": clean_markdown_value(str(assignment["fields"].get("work card") or "")),
+        "assignment_packet": str(artifact_dir / "assignment.md"),
+        "evidence_ref": str(evidence_path),
+        "result_ready_contract": {
+            "command": (
+                "python3 scripts/openclaw_company_ops.py work-unit result-ready "
+                f"--work-unit-id {args.work_unit_id} --artifact-root <artifact-root> "
+                f"--source-ref {evidence_path}"
+            ),
+            "rule": "Team Lead submits source-backed evidence; Operations Lead performs closeout separately.",
+        },
+        "instructions": [
+            "Read assignment.md before executing.",
+            "Do not mutate outside the assigned Work Unit scope.",
+            "Return result evidence through the result-ready path.",
+            "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch.",
+        ],
+    }
+
+
+def dispatch_record(
+    args: argparse.Namespace,
+    assignment: dict[str, Any],
+    artifact_dir: Path,
+    dispatched_at: str,
+    accepted_proof: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "status": "dispatched",
+        "work_unit_id": args.work_unit_id,
+        "team": args.team,
+        "agent": args.agent,
+        "runtime": args.runtime,
+        "session_key": args.session_key,
+        "session_ref": args.session_ref,
+        "job_ref": args.job_ref,
+        "message_ref": args.message_ref,
+        "source_ref": args.source_ref,
+        "assignment_packet": str(artifact_dir / "assignment.md"),
+        "dispatch_ref": dispatch_ref(args),
+        "accepted_proof": accepted_proof,
+        "dispatched_at": dispatched_at,
+        "recorded_by": args.recorded_by,
+        "packet": dispatch_packet(args, assignment, artifact_dir),
+    }
+
+
+def setup_needed_payload(args: argparse.Namespace, reason: str, assignment: dict[str, Any] | None = None, artifact_dir: Path | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "dry_run": bool(args.dry_run),
+        "status": "setup-needed",
+        "work_unit_id": args.work_unit_id,
+        "runtime": args.runtime,
+        "adapter": getattr(args, "adapter", ""),
+        "reason": reason,
+        "would_write_dispatch": False,
+        "would_append_progress": False,
+        "would_spawn_runtime": False,
+    }
+    if assignment is not None and artifact_dir is not None:
+        payload["dispatch_packet"] = dispatch_packet(args, assignment, artifact_dir)
+    return payload
+
+
+def print_dispatch_failure(args: argparse.Namespace, payload: dict[str, Any]) -> None:
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"error: {payload['status']}: {payload['reason']}", file=sys.stderr)
+
+
+def dispatch_work_unit(args: argparse.Namespace) -> int:
+    artifact_root = args.artifact_root.expanduser()
+    artifact_dir = artifact_root / args.work_unit_id
+    if not artifact_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
+        return 1
+    assignment = parse_markdown_source(artifact_dir / "assignment.md")
+    if not assignment.get("exists"):
+        print(f"error: assignment.md is missing: {artifact_dir / 'assignment.md'}", file=sys.stderr)
+        return 1
+    if not args.team:
+        args.team = assignment["fields"].get("assigned team lead openclaw agent", "")
+    if not args.team:
+        print("error: dispatch requires --team when assignment.md does not name a Team Lead", file=sys.stderr)
+        return 1
+    if not args.agent:
+        args.agent = args.team
+    if not args.session_key:
+        args.session_key = normalized_session_key(args.work_unit_id, args.team)
+    if not args.source_ref:
+        print("error: dispatch requires --source-ref", file=sys.stderr)
+        return 1
+    if args.adapter_timeout_seconds < 1:
+        print("error: dispatch requires --adapter-timeout-seconds >= 1", file=sys.stderr)
+        return 1
+    if not local_source_ref_exists(args.source_ref, artifact_dir):
+        print(f"error: dispatch source_ref does not exist: {args.source_ref}", file=sys.stderr)
+        return 1
+    proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
+    if not progress_has_transition(artifact_dir / "progress.jsonl", args.work_unit_id, {"start", "started"}):
+        print("error: dispatch requires prior STARTED source event", file=sys.stderr)
+        return 1
+    if assignment_requires_live_visibility(assignment) and not proof_has_event(proof_log, args.work_unit_id, "STARTED"):
+        print("error: dispatch requires prior STARTED visibility proof for discord-bound Work Units", file=sys.stderr)
+        return 1
+    dispatch_path = artifact_dir / "dispatch.json"
+    if not args.force:
+        if dispatch_path.exists():
+            print("error: dispatch.json already exists; use --force to rerun intentionally", file=sys.stderr)
+            return 1
+        if progress_has_transition(artifact_dir / "progress.jsonl", args.work_unit_id, {"dispatch", "dispatched"}):
+            print("error: DISPATCHED source event already exists; use --force to rerun intentionally", file=sys.stderr)
+            return 1
+    transition_at = args.transition_at or utc_now_iso()
+    args.transition_at = transition_at
+    packet = dispatch_packet(args, assignment, artifact_dir)
+    accepted_proof: dict[str, Any] | None = None
+
+    if args.publish:
+        if args.runtime == "record-ref":
+            if not dispatch_ref(args):
+                payload = setup_needed_payload(
+                    args,
+                    "dispatch publish requires --session-ref, --job-ref, or --message-ref",
+                    assignment,
+                    artifact_dir,
+                )
+                print_dispatch_failure(args, payload)
+                return 1
+        else:
+            raw_proof, adapter_reason = run_dispatch_adapter(
+                args,
+                packet=packet,
+                artifact_dir=artifact_dir,
+                transition_at=transition_at,
+            )
+            if adapter_reason:
+                payload = setup_needed_payload(args, adapter_reason, assignment, artifact_dir)
+                print_dispatch_failure(args, payload)
+                return 1
+            assert raw_proof is not None
+            accepted_proof = apply_dispatch_acceptance(args, raw_proof)
+            if not dispatch_ref(args):
+                payload = setup_needed_payload(
+                    args,
+                    "runtime adapter accepted proof did not produce a dispatch reference",
+                    assignment,
+                    artifact_dir,
+                )
+                print_dispatch_failure(args, payload)
+                return 1
+
+    row = dispatch_progress_row(args, transition_at=transition_at, assignment=assignment)
+    record = dispatch_record(args, assignment, artifact_dir, transition_at, accepted_proof)
+
+    payload = {
+        "dry_run": bool(args.dry_run),
+        "status": "ready-to-dispatch" if args.dry_run else "dispatched",
+        "work_unit_id": args.work_unit_id,
+        "runtime": args.runtime,
+        "adapter": args.adapter,
+        "team": args.team,
+        "agent": args.agent,
+        "session_key": args.session_key,
+        "session_ref": args.session_ref,
+        "job_ref": args.job_ref,
+        "message_ref": args.message_ref,
+        "accepted_proof": accepted_proof,
+        "dispatch_packet": packet,
+        "dispatch_record": record,
+        "progress_row": row,
+        "dispatch_path": str(dispatch_path),
+        "would_write_dispatch": bool(args.publish),
+        "would_append_progress": bool(args.publish),
+        "would_call_runtime_adapter": bool(args.publish and args.runtime != "record-ref"),
+        "would_spawn_runtime": False,
+        "next_action": (
+            "Run publish with a configured runtime adapter, or use record-ref for a manually started session."
+            if args.dry_run
+            else "Team Lead owns execution until result-ready."
+        ),
+    }
+    if args.dry_run:
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(f"DRY-RUN dispatch {args.work_unit_id}")
+            print(f"- Team: {args.team}")
+            print(f"- Session key: {args.session_key}")
+            print("- No source artifacts, runtime sessions, Project mirrors, or owner reports mutated.")
+        return 0
+
+    dispatch_path.write_text(json.dumps(payload["dispatch_record"], indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    progress_path = append_progress_row(artifact_dir, row)
+    payload["progress_path"] = str(progress_path)
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"OK dispatch recorded: {args.work_unit_id} · {args.team} · {dispatch_ref(args)}")
+    return 0
+
+
 def start_work_unit(args: argparse.Namespace) -> int:
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
@@ -3097,6 +3521,65 @@ def build_parser() -> argparse.ArgumentParser:
     start_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without writes or sends")
     start_mode.add_argument("--publish", action="store_true", help="Record STARTED source state and optionally publish/read back")
     start.set_defaults(func=start_work_unit)
+
+    dispatch = work_unit_subparsers.add_parser(
+        "dispatch",
+        help="Record a detached Team Lead execution reference after STARTED",
+    )
+    dispatch.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    dispatch.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id>/ source artifacts",
+    )
+    dispatch.add_argument("--team", default="", help="Team Lead; defaults from assignment.md")
+    dispatch.add_argument("--agent", default="", help="OpenClaw agent id; defaults to --team")
+    dispatch.add_argument(
+        "--runtime",
+        choices=DISPATCH_RUNTIME_CHOICES,
+        default="record-ref",
+        help="Runtime adapter. record-ref only records an externally started session/job reference.",
+    )
+    dispatch.add_argument("--session-key", default="", help="Stable planned Team Lead session key")
+    dispatch.add_argument("--session-ref", default="", help="Recoverable Team Lead session reference to record")
+    dispatch.add_argument("--job-ref", default="", help="Recoverable Team Lead job/task reference to record")
+    dispatch.add_argument("--message-ref", default="", help="Recoverable Team Lead dispatch message reference to record")
+    dispatch.add_argument(
+        "--adapter",
+        choices=DISPATCH_ADAPTER_CHOICES,
+        default="auto",
+        help="Runtime adapter implementation for openclaw-agent. auto uses a configured command; fake is smoke-only.",
+    )
+    dispatch.add_argument(
+        "--adapter-command",
+        default="",
+        help=f"Command that reads adapter JSON on stdin and returns accepted proof JSON. Defaults from {DISPATCH_ADAPTER_COMMAND_ENV}.",
+    )
+    dispatch.add_argument(
+        "--adapter-timeout-seconds",
+        type=int,
+        default=30,
+        help="Timeout for the runtime adapter command",
+    )
+    dispatch.add_argument("--source-ref", required=True, help="Source artifact reference for the dispatch decision")
+    dispatch.add_argument("--current-slice", default="detached-dispatch", help="Dispatch slice for progress metadata")
+    dispatch.add_argument("--next-checkpoint", default="Team Lead reports result-ready or blocker.", help="Next expected checkpoint")
+    dispatch.add_argument("--mode", default="", help="Progress mode; defaults from assignment.md")
+    dispatch.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
+    dispatch.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    dispatch.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
+    dispatch.add_argument(
+        "--proof-log",
+        type=Path,
+        help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
+    )
+    dispatch.add_argument("--force", action="store_true", help="Allow duplicate dispatch records when intentionally rerunning")
+    dispatch.add_argument("--format", choices=("text", "json"), default="text")
+    dispatch_mode = dispatch.add_mutually_exclusive_group(required=True)
+    dispatch_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without source or runtime mutation")
+    dispatch_mode.add_argument("--publish", action="store_true", help="Write dispatch.json and a dispatched progress row")
+    dispatch.set_defaults(func=dispatch_work_unit)
 
     checkpoint = work_unit_subparsers.add_parser(
         "checkpoint",

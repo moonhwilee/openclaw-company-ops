@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ARTIFACTS = SCRIPT_DIR / "work_unit_artifacts.py"
+DISPATCH_SESSIONS_SEND = SCRIPT_DIR / "openclaw_dispatch_sessions_send.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
@@ -24,8 +26,8 @@ HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
 REPO_ROOT = SCRIPT_DIR.parent
 
 
-def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=False, text=True, capture_output=True)
+def run_command(command: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, check=False, text=True, capture_output=True, env=env)
 
 
 def require_success(result: subprocess.CompletedProcess[str], label: str) -> None:
@@ -2377,6 +2379,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-110", "ops")
     missing_started_dir = create_artifacts(args, inbox_work_dir, "WU-260607-111", "market")
     live_start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-112", "ops")
+    adapter_dir = create_artifacts(args, inbox_work_dir, "WU-260607-113", "ops")
+    command_adapter_dir = create_artifacts(args, inbox_work_dir, "WU-260607-114", "ops")
     artifact_root = inbox_work_dir / "artifacts"
 
     for artifact_dir in (ready_late, ready_early, stale_dir, conflict_dir, invalid_dir, invalid_progress_dir):
@@ -2399,6 +2403,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         encoding="utf-8",
     )
     mark_artifact_result_ready(missing_started_dir, recommendation="accept")
+    mark_artifact_started(adapter_dir)
+    mark_artifact_started(command_adapter_dir)
 
     start_progress_before = (start_dir / "progress.jsonl").read_text(encoding="utf-8") if (start_dir / "progress.jsonl").exists() else ""
     start_dry_run = run_command(
@@ -2471,6 +2477,312 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     )
     if duplicate_start.returncode == 0:
         raise RuntimeError("start publish accepted duplicate STARTED without --force")
+    dispatch_progress_before = (start_dir / "progress.jsonl").read_text(encoding="utf-8")
+    dispatch_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(dispatch_dry_run, "work-unit dispatch dry-run")
+    dispatch_payload = json.loads(dispatch_dry_run.stdout)
+    if dispatch_payload.get("status") != "ready-to-dispatch":
+        raise RuntimeError("dispatch dry-run did not report ready-to-dispatch")
+    if dispatch_payload.get("dispatch_packet", {}).get("session_key") != "company-ops-ops-wu-260607-110":
+        raise RuntimeError("dispatch dry-run did not derive a stable session key")
+    if dispatch_payload.get("would_write_dispatch") is not False or dispatch_payload.get("would_spawn_runtime") is not False:
+        raise RuntimeError("dispatch dry-run reported mutation")
+    if (start_dir / "dispatch.json").exists():
+        raise RuntimeError("dispatch dry-run wrote dispatch.json")
+    if (start_dir / "progress.jsonl").read_text(encoding="utf-8") != dispatch_progress_before:
+        raise RuntimeError("dispatch dry-run mutated progress.jsonl")
+    dispatch_missing_started = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-111",
+            "--artifact-root",
+            str(artifact_root),
+            "--source-ref",
+            str(missing_started_dir / "assignment.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if dispatch_missing_started.returncode == 0:
+        raise RuntimeError("dispatch accepted missing STARTED source")
+    if "prior STARTED source" not in dispatch_missing_started.stderr:
+        raise RuntimeError("dispatch missing STARTED failure did not explain the source precondition")
+    dispatch_setup_needed = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if dispatch_setup_needed.returncode == 0:
+        raise RuntimeError("automatic dispatch passed without a runtime reference")
+    dispatch_setup_payload = json.loads(dispatch_setup_needed.stdout)
+    if dispatch_setup_payload.get("status") != "setup-needed":
+        raise RuntimeError("automatic dispatch did not fail as setup-needed")
+    if (start_dir / "dispatch.json").exists():
+        raise RuntimeError("setup-needed dispatch wrote dispatch.json")
+    if (start_dir / "progress.jsonl").read_text(encoding="utf-8") != dispatch_progress_before:
+        raise RuntimeError("setup-needed dispatch mutated progress.jsonl")
+    dispatch_runtime_manual_ref = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--session-ref",
+            "session:manual-ref-is-not-proof",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if dispatch_runtime_manual_ref.returncode == 0:
+        raise RuntimeError("openclaw-agent dispatch accepted a manual ref without adapter proof")
+    if (start_dir / "dispatch.json").exists():
+        raise RuntimeError("manual-ref runtime dispatch wrote dispatch.json without adapter proof")
+    if (start_dir / "progress.jsonl").read_text(encoding="utf-8") != dispatch_progress_before:
+        raise RuntimeError("manual-ref runtime dispatch mutated progress.jsonl without adapter proof")
+    dispatch_fake_adapter = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-113",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--adapter",
+            "fake",
+            "--source-ref",
+            str(adapter_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(dispatch_fake_adapter, "work-unit dispatch fake adapter publish")
+    dispatch_fake_payload = json.loads(dispatch_fake_adapter.stdout)
+    if dispatch_fake_payload.get("accepted_proof", {}).get("adapter") != "fake":
+        raise RuntimeError("fake adapter dispatch did not persist accepted proof")
+    fake_dispatch_record = json.loads((adapter_dir / "dispatch.json").read_text(encoding="utf-8"))
+    if fake_dispatch_record.get("dispatch_ref") != "job:WU-260607-113:dispatch-execute":
+        raise RuntimeError("fake adapter dispatch did not derive a recoverable dispatch ref")
+    if fake_dispatch_record.get("accepted_proof", {}).get("readback", {}).get("work_unit_id") != "WU-260607-113":
+        raise RuntimeError("fake adapter dispatch did not persist the Team Lead readback")
+    adapter_script = work_dir / "accept_dispatch_adapter.py"
+    adapter_script.write_text(
+        "\n".join(
+            [
+                "import json, sys",
+                "request = json.load(sys.stdin)",
+                "packet = request['packet']",
+                "print(json.dumps({",
+                "    'status': 'accepted',",
+                "    'adapter': 'smoke-command',",
+                "    'session_ref': 'session:' + request['session_key'],",
+                "    'job_ref': 'job:' + request['work_unit_id'] + ':execute',",
+                "    'message_ref': 'message:' + request['work_unit_id'] + ':accepted',",
+                "    'accepted_at': request['transition_at'],",
+                "    'readback': {",
+                "        'work_unit_id': request['work_unit_id'],",
+                "        'assignment_packet': packet['assignment_packet'],",
+                "        'result_ready_contract': packet['result_ready_contract']['command'],",
+                "        'authority_boundary': 'team_lead_result_ready_only',",
+                "    },",
+                "}, sort_keys=True))",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    dispatch_command_adapter = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-114",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--adapter",
+            "command",
+            "--adapter-command",
+            f"{sys.executable} {adapter_script}",
+            "--source-ref",
+            str(command_adapter_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(dispatch_command_adapter, "work-unit dispatch command adapter publish")
+    command_dispatch_record = json.loads((command_adapter_dir / "dispatch.json").read_text(encoding="utf-8"))
+    if command_dispatch_record.get("accepted_proof", {}).get("adapter") != "smoke-command":
+        raise RuntimeError("command adapter dispatch did not persist adapter accepted proof")
+    fake_openclaw = work_dir / "openclaw"
+    fake_openclaw.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import json, sys",
+                "if len(sys.argv) > 1 and sys.argv[1] == 'agent':",
+                "    readback = {",
+                "        'status': 'accepted',",
+                "        'work_unit_id': 'WU-260607-115',",
+                "        'assignment_packet': 'assignment.md',",
+                "        'result_ready_contract': 'work-unit result-ready --publish',",
+                "        'authority_boundary': 'team_lead_result_ready_only',",
+                "    }",
+                "    print(json.dumps({'runId': 'run-accept', 'status': 'ok', 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
+                "    sys.exit(0)",
+                "method = sys.argv[sys.argv.index('call') + 1]",
+                "params = json.loads(sys.argv[sys.argv.index('--params') + 1])",
+                "if method == 'sessions.create':",
+                "    print(json.dumps({'result': {'key': params['key']}}))",
+                "elif method == 'sessions.send':",
+                "    print(json.dumps({'result': {'runId': 'run-execute', 'messageId': 'msg-execute'}}))",
+                "else:",
+                "    print(json.dumps({'error': 'unexpected method'}))",
+                "    sys.exit(1)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_openclaw.chmod(0o755)
+    wrapper_request = {
+        "adapter_protocol": "company_ops_dispatch_adapter_v1",
+        "work_unit_id": "WU-260607-115",
+        "team": "ops",
+        "agent": "ops",
+        "runtime": "openclaw-agent",
+        "session_key": "company-ops-ops-wu-260607-115",
+        "artifact_dir": str(work_dir),
+        "transition_at": args.created_at,
+        "packet": {
+            "assignment_packet": "assignment.md",
+            "result_ready_contract": {"command": "work-unit result-ready --publish"},
+        },
+        "required_acceptance": {
+            "work_unit_id": "WU-260607-115",
+            "assignment_packet": "assignment.md",
+            "result_ready_contract": "work-unit result-ready --publish",
+            "authority_boundary": "team_lead_result_ready_only",
+        },
+    }
+    wrapper_result = subprocess.run(
+        [sys.executable, str(DISPATCH_SESSIONS_SEND), "--accept-timeout-ms", "1000"],
+        check=False,
+        text=True,
+        input=json.dumps(wrapper_request),
+        capture_output=True,
+        env={**os.environ, "PATH": f"{work_dir}:{os.environ.get('PATH', '')}"},
+    )
+    require_success(wrapper_result, "openclaw dispatch sessions.send wrapper")
+    wrapper_payload = json.loads(wrapper_result.stdout)
+    if wrapper_payload.get("adapter") != "openclaw-agent-sessions-send":
+        raise RuntimeError("sessions.send wrapper did not report the standard adapter")
+    if wrapper_payload.get("job_ref") != "run-execute":
+        raise RuntimeError("sessions.send wrapper did not preserve execution run reference")
+    if wrapper_payload.get("readback", {}).get("authority_boundary") != "team_lead_result_ready_only":
+        raise RuntimeError("sessions.send wrapper did not preserve authority boundary readback")
+    dispatch_publish = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--session-ref",
+            "session:ops:WU-260607-110",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(dispatch_publish, "work-unit dispatch publish")
+    dispatch_publish_payload = json.loads(dispatch_publish.stdout)
+    if dispatch_publish_payload.get("status") != "dispatched":
+        raise RuntimeError("dispatch publish did not record dispatched status")
+    if "session:ops:WU-260607-110" not in (start_dir / "dispatch.json").read_text(encoding="utf-8"):
+        raise RuntimeError("dispatch publish did not persist the session ref")
+    if '"transition_kind": "dispatched"' not in (start_dir / "progress.jsonl").read_text(encoding="utf-8"):
+        raise RuntimeError("dispatch publish did not append a dispatched progress row")
+    if "- Owner session ref: `ops`" not in (start_dir / "claim.md").read_text(encoding="utf-8"):
+        raise RuntimeError("dispatch publish overwrote the Team Lead claim identity")
+    duplicate_dispatch = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-110",
+            "--artifact-root",
+            str(artifact_root),
+            "--session-ref",
+            "session:ops:WU-260607-110",
+            "--source-ref",
+            str(start_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if duplicate_dispatch.returncode == 0:
+        raise RuntimeError("dispatch publish accepted duplicate dispatch without --force")
     live_assignment = live_start_dir / "assignment.md"
     live_assignment.write_text(
         live_assignment.read_text(encoding="utf-8").replace(
@@ -2723,6 +3035,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("Project sync did not show repair-needed progress for invalid result_ready")
     if invalid_project_fields.get("Blocker"):
         raise RuntimeError("Project sync treated repair-needed result_ready as a Blocked Work Unit")
+    assert_status_lifecycle(artifact_root, "WU-260607-110", "working")
+    assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-110", "In Progress")
 
     invalid_progress_path = invalid_progress_dir / "progress.jsonl"
     before_invalid_progress = invalid_progress_path.read_text(encoding="utf-8") if invalid_progress_path.exists() else ""
@@ -3173,6 +3487,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "handoff amendment dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
+        "dispatch source contract/setup-needed guard, fake and command adapter accepted-proof guards, "
         "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"
     )

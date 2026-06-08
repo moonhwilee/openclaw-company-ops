@@ -1,6 +1,12 @@
 # Phase 5.8 Stabilization Gate
 
-Status: planned stabilization gate before Phase 6
+Status: active stabilization gate before Phase 6. Phases 5.8.1 through 5.8.3
+are implemented. Phase 5.8.4 currently has the source-backed dispatch contract
+implemented and a fail-closed runtime adapter contract for detached Team Lead
+handoff. Live OpenClaw delivery must use a configured adapter command that
+wraps OpenClaw's agent turn plus Gateway `sessions.send`; without that
+configured live path, automatic dispatch still returns `setup-needed` and
+writes no source artifact.
 
 Phase 5.8 captures the live workflow issues found during the
 `WU-260608-001` through `WU-260608-004` test batch. Phase 6 Packaging /
@@ -300,7 +306,6 @@ Acceptance:
 Depends on:
 
 - Phase 5.8.1.
-- Phase 5.8.2.
 
 Scope:
 
@@ -322,6 +327,7 @@ Acceptance:
 Depends on:
 
 - Phase 5.8.1.
+- Phase 5.8.2.
 
 Scope:
 
@@ -342,22 +348,121 @@ Depends on:
 - Phase 5.8.2.
 - Phase 5.8.3.
 
+Current status:
+
+- Implemented: `work-unit dispatch --dry-run|--publish` as the source-backed
+  dispatch contract.
+- Implemented: STARTED preconditions, `dispatch.json`, a `dispatched`
+  `progress.jsonl` row, recoverable `session-ref` / `job-ref` recording, and
+  fail-closed `setup-needed` behavior when a runtime adapter is unavailable.
+- Implemented: an `openclaw-agent` runtime adapter contract that requires
+  adapter-produced accepted/readback proof before source artifacts are written.
+  The smoke path uses `--adapter fake`; the live path uses `--adapter command`
+  or `COMPANY_OPS_DISPATCH_ADAPTER_COMMAND`.
+- Live adapter note: `scripts/openclaw_dispatch_sessions_send.py` is the
+  standard command adapter for OpenClaw deployments. It uses a short
+  `openclaw agent --json` turn to collect accepted/readback proof from the
+  target Team Lead session, then uses Gateway `sessions.send` with
+  `timeoutMs=0` to enqueue the actual execution message. If that live command is
+  absent or fails to return proof, dispatch fails closed as `setup-needed`.
+
 Scope:
 
 - Define the minimal detach contract for Team Lead execution.
-- Add a dispatcher/run surface or document a fail-closed setup-needed state if
-  a detached runtime is unavailable.
-- Record session/job reference in source artifacts when dispatch succeeds.
+- Add a dispatcher/run surface with a fail-closed setup-needed state when a
+  detached runtime adapter is unavailable.
+- Record session/job/message reference and accepted proof in source artifacts
+  when dispatch succeeds.
 - Return Operations Lead control after assignment/start, without waiting for
   Team Lead result.
 
 Acceptance:
 
-- The Operations Lead can assign a Work Unit and return idle.
+- The Operations Lead can assign a Work Unit, start it, and record a detached
+  execution reference without changing lifecycle state.
+- The runtime adapter does not count "message sent" as success. It must receive
+  accepted/readback proof from the Team Lead runtime before writing
+  `dispatch.json` or appending `dispatched`.
+- Live OpenClaw dispatch must prove both acceptance and execution enqueue. The
+  accepted/readback envelope is the acceptance proof; the second `sessions.send`
+  enqueue/run reference is the detached execution proof. The adapter must not
+  wait for result-ready or closeout.
 - The Team Lead execution reference is recoverable from source artifacts.
 - Result submission still goes through result-ready inbox and closeout.
 - The implementation does not introduce a hidden orchestrator, daemon,
   automatic recovery, automatic reassignment, or automatic completion.
+
+### Phase 5.8.4.c: Result-Ready Wake / Closeout Visibility Concept
+
+Depends on:
+
+- Phase 5.8.2.
+- Phase 5.8.3.
+- Phase 5.8.4b runtime adapter, once implemented.
+
+Current status:
+
+- Concept only. Not implemented.
+- This phase is needed because detached dispatch solves Operations Lead
+  foreground blocking, but it does not by itself wake the Operations Lead when a
+  Team Lead later publishes `result-ready`.
+
+Problem:
+
+- Phase 5.8.4b should let the Operations Lead dispatch work and return idle.
+- A detached Team Lead can still publish checkpoints and `result-ready` through
+  source-backed Team Lead surfaces.
+- However, final `accept`, `revise`, `blocked`, owner completion, and Project
+  final status are Operations Lead decisions. Without a wake/notification layer,
+  owner-visible status can remain at `Result Ready` until the Operations Lead
+  explicitly checks the inbox.
+
+Goal:
+
+- Preserve the nonblocking Operations Lead model while restoring real-time-ish
+  completion visibility for owners.
+- Notify the Operations Lead, and optionally the owner-facing surface, when a
+  valid source-backed `result-ready` appears.
+- Bring the Operations Lead back only for source-backed closeout review, not for
+  Team Lead execution monitoring.
+
+Required boundary:
+
+- Team Lead authority may produce `CHECKPOINT` and `RESULT_READY` visibility.
+- Operations Lead authority remains the only path to `ACCEPTED`, `REVISE`,
+  `BLOCKED_DETAIL`, owner-facing `COMPLETED`, `NEEDS_REVISION`, or `BLOCKED`,
+  and Project final-state mutation.
+- Goal/convergence internal rounds stay Team Lead-owned before `result-ready`.
+  Operations Lead `revise` means post-result-ready replan/amendment, not the
+  normal mechanism for Team Lead internal improvement loops.
+
+Pre-design information to settle before implementation:
+
+- Trigger source: local `result-ready` artifact/proof creation, foreground
+  `result-ready --publish` hook, scheduled `pulse check`, or an OpenClaw
+  notification event.
+- Wake target: Operations Lead session, owner-facing review-needed briefing, or
+  both.
+- Delivery guarantee: one-shot notification with recoverable source refs; no
+  queue, retry loop, or hidden workflow runner unless separately approved.
+- Suppression: do not notify again for stale, duplicate, already decided, or
+  conflicting Work Units except as an explicit exception alert.
+- Closeout behavior: wake/review may prepare an inbox item, but it must not
+  auto-decide `accept`, `revise`, `blocked`, or `done`.
+- Visibility mirror: Discord/GitHub Project may show `Result Ready` or
+  `Review Needed` from source artifacts, but must not become source truth.
+
+Acceptance, once implemented:
+
+- A detached Team Lead `result-ready` publish creates source-backed review
+  visibility without requiring the Operations Lead to keep a foreground session
+  open.
+- The Operations Lead can recover the Work Unit from the notification and run
+  closeout from source artifacts.
+- No notification path auto-accepts, auto-revises, auto-blocks, archives,
+  reassigns, or rewrites source artifacts.
+- Owner-facing status distinguishes `Result Ready / Review Needed` from final
+  `Accepted / Needs Revision / Blocked / Done`.
 
 ### Phase 5.8.5: No-Bypass Regression Gate
 
@@ -366,6 +471,8 @@ Depends on:
 - Phase 5.8.2.
 - Phase 5.8.3.
 - Phase 5.8.4, if detached dispatch is implemented in this stabilization pass.
+- Phase 5.8.4.c, if result-ready wake/closeout visibility is implemented in
+  this stabilization pass.
 
 Scope:
 
