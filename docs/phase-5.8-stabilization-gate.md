@@ -405,6 +405,9 @@ Current status:
 - Implemented as a dispatch policy/regression gate: prefer fresh
   Work Unit-specific Team Lead sessions, bound adapter waits, and fail closed
   without source mutation when acceptance cannot return current proof.
+- Implemented: `openclaw-agent` dispatch uses the derived fresh
+  Work Unit-specific session key by default and rejects custom/shared session
+  keys unless the operator passes `--allow-custom-session-key`.
 - This phase is needed because detached dispatch proof hardening prevents false
   success, but it does not by itself make shared busy Team Lead sessions an
   acceptable dispatch target.
@@ -440,7 +443,7 @@ Required boundary:
   documented lock/lease contract.
 - Use fresh Work Unit-specific Team Lead sessions as the default dispatch
   target. Do not route new dispatches through a known shared busy Team Lead
-  session.
+  session unless the operator explicitly allows a custom session key.
 - Bound acceptance/adapter waits. If the current proof does not arrive within
   that bound, fail closed as `setup-needed` and write no `dispatch.json` or
   `dispatched` progress row.
@@ -469,6 +472,8 @@ Acceptance:
   indefinitely by a busy Team Lead receipt wait.
 - Fresh Work Unit-specific Team Lead sessions are the default recommended live
   dispatch path.
+- A custom/shared session key requires explicit operator override and is recorded
+  as `operator-specified`.
 - The chosen policy is covered by smoke/regression tests and the live
   busy-session experiment record.
 - The implementation still has no hidden orchestrator, daemon, automatic retry,

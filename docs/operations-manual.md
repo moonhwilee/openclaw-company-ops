@@ -222,14 +222,15 @@ detached runtime adapter is configured, automatic dispatch requests must fail
 closed as `setup-needed` instead of spawning a hidden orchestrator, daemon,
 auto-retry loop, or automatic completion path.
 
-Live OpenClaw dispatch should use the derived fresh Work Unit-specific Team Lead
-session key unless the operator intentionally targets an existing session.
-Reusing a known busy shared Team Lead session is not a reliable dispatch path:
-the acceptance prompt can be processed later after the adapter has already
-failed closed. A busy/timeout path must write no `dispatch.json` and append no
-`dispatched` progress row. `sessions.describe` and `sessions.list` are useful
-diagnostics, but they are not a lock, lease, queue-depth proof, or dispatch
-success condition.
+Live OpenClaw dispatch uses the derived fresh Work Unit-specific Team Lead
+session key by default. Reusing a known busy shared Team Lead session is not a
+reliable dispatch path: the acceptance prompt can be processed later after the
+adapter has already failed closed. `--runtime openclaw-agent` therefore rejects
+non-derived session keys unless the operator passes `--allow-custom-session-key`
+for an intentional existing/custom session. A busy/timeout path must write no
+`dispatch.json` and append no `dispatched` progress row. `sessions.describe` and
+`sessions.list` are useful diagnostics, but they are not a lock, lease,
+queue-depth proof, or dispatch success condition.
 
 Official `RESULT_READY` publication should use
 `work-unit result-ready --dry-run` before `work-unit result-ready --publish`.

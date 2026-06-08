@@ -2381,6 +2381,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     live_start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-112", "ops")
     adapter_dir = create_artifacts(args, inbox_work_dir, "WU-260607-113", "ops")
     command_adapter_dir = create_artifacts(args, inbox_work_dir, "WU-260607-114", "ops")
+    custom_session_dir = create_artifacts(args, inbox_work_dir, "WU-260607-116", "ops")
     artifact_root = inbox_work_dir / "artifacts"
 
     for artifact_dir in (ready_late, ready_early, stale_dir, conflict_dir, invalid_dir, invalid_progress_dir):
@@ -2405,6 +2406,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     mark_artifact_result_ready(missing_started_dir, recommendation="accept")
     mark_artifact_started(adapter_dir)
     mark_artifact_started(command_adapter_dir)
+    mark_artifact_started(custom_session_dir)
 
     start_progress_before = (start_dir / "progress.jsonl").read_text(encoding="utf-8") if (start_dir / "progress.jsonl").exists() else ""
     start_dry_run = run_command(
@@ -2501,6 +2503,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("dispatch dry-run did not report ready-to-dispatch")
     if dispatch_payload.get("dispatch_packet", {}).get("session_key") != "company-ops-ops-wu-260607-110":
         raise RuntimeError("dispatch dry-run did not derive a stable session key")
+    if dispatch_payload.get("session_key_strategy") != "work-unit-specific":
+        raise RuntimeError("dispatch dry-run did not use the fresh Work Unit-specific session strategy")
+    if dispatch_payload.get("session_key_provided") is not False:
+        raise RuntimeError("dispatch dry-run did not report an auto-derived session key")
     if dispatch_payload.get("would_write_dispatch") is not False or dispatch_payload.get("would_spawn_runtime") is not False:
         raise RuntimeError("dispatch dry-run reported mutation")
     if (start_dir / "dispatch.json").exists():
@@ -2583,6 +2589,66 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("manual-ref runtime dispatch wrote dispatch.json without adapter proof")
     if (start_dir / "progress.jsonl").read_text(encoding="utf-8") != dispatch_progress_before:
         raise RuntimeError("manual-ref runtime dispatch mutated progress.jsonl without adapter proof")
+    custom_session_progress_before = (custom_session_dir / "progress.jsonl").read_text(encoding="utf-8")
+    dispatch_custom_session_rejected = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-116",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--adapter",
+            "fake",
+            "--session-key",
+            "company-ops-shared-ops-session",
+            "--source-ref",
+            str(custom_session_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if dispatch_custom_session_rejected.returncode == 0:
+        raise RuntimeError("openclaw-agent dispatch accepted a custom/shared session key by default")
+    if "fresh Work Unit-specific session key" not in dispatch_custom_session_rejected.stderr:
+        raise RuntimeError("custom/shared session rejection did not explain the fresh session requirement")
+    if (custom_session_dir / "dispatch.json").exists():
+        raise RuntimeError("custom/shared session rejection wrote dispatch.json")
+    if (custom_session_dir / "progress.jsonl").read_text(encoding="utf-8") != custom_session_progress_before:
+        raise RuntimeError("custom/shared session rejection mutated progress.jsonl")
+    dispatch_custom_session_allowed = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-116",
+            "--artifact-root",
+            str(artifact_root),
+            "--runtime",
+            "openclaw-agent",
+            "--adapter",
+            "fake",
+            "--session-key",
+            "company-ops-shared-ops-session",
+            "--allow-custom-session-key",
+            "--source-ref",
+            str(custom_session_dir / "assignment.md"),
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(dispatch_custom_session_allowed, "work-unit dispatch custom session explicit override")
+    custom_session_record = json.loads((custom_session_dir / "dispatch.json").read_text(encoding="utf-8"))
+    if custom_session_record.get("session_key_strategy") != "operator-specified":
+        raise RuntimeError("explicit custom session dispatch did not record operator-specified strategy")
     dispatch_fake_adapter = run_command(
         [
             sys.executable,
@@ -3584,7 +3650,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "handoff amendment dry-run/no-mutation validation, "
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
-        "dispatch source contract/setup-needed guard, fake and command adapter accepted-proof guards, "
+        "dispatch source contract/setup-needed guard, fresh session key guard, fake and command adapter accepted-proof guards, "
         "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"
     )

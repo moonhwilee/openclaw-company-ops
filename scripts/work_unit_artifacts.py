@@ -1816,6 +1816,12 @@ def normalized_session_key(work_unit_id: str, team: str) -> str:
     return f"company-ops-{cleaned_team}-{work_unit_id.lower()}"
 
 
+def session_key_strategy(session_key: str, default_session_key: str) -> str:
+    if session_key == default_session_key:
+        return "work-unit-specific"
+    return "operator-specified"
+
+
 def dispatch_ref(args: argparse.Namespace) -> str:
     return args.job_ref or args.session_ref or args.message_ref
 
@@ -1838,6 +1844,9 @@ def dispatch_adapter_request(
         "agent": args.agent,
         "runtime": args.runtime,
         "session_key": args.session_key,
+        "default_session_key": args.default_session_key,
+        "session_key_strategy": args.session_key_strategy,
+        "session_key_provided": args.session_key_provided,
         "artifact_dir": str(artifact_dir),
         "transition_at": transition_at,
         "packet": packet,
@@ -2003,6 +2012,9 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         "agent": args.agent,
         "runtime": args.runtime,
         "session_key": args.session_key,
+        "default_session_key": args.default_session_key,
+        "session_key_strategy": args.session_key_strategy,
+        "session_key_provided": args.session_key_provided,
         "work_card": clean_markdown_value(str(assignment["fields"].get("work card") or "")),
         "assignment_packet": str(artifact_dir / "assignment.md"),
         "evidence_ref": str(evidence_path),
@@ -2038,6 +2050,9 @@ def dispatch_record(
         "agent": args.agent,
         "runtime": args.runtime,
         "session_key": args.session_key,
+        "default_session_key": args.default_session_key,
+        "session_key_strategy": args.session_key_strategy,
+        "session_key_provided": args.session_key_provided,
         "session_ref": args.session_ref,
         "job_ref": args.job_ref,
         "message_ref": args.message_ref,
@@ -2092,8 +2107,24 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         return 1
     if not args.agent:
         args.agent = args.team
+    default_session_key = normalized_session_key(args.work_unit_id, args.team)
+    session_key_provided = bool(args.session_key)
     if not args.session_key:
-        args.session_key = normalized_session_key(args.work_unit_id, args.team)
+        args.session_key = default_session_key
+    args.default_session_key = default_session_key
+    args.session_key_strategy = session_key_strategy(args.session_key, default_session_key)
+    args.session_key_provided = session_key_provided
+    if (
+        args.runtime == "openclaw-agent"
+        and args.session_key_strategy != "work-unit-specific"
+        and not args.allow_custom_session_key
+    ):
+        print(
+            "error: openclaw-agent dispatch uses the fresh Work Unit-specific session key by default; "
+            "pass --allow-custom-session-key only for an intentional existing/custom session",
+            file=sys.stderr,
+        )
+        return 1
     if not args.source_ref:
         print("error: dispatch requires --source-ref", file=sys.stderr)
         return 1
@@ -2169,6 +2200,9 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         "team": args.team,
         "agent": args.agent,
         "session_key": args.session_key,
+        "default_session_key": args.default_session_key,
+        "session_key_strategy": args.session_key_strategy,
+        "session_key_provided": args.session_key_provided,
         "session_ref": args.session_ref,
         "job_ref": args.job_ref,
         "message_ref": args.message_ref,
@@ -3575,6 +3609,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
     )
     dispatch.add_argument("--force", action="store_true", help="Allow duplicate dispatch records when intentionally rerunning")
+    dispatch.add_argument(
+        "--allow-custom-session-key",
+        action="store_true",
+        help="Allow openclaw-agent dispatch to use a non-derived session key intentionally",
+    )
     dispatch.add_argument("--format", choices=("text", "json"), default="text")
     dispatch_mode = dispatch.add_mutually_exclusive_group(required=True)
     dispatch_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without source or runtime mutation")
