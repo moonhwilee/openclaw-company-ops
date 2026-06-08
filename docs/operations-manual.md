@@ -215,10 +215,12 @@ adapter is `--adapter fake`; live OpenClaw delivery should use
 `scripts/openclaw_dispatch_sessions_send.py`. The standard adapter runs a short
 `openclaw agent --json` turn against the target Team Lead session to receive
 the accepted envelope, then enqueues the execution message through Gateway
-`sessions.send` with `timeoutMs=0`. If no detached runtime adapter is
-configured, automatic dispatch requests must fail closed as `setup-needed`
-instead of spawning a hidden orchestrator, daemon, auto-retry loop, or
-automatic completion path.
+`sessions.send` with `timeoutMs=0`. Embedded `openclaw agent` fallback output
+and synthetic session/job/message references are not dispatch proof; the
+adapter must return real Gateway acceptance and execution references. If no
+detached runtime adapter is configured, automatic dispatch requests must fail
+closed as `setup-needed` instead of spawning a hidden orchestrator, daemon,
+auto-retry loop, or automatic completion path.
 
 Official `RESULT_READY` publication should use
 `work-unit result-ready --dry-run` before `work-unit result-ready --publish`.

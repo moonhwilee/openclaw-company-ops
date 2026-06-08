@@ -2671,7 +2671,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         "\n".join(
             [
                 "#!/usr/bin/env python3",
-                "import json, sys",
+                "import json, os, sys",
+                "mode = os.environ.get('COMPANY_OPS_FAKE_OPENCLAW_MODE', 'ok')",
                 "if len(sys.argv) > 1 and sys.argv[1] == 'agent':",
                 "    readback = {",
                 "        'status': 'accepted',",
@@ -2680,6 +2681,12 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "        'result_ready_contract': 'work-unit result-ready --publish',",
                 "        'authority_boundary': 'team_lead_result_ready_only',",
                 "    }",
+                "    if mode == 'fallback_acceptance':",
+                "        print(json.dumps({'runId': 'gateway-fallback-run', 'meta': {'transport': 'embedded', 'fallbackFrom': 'gateway', 'fallbackReason': 'gateway_timeout', 'sessionKey': 'gateway-fallback-WU-260607-115'}, 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
+                "        sys.exit(0)",
+                "    if mode == 'missing_accept_ref':",
+                "        print(json.dumps({'status': 'ok', 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
+                "        sys.exit(0)",
                 "    print(json.dumps({'runId': 'run-accept', 'status': 'ok', 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
                 "    sys.exit(0)",
                 "method = sys.argv[sys.argv.index('call') + 1]",
@@ -2687,6 +2694,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "if method == 'sessions.create':",
                 "    print(json.dumps({'result': {'key': params['key']}}))",
                 "elif method == 'sessions.send':",
+                "    if mode == 'missing_send_ref':",
+                "        print(json.dumps({'result': {'status': 'queued'}}))",
+                "        sys.exit(0)",
                 "    print(json.dumps({'result': {'runId': 'run-execute', 'messageId': 'msg-execute'}}))",
                 "else:",
                 "    print(json.dumps({'error': 'unexpected method'}))",
@@ -2717,22 +2727,59 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "authority_boundary": "team_lead_result_ready_only",
         },
     }
-    wrapper_result = subprocess.run(
-        [sys.executable, str(DISPATCH_SESSIONS_SEND), "--accept-timeout-ms", "1000"],
-        check=False,
-        text=True,
-        input=json.dumps(wrapper_request),
-        capture_output=True,
-        env={**os.environ, "PATH": f"{work_dir}:{os.environ.get('PATH', '')}"},
-    )
+
+    def run_wrapper(mode: str = "ok") -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(DISPATCH_SESSIONS_SEND), "--accept-timeout-ms", "1000"],
+            check=False,
+            text=True,
+            input=json.dumps(wrapper_request),
+            capture_output=True,
+            env={
+                **os.environ,
+                "PATH": f"{work_dir}:{os.environ.get('PATH', '')}",
+                "COMPANY_OPS_FAKE_OPENCLAW_MODE": mode,
+            },
+        )
+
+    wrapper_result = run_wrapper()
     require_success(wrapper_result, "openclaw dispatch sessions.send wrapper")
     wrapper_payload = json.loads(wrapper_result.stdout)
     if wrapper_payload.get("adapter") != "openclaw-agent-sessions-send":
         raise RuntimeError("sessions.send wrapper did not report the standard adapter")
     if wrapper_payload.get("job_ref") != "run-execute":
         raise RuntimeError("sessions.send wrapper did not preserve execution run reference")
+    wrapper_gateway = wrapper_payload.get("gateway", {})
+    if wrapper_gateway.get("acceptance_transport") != "openclaw-agent-gateway":
+        raise RuntimeError("sessions.send wrapper did not require Gateway-backed acceptance")
+    if wrapper_gateway.get("idempotency_key") != "WU-260607-115:dispatch-execute":
+        raise RuntimeError("sessions.send wrapper did not persist the dispatch idempotency key")
+    packet_hash = str(wrapper_gateway.get("dispatch_packet_hash") or "")
+    if len(packet_hash) != 64:
+        raise RuntimeError("sessions.send wrapper did not persist a dispatch packet hash")
     if wrapper_payload.get("readback", {}).get("authority_boundary") != "team_lead_result_ready_only":
         raise RuntimeError("sessions.send wrapper did not preserve authority boundary readback")
+
+    fallback_result = run_wrapper("fallback_acceptance")
+    if fallback_result.returncode == 0:
+        raise RuntimeError("sessions.send wrapper accepted embedded fallback proof")
+    fallback_payload = json.loads(fallback_result.stdout)
+    if "embedded gateway fallback" not in str(fallback_payload.get("reason") or ""):
+        raise RuntimeError("sessions.send wrapper did not explain embedded fallback rejection")
+
+    missing_accept_ref_result = run_wrapper("missing_accept_ref")
+    if missing_accept_ref_result.returncode == 0:
+        raise RuntimeError("sessions.send wrapper accepted proof without a Gateway acceptance ref")
+    missing_accept_ref_payload = json.loads(missing_accept_ref_result.stdout)
+    if "real Gateway reference" not in str(missing_accept_ref_payload.get("reason") or ""):
+        raise RuntimeError("sessions.send wrapper did not reject missing Gateway acceptance ref")
+
+    missing_send_ref_result = run_wrapper("missing_send_ref")
+    if missing_send_ref_result.returncode == 0:
+        raise RuntimeError("sessions.send wrapper accepted execution enqueue without a Gateway run ref")
+    missing_send_ref_payload = json.loads(missing_send_ref_result.stdout)
+    if "real Gateway run reference" not in str(missing_send_ref_payload.get("reason") or ""):
+        raise RuntimeError("sessions.send wrapper did not reject missing Gateway execution ref")
     dispatch_publish = run_command(
         [
             sys.executable,

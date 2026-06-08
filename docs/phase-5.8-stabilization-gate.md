@@ -364,7 +364,8 @@ Current status:
   `openclaw agent --json` turn to collect accepted/readback proof from the
   target Team Lead session, then uses Gateway `sessions.send` with
   `timeoutMs=0` to enqueue the actual execution message. If that live command is
-  absent or fails to return proof, dispatch fails closed as `setup-needed`.
+  absent, uses embedded fallback, or fails to return real Gateway proof,
+  dispatch fails closed as `setup-needed`.
 
 Scope:
 
@@ -392,6 +393,72 @@ Acceptance:
 - The implementation does not introduce a hidden orchestrator, daemon,
   automatic recovery, automatic reassignment, or automatic completion.
 
+### Phase 5.8.4d: Busy Team Lead Dispatch Reliability Gate
+
+Depends on:
+
+- Phase 5.8.4b runtime adapter and dispatch proof hardening.
+
+Current status:
+
+- Required before Phase 6. Not implemented.
+- This phase is needed because detached dispatch proof hardening prevents false
+  success, but it does not by itself prove that a busy Team Lead path is
+  operationally acceptable.
+
+Problem:
+
+- A Team Lead session may already have an active run when Operations Lead tries
+  to dispatch the next Work Unit.
+- The acceptance turn can timeout, queue behind current work, or be steered into
+  an active run depending on OpenClaw session queue behavior.
+- `sessions.describe` / `sessions.list` can be used as diagnostics, but they are
+  snapshots rather than a lease or lock. They must not be treated as dispatch
+  proof.
+- A late acceptance response must not be able to rewrite source truth or turn a
+  failed dispatch into success without fresh validation.
+
+Goal:
+
+- Prove the busy Team Lead dispatch behavior with live or live-equivalent tests
+  before packaging the workflow.
+- Keep the Operations Lead nonblocking while preserving receipt-first,
+  fail-closed source truth.
+- Choose the smallest safe policy for busy Team Lead handling.
+
+Required boundary:
+
+- Do not add a background worker, polling daemon, retry loop, hidden queue, or
+  hidden orchestrator.
+- Do not record `dispatched` unless accepted/readback proof and execution enqueue
+  proof are both real and current.
+- Treat idle/busy preflight as advisory only unless OpenClaw later provides a
+  documented lock/lease contract.
+- Prefer fresh Work Unit-specific Team Lead sessions and bounded acceptance
+  timeouts over shared-session waiting.
+
+Pre-design information to settle before implementation:
+
+- Whether a busy Team Lead acceptance turn times out, queues as a later run, or
+  steers into the current active run in the actual OpenClaw deployment.
+- Whether fresh Work Unit-specific Team Lead sessions avoid the busy-session
+  conflict enough to make `sessions.describe` unnecessary.
+- The exact fail-closed owner/operator message when Team Lead is busy.
+- Whether an expiring source-local attempt record is needed for idempotency, or
+  whether proof hardening plus explicit re-run is sufficient.
+
+Acceptance, once implemented:
+
+- A busy Team Lead scenario cannot leave `dispatch.json` or `progress.jsonl`
+  claiming success without real current proof.
+- A late or fallback acceptance cannot become dispatch success after the source
+  state has expired, failed, or moved on.
+- The Operations Lead is not held indefinitely by a busy Team Lead receipt wait.
+- The chosen policy is covered by smoke/regression tests and, where possible, a
+  live busy-session runbook or test.
+- The implementation still has no hidden orchestrator, daemon, automatic retry,
+  automatic reassignment, or automatic completion path.
+
 ### Phase 5.8.4.c: Result-Ready Wake / Closeout Visibility Concept
 
 Depends on:
@@ -399,6 +466,7 @@ Depends on:
 - Phase 5.8.2.
 - Phase 5.8.3.
 - Phase 5.8.4b runtime adapter, once implemented.
+- Phase 5.8.4d busy Team Lead dispatch reliability gate.
 
 Current status:
 
@@ -471,6 +539,7 @@ Depends on:
 - Phase 5.8.2.
 - Phase 5.8.3.
 - Phase 5.8.4, if detached dispatch is implemented in this stabilization pass.
+- Phase 5.8.4d.
 - Phase 5.8.4.c, if result-ready wake/closeout visibility is implemented in
   this stabilization pass.
 

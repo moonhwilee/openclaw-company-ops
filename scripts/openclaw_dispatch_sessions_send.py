@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import re
 import subprocess
@@ -101,6 +102,47 @@ def gateway_payload(value: dict[str, Any] | None) -> dict[str, Any]:
     return value
 
 
+def canonical_json_hash(value: dict[str, Any]) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def gateway_response_meta(value: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    if isinstance(value.get("meta"), dict):
+        return value["meta"]
+    result = value.get("result")
+    if isinstance(result, dict) and isinstance(result.get("meta"), dict):
+        return result["meta"]
+    payload = value.get("payload")
+    if isinstance(payload, dict) and isinstance(payload.get("meta"), dict):
+        return payload["meta"]
+    return {}
+
+
+def has_gateway_fallback_marker(value: dict[str, Any] | None) -> bool:
+    if not isinstance(value, dict):
+        return False
+    meta = gateway_response_meta(value)
+    if str(meta.get("transport") or "").lower() == "embedded":
+        return True
+    if str(meta.get("fallbackFrom") or "").lower() == "gateway":
+        return True
+    if str(meta.get("fallbackReason") or "").lower().startswith("gateway_"):
+        return True
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return "gateway-fallback-" in encoded
+
+
+def explicit_ref(value: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        candidate = value.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return ""
+
+
 def agent_reply_text(value: dict[str, Any] | None, fallback: str) -> str:
     if not isinstance(value, dict):
         return fallback
@@ -189,7 +231,14 @@ def build_acceptance_proof(
     accepted_at = utc_now()
     accept_payload = gateway_payload(accept_response)
     execute_payload = gateway_payload(execute_response)
-    accept_run_id = str(accept_response.get("runId") or accept_payload.get("runId") or "").strip()
+    accept_ref = (
+        explicit_ref(accept_payload, "messageId", "id", "runId", "taskId")
+        or explicit_ref(accept_response, "messageId", "id", "runId", "taskId")
+    )
+    execute_ref = explicit_ref(execute_payload, "runId", "taskId", "id") or explicit_ref(
+        execute_response, "runId", "taskId", "id"
+    )
+    idempotency_key = f"{required['work_unit_id']}:dispatch-execute"
     return {
         "status": "accepted",
         "adapter": ADAPTER,
@@ -197,18 +246,8 @@ def build_acceptance_proof(
         "agent": request.get("agent") or request.get("team"),
         "session_key": request.get("session_key") or session_key,
         "session_ref": session_key,
-        "job_ref": str(
-            execute_payload.get("runId")
-            or execute_payload.get("taskId")
-            or execute_payload.get("id")
-            or f"gateway:sessions.send:{required['work_unit_id']}:execute"
-        ),
-        "message_ref": str(
-            accept_payload.get("messageId")
-            or accept_payload.get("id")
-            or accept_run_id
-            or f"gateway:sessions.send:{required['work_unit_id']}:accepted"
-        ),
+        "job_ref": execute_ref,
+        "message_ref": accept_ref,
         "accepted_at": accepted_at,
         "readback": {
             "work_unit_id": acceptance.get("work_unit_id") or required["work_unit_id"],
@@ -217,9 +256,11 @@ def build_acceptance_proof(
             "authority_boundary": acceptance.get("authority_boundary") or required["authority_boundary"],
         },
         "gateway": {
-            "acceptance_transport": "openclaw-agent",
+            "acceptance_transport": "openclaw-agent-gateway",
             "execution_enqueued": True,
             "assignment_packet": packet["assignment_packet"],
+            "idempotency_key": idempotency_key,
+            "dispatch_packet_hash": canonical_json_hash(packet),
         },
     }
 
@@ -260,23 +301,38 @@ def main() -> int:
     )
     if accept_code != 0:
         return fail("acceptance openclaw agent turn failed", extra={"agent_error": accept_output})
+    if has_gateway_fallback_marker(accept_payload):
+        return fail("acceptance openclaw agent turn used embedded gateway fallback", extra={"agent_error": accept_output[:500]})
     reply_text = agent_reply_text(accept_payload, accept_output)
     acceptance = parse_json_object(reply_text)
     if not acceptance or str(acceptance.get("status", "")).lower() != "accepted":
         return fail("target did not return accepted JSON readback", extra={"reply_excerpt": reply_text[:500]})
+    accept_response_payload = gateway_payload(accept_payload)
+    if not (
+        explicit_ref(accept_response_payload, "messageId", "id", "runId", "taskId")
+        or explicit_ref(accept_payload or {}, "messageId", "id", "runId", "taskId")
+    ):
+        return fail("acceptance openclaw agent turn did not return a real Gateway reference")
 
+    idempotency_key = f"{request['work_unit_id']}:dispatch-execute"
     execute_code, execute_payload, execute_output = run_gateway_call(
         "sessions.send",
         {
             "key": key,
             "message": execution_prompt(request),
             "timeoutMs": 0,
-            "idempotencyKey": f"{request['work_unit_id']}:dispatch-execute",
+            "idempotencyKey": idempotency_key,
         },
         args.send_timeout_ms,
     )
     if execute_code != 0:
         return fail("execution sessions.send enqueue failed", extra={"gateway_error": execute_output})
+    execute_response_payload = gateway_payload(execute_payload)
+    if not (
+        explicit_ref(execute_response_payload, "runId", "taskId", "id")
+        or explicit_ref(execute_payload or {}, "runId", "taskId", "id")
+    ):
+        return fail("execution sessions.send enqueue did not return a real Gateway run reference")
 
     print_json(
         build_acceptance_proof(
