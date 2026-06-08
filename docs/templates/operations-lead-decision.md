@@ -20,8 +20,7 @@ Choose one:
 
 - `accept`
 - `revise`
-- `hold`
-- `reject`
+- `blocked`
 
 ## Rationale
 
@@ -37,12 +36,18 @@ If accepted:
 
 - Link this decision to the Work Card.
 - Link the Evidence & Result Record to the Work Card.
-- Close the Work Card only after both links exist.
+- Keep the Work Card visible for owner inspection until both links exist and
+  the owner has had a reasonable chance to inspect it.
 
-If not accepted:
+If revise:
 
 - Keep the Work Card open.
-- Update the Ops Claim Ledger entry with the next expected responsibility.
+- Replan the revision before creating a new Team Lead revision assignment.
+
+If blocked:
+
+- Keep the Work Card open.
+- Record the blocker source, needed action, and next owner.
 
 ## No Fallback Rule
 

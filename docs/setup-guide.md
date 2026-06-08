@@ -142,7 +142,8 @@ Recommended Work Card fields:
 - Goal.
 - Assigned Team Lead OpenClaw Agent.
 - Assignment Packet reference.
-- Current state.
+- Lifecycle state.
+- Responsibility state.
 - Done criteria.
 - Evidence & Result Record reference when available.
 - Operations Lead decision reference when available.

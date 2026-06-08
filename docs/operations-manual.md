@@ -286,7 +286,7 @@ may replace another required artifact:
 - Assignment Packet: detailed handoff from Operations Lead to Team Lead.
 - Ops Claim Ledger Entry: expected responsibility record.
 - Evidence & Result Record: proof bundle for review.
-- Operations Lead Decision: final accept, revise, hold, or reject decision.
+- Operations Lead Decision: final accept, revise, or blocked decision.
 
 Visibility surfaces such as GitHub labels, GitHub Projects, saved issue views,
 or Discord messages must point back to these artifacts. They are not source
@@ -517,7 +517,7 @@ Evidence & Result Record, and Operations Lead Decision.
    relevant team channel.
 10. Operations Lead posts `[COMPLETED]` or `[BLOCKED]` in `#ops-feed`.
 11. Operations Lead reports the final result with lightweight verification and
-   accept/revise/hold judgment.
+   accept/revise/blocked judgment.
 
 For normal official Work Units, prefer the foreground handoff command over
 manually assembling the initial assignment trail:
@@ -621,6 +621,45 @@ The claim is not progress truth, completion truth, a dashboard database, or a
 recovery mechanism. If the claim goes stale, the Operations Lead reviews the
 state and records a decision or next action manually.
 
+## Lifecycle And Responsibility Rules
+
+User-facing status must separate lifecycle from responsibility.
+
+Lifecycle answers where the Work Unit is in the protocol:
+
+- `assigned`
+- `working`
+- `result_ready`
+- `accepted`
+- `revision_requested`
+- `blocked`
+- `done`
+
+Responsibility answers who owns the next action:
+
+- `team_lead_assigned`
+- `team_lead_working`
+- `operations_lead_review`
+- `operations_lead_replan`
+- `team_lead_revision_assigned`
+- `owner_inspection`
+- `owner_input_needed`
+- `external_wait`
+- `archived`
+
+Status derivation order is:
+
+1. final Operations Lead decision;
+2. result evidence or visibility proof;
+3. claim expected responsibility;
+4. assignment existence.
+
+An accepted decision produces lifecycle `accepted`, not archival `done`.
+Archival `done` is reserved for the point after owner inspection and Work Card
+cleanup. A revise decision produces lifecycle `revision_requested` and default
+responsibility `operations_lead_replan`; Team Lead responsibility resumes only
+after a new revision assignment exists.
+
 ## Evidence Rules
 
 No evidence means no completion.
@@ -653,12 +692,13 @@ Allowed decisions:
 
 - `accept`: evidence satisfies the Assignment Packet.
 - `revise`: result is useful but needs changes.
-- `hold`: decision is blocked by missing evidence, dependency, or context.
-- `reject`: result does not satisfy the Assignment Packet.
+- `blocked`: decision is blocked by missing evidence, dependency, context, or
+  required owner/external action.
 
-Only `accept` can lead to Work Card closure. A merged PR, green check, label, or
-Discord update is not enough unless the Evidence & Result Record and Operations
-Lead decision are linked.
+Only `accept` can move the lifecycle to `accepted`; it is not archival `done`
+until owner inspection and Work Card cleanup are complete. A merged PR, green
+check, label, or Discord update is not enough unless the Evidence & Result
+Record and Operations Lead decision are linked.
 
 ## Blocked Work
 

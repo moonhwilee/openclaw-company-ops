@@ -119,7 +119,7 @@ protocol_capsule:
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
   result: map_evidence_to_done_and_verification_criteria
-  revision_rule: reject_means_reenter_selected_mode
+  revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
@@ -154,7 +154,7 @@ or create a separate LLM summarization call just for visibility.
 
 Returning this report does not complete the Work Unit. It moves the Work Unit
 to result-ready review. The Operations Lead must reread the source artifacts,
-verify the evidence, and record `accept`, `revise`, `hold`, or `reject`.
+verify the evidence, and record `accept`, `revise`, or `blocked`.
 
 Discord generation budget:
 

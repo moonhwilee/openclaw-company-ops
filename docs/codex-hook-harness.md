@@ -262,8 +262,8 @@ If active Work Unit context exists, check:
 - required checks were run or the blocker explains why they could not run.
 - Discord/dashboard messages are visibility-only and link to artifacts.
 
-The hook should not demand `accept`. `revise`, `hold`, `reject`, and `blocked`
-are valid outcomes when evidence or context is insufficient.
+The hook should not demand `accept`. `revise` and `blocked` are valid outcomes
+when evidence or context is insufficient.
 
 ### PreCompact / PostCompact
 
@@ -293,7 +293,7 @@ When Phase 3.5 or Phase 5.2 opens a hook MVP Work Unit, it is accepted only if:
 - dangerous-command fixtures are blocked;
 - normal repo inspection and smoke commands are not blocked;
 - a seeded missing-evidence completion case is caught;
-- a seeded valid blocked/hold case is allowed;
+- a seeded valid blocked case is allowed;
 - `python3 scripts/company_ops_smoke.py multi-team` passes;
 - `python3 scripts/openclaw_company_ops.py smoke multi-team` passes;
 - `git diff --check` passes;

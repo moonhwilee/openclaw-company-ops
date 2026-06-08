@@ -64,6 +64,10 @@ def has_real_ref(value: str) -> bool:
     return bool(value and value != "pending")
 
 
+def normalize_state(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
 def find_ledger_claim(ledger_path: Path, work_unit: str) -> tuple[dict[str, Any] | None, str]:
     expanded = ledger_path.expanduser()
     if not expanded.exists():
@@ -186,28 +190,97 @@ def derive_execution_route(artifacts: dict[str, dict[str, Any]]) -> dict[str, st
     }
 
 
-def derive_next_action(
+def decision_value(decision_fields: dict[str, str], decision_status: str) -> str:
+    raw_decision = decision_fields.get("decision", "")
+    if raw_decision:
+        return clean_value(raw_decision).strip()
+    return decision_status or ""
+
+
+def derive_lifecycle_state(
     missing: list[str],
     claim_state: str,
     evidence_status: str,
     decision_status: str,
+    decision_text: str,
+) -> tuple[str, str]:
+    missing_set = set(missing)
+    normalized_claim = normalize_state(claim_state)
+    normalized_evidence = normalize_state(evidence_status)
+    normalized_decision_status = normalize_state(decision_status)
+    normalized_decision = normalize_state(decision_text)
+
+    if normalized_decision in {"accept", "accepted"} or normalized_decision_status == "accepted":
+        return "accepted", "Operations Lead decision accepted"
+    if normalized_decision in {"revise", "revision"} or "revise" in normalized_decision_status:
+        return "revision_requested", "Operations Lead decision requests revision"
+    if normalized_decision in {"blocked", "block"} or "blocked" in normalized_decision_status:
+        return "blocked", "Operations Lead decision blocked"
+    if "assignment.md" in missing_set:
+        return "blocked", "missing Assignment Packet"
+    if "claim.md" in missing_set:
+        return "blocked", "missing Ops Claim Ledger artifact"
+    if normalized_claim == "blocked":
+        return "blocked", "claim records blocked responsibility"
+    if normalized_evidence == "result_ready" or normalized_claim == "result_ready":
+        return "result_ready", "Evidence is ready for Operations Lead review"
+    if normalized_claim in {"working", "waiting"}:
+        return "working", f"claim expected_state is {normalized_claim}"
+    if normalized_claim == "done":
+        return "done", "legacy claim records archival responsibility"
+    if normalized_claim == "assigned":
+        return "assigned", "Assignment Packet exists"
+    return "assigned" if not missing else "unknown", "derived from source artifacts"
+
+
+def derive_responsibility_state(lifecycle_state: str, claim_state: str, decision_text: str) -> str:
+    normalized_claim = normalize_state(claim_state)
+    normalized_decision = normalize_state(decision_text)
+    if lifecycle_state == "accepted":
+        return "owner_inspection"
+    if lifecycle_state == "revision_requested":
+        return "operations_lead_replan"
+    if lifecycle_state == "blocked":
+        if normalized_claim == "blocked" or normalized_decision in {"blocked", "block"}:
+            return "ops_action_or_external_wait"
+        return "operations_lead_repair"
+    if lifecycle_state == "result_ready":
+        return "operations_lead_review"
+    if lifecycle_state == "working":
+        return "external_wait" if normalized_claim == "waiting" else "team_lead_working"
+    if lifecycle_state == "assigned":
+        return "team_lead_assigned"
+    if lifecycle_state == "done":
+        return "archived"
+    return "operations_lead_review"
+
+
+def derive_next_action(
+    missing: list[str],
+    lifecycle_state: str,
 ) -> str:
     if "assignment.md" in missing:
         return "Create or restore the Assignment Packet."
     if "claim.md" in missing:
         return "Create or restore the local claim artifact."
+    if lifecycle_state == "accepted":
+        return "Owner inspects the accepted Work Unit; archive only after Work Card links are present."
+    if lifecycle_state == "revision_requested":
+        return "Operations Lead replans the revision or creates a new revision assignment."
+    if lifecycle_state == "blocked":
+        return "Operations Lead reviews blocker, next owner, and needed action."
+    if lifecycle_state == "done":
+        return "Audit trail archived; no next action recorded."
+    if lifecycle_state == "result_ready":
+        return "Operations Lead decision is pending."
     if "evidence.md" in missing:
         return "Team Lead must produce Evidence & Result Record."
     if "decision.md" in missing:
         return "Operations Lead decision artifact is missing."
-    if claim_state == "blocked":
-        return "Operations Lead blocker review."
-    if evidence_status.lower() in {"", "draft"}:
+    if lifecycle_state == "working":
         return "Team Lead must update evidence before review."
-    if decision_status.lower() in {"", "pending"}:
-        return "Operations Lead decision is pending."
-    if claim_state == "done" and decision_status.lower() == "accepted":
-        return "Audit trail accepted; no next action recorded."
+    if lifecycle_state == "assigned":
+        return "Team Lead starts from the Assignment Packet."
     return "Review current artifact state."
 
 
@@ -252,7 +325,16 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     )
     evidence_status = artifacts["evidence.md"]["status"]
     decision_status = artifacts["decision.md"]["status"]
-    next_action = derive_next_action(missing, claim_state, evidence_status, decision_status)
+    decision_text = decision_value(decision_fields, decision_status)
+    lifecycle_state, lifecycle_reason = derive_lifecycle_state(
+        missing,
+        claim_state,
+        evidence_status,
+        decision_status,
+        decision_text,
+    )
+    responsibility_state = derive_responsibility_state(lifecycle_state, claim_state, decision_text)
+    next_action = derive_next_action(missing, lifecycle_state)
     next_review = derive_next_review(claim_fields, next_action)
     execution_route = derive_execution_route(artifacts)
 
@@ -322,11 +404,24 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "decision": {
             "ref": decision_ref,
             "status": decision_status,
+            "decision": decision_text,
             "exists": artifacts["decision.md"]["exists"],
         },
         "progress": progress,
         "execution_route": execution_route,
-        "current_state": claim_state or "unknown",
+        "lifecycle": {
+            "state": lifecycle_state,
+            "reason": lifecycle_reason,
+            "source": "decision"
+            if lifecycle_state in {"accepted", "revision_requested"}
+            or (lifecycle_state == "blocked" and normalize_state(decision_text) in {"blocked", "block"})
+            else "derived",
+        },
+        "responsibility": {
+            "state": responsibility_state,
+            "source": "derived",
+        },
+        "current_state": lifecycle_state,
         "missing_artifacts": missing,
         "audit_problems": audit_problems,
         "next_review": next_review,
@@ -344,7 +439,8 @@ def build_summary(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 def print_text(summary: dict[str, Any]) -> None:
     print(f"Work Unit: {summary['work_unit_id']}")
-    print(f"Current state: {summary['current_state']}")
+    print(f"Lifecycle: {summary['lifecycle']['state']} ({summary['lifecycle']['reason']})")
+    print(f"Responsibility: {summary['responsibility']['state']}")
     print(f"Work Card: {summary['work_card'] or 'missing'}")
     print(f"Assignment Packet: {summary['assignment_packet'] or 'missing'}")
     claim = summary["claim"]

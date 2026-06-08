@@ -22,8 +22,8 @@ It may run as a standalone verification Work Unit or inside the `goal` loop.
 4. For each `fail` or `unknown`, state the specific missing artifact, check, or
    decision.
 5. If running inside `goal`, return failures to the improvement loop.
-6. If running as verification-only, recommend `accept`, `revise`, `hold`, or
-   `reject`.
+6. If running as verification-only, recommend `accept`, `revise`, or
+   `blocked`.
 
 ## Evidence Standard
 

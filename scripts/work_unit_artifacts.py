@@ -35,7 +35,6 @@ FINAL_REVIEW_BY_RECOMMENDATION = {
     "accepted": "ACCEPTED",
     "revise": "REVISE",
     "revision": "REVISE",
-    "reject": "REVISE",
     "blocked": "BLOCKED_DETAIL",
     "block": "BLOCKED_DETAIL",
 }
@@ -452,7 +451,7 @@ def extract_recommendation(evidence_text: str) -> str:
                 if not cleaned or cleaned.lower() in {"choose one:", "rationale:"}:
                     continue
                 token = cleaned.split()[0].strip("`:.").lower()
-                if token in {"accept", "accepted", "revise", "revision", "reject", "hold", "blocked", "block"}:
+                if token in {"accept", "accepted", "revise", "revision", "blocked", "block"}:
                     tokens.append(token)
             distinct = list(dict.fromkeys(tokens))
             return distinct[0] if len(distinct) == 1 else ""
@@ -799,7 +798,7 @@ protocol_capsule:
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
   result: map_evidence_to_done_and_verification_criteria
-  revision_rule: reject_means_reenter_selected_mode
+  revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
 
 ## Expected Outputs
@@ -2414,7 +2413,7 @@ protocol_capsule:
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
   result: map_evidence_to_done_and_verification_criteria
-  revision_rule: reject_means_reenter_selected_mode
+  revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
@@ -2490,10 +2489,12 @@ Allowed expected states:
 - `waiting`
 - `blocked`
 - `result_ready`
-- `done`
 
-`done` is not completion truth. It is an expected responsibility state after
-the Operations Lead has made a decision.
+Do not use this field as completion truth. User-facing status derives lifecycle
+from source artifacts in this order: final Operations Lead decision, result
+evidence/proof, claim responsibility, then assignment. Accepted work remains
+`accepted` until owner inspection and Work Card cleanup make it archival
+`done`.
 
 ## Artifact References
 
@@ -2577,8 +2578,7 @@ Recommended decision:
 
 - `accept`
 - `revise`
-- `hold`
-- `reject`
+- `blocked`
 
 Rationale:
 
@@ -2615,8 +2615,7 @@ Choose one:
 
 - `accept`
 - `revise`
-- `hold`
-- `reject`
+- `blocked`
 
 ## Rationale
 
@@ -2632,12 +2631,18 @@ If accepted:
 
 - Link this decision to the Work Card.
 - Link the Evidence & Result Record to the Work Card.
-- Close the Work Card only after both links exist.
+- Keep the Work Card visible for owner inspection until both links exist and
+  the owner has had a reasonable chance to inspect it.
 
-If not accepted:
+If revise:
 
 - Keep the Work Card open.
-- Update the Ops Claim Ledger entry with the next expected responsibility.
+- Replan the revision before creating a new Team Lead revision assignment.
+
+If blocked:
+
+- Keep the Work Card open.
+- Record the blocker source, needed action, and next owner.
 
 ## No Fallback Rule
 

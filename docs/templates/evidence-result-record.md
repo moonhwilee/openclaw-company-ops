@@ -57,8 +57,7 @@ Recommended decision:
 
 - `accept`
 - `revise`
-- `hold`
-- `reject`
+- `blocked`
 
 Rationale:
 

@@ -15,12 +15,15 @@ from ops_claim_ledger import DEFAULT_LEDGER, get_claims, load_ledger
 def row_from_claim(claim: dict[str, Any]) -> dict[str, str]:
     evidence = str(claim.get("evidence_ref") or "")
     decision = str(claim.get("operations_lead_decision_ref") or "")
+    claim_state = str(claim.get("expected_state") or "")
+    responsibility_state = "archived" if claim_state == "done" else claim_state
     return {
         "work_unit_id": str(claim.get("work_unit_id") or ""),
         "work_card": str(claim.get("work_card") or ""),
         "claim_ref": str(claim.get("claim_ref") or ""),
         "team_lead": str(claim.get("owner_session_ref") or ""),
-        "state": str(claim.get("expected_state") or ""),
+        "state": claim_state,
+        "responsibility_state": responsibility_state,
         "expected_until": str(claim.get("expected_until") or ""),
         "assignment_packet": str(claim.get("assignment_packet") or ""),
         "evidence_ref": evidence,
@@ -35,8 +38,6 @@ def next_review_for(claim: dict[str, Any], evidence: str, decision: str) -> str:
         return "Operations Lead decision"
     if state == "blocked":
         return "Operations Lead blocker review"
-    if not has_real_ref(evidence) and state == "done":
-        return "Evidence missing; review before closure"
     return str(claim.get("expected_until") or "")
 
 
@@ -48,7 +49,7 @@ def print_markdown(rows: list[dict[str, str]]) -> None:
     if not rows:
         print("No dashboard rows.")
         return
-    headers = ("Work Unit", "State", "Team Lead", "Expected Until", "Next Review", "Claim")
+    headers = ("Work Unit", "Responsibility", "Team Lead", "Expected Until", "Next Review", "Claim")
     print("| " + " | ".join(headers) + " |")
     print("| " + " | ".join("---" for _ in headers) + " |")
     for row in rows:
@@ -57,7 +58,7 @@ def print_markdown(rows: list[dict[str, str]]) -> None:
             + " | ".join(
                 [
                     row["work_unit_id"],
-                    row["state"],
+                    row["responsibility_state"],
                     row["team_lead"],
                     row["expected_until"],
                     row["next_review"],
@@ -80,7 +81,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         for claim in sorted(get_claims(ledger).values(), key=lambda item: item.get("work_unit_id", ""))
     ]
     if args.state:
-        rows = [row for row in rows if row["state"] == args.state]
+        rows = [row for row in rows if row["responsibility_state"] == args.state]
 
     if args.format == "json":
         print(json.dumps({"rows": rows}, indent=2, sort_keys=True, ensure_ascii=False))
@@ -104,7 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_LEDGER,
         help=f"JSON ledger path, default: {DEFAULT_LEDGER}",
     )
-    snapshot.add_argument("--state", help="Optional expected_state filter")
+    snapshot.add_argument("--state", help="Optional claim expected_state / responsibility filter")
     snapshot.add_argument("--format", choices=("markdown", "json"), default="markdown")
     snapshot.set_defaults(func=cmd_snapshot)
 

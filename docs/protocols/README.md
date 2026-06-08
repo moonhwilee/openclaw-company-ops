@@ -80,7 +80,7 @@ protocol_capsule:
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
   result: map_evidence_to_done_and_verification_criteria
-  revision_rule: reject_means_reenter_goal_loop
+  revision_rule: revise_means_operations_lead_replan_then_reenter_goal_loop
 ```
 
 The capsule cannot replace the Assignment Packet. It only tells the Team Lead

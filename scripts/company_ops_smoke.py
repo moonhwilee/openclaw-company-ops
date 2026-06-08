@@ -176,7 +176,7 @@ def mark_artifact_result_ready(artifact_dir: Path, *, recommendation: str | None
     evidence_text = evidence_text.replace("Status: Draft", "Status: Result Ready")
     if recommendation is not None:
         evidence_text = evidence_text.replace(
-            "Recommended decision:\n\n- `accept`\n- `revise`\n- `hold`\n- `reject`",
+            "Recommended decision:\n\n- `accept`\n- `revise`\n- `blocked`",
             f"Recommended decision:\n\n- {recommendation}",
         )
     evidence.write_text(evidence_text, encoding="utf-8")
@@ -1337,8 +1337,8 @@ def run_hook_guard_smoke() -> None:
         )
         (valid_dir / "claim.md").write_text(
             "# Claim\n\n"
-            "The Team Lead owns this bounded smoke slice and has not marked it done; the claim "
-            "exists only to prove the hook allows blocked or hold outcomes.\n",
+            "The Team Lead owns this bounded smoke slice and the claim "
+            "exists only to prove the hook allows blocked outcomes.\n",
             encoding="utf-8",
         )
         (valid_dir / "evidence.md").write_text(
@@ -1354,7 +1354,7 @@ def run_hook_guard_smoke() -> None:
     require_hook_status(
         {
             "hook_event_name": "PreCompact",
-            "handoff": "WU-260606-902 claim working, evidence blocked, decision hold, next wait for source.",
+            "handoff": "WU-260606-902 claim working, evidence blocked, decision blocked, next wait for source.",
         },
         "precompact",
         "pass",

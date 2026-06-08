@@ -20,7 +20,7 @@ LEDGER_VERSION = 1
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 CLAIM_RE = re.compile(r"^CLAIM-.+")
 CLAIM_TYPES = ("orchestration", "execution")
-EXPECTED_STATES = ("assigned", "working", "waiting", "blocked", "result_ready", "done")
+EXPECTED_STATES = ("assigned", "working", "waiting", "blocked", "result_ready")
 UPDATE_FIELDS = (
     "work_card",
     "owner_session_ref",

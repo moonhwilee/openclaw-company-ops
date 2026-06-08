@@ -34,7 +34,7 @@ audit, verify, or reject the work without trusting memory or a transient chat
 thread.
 
 Sizeable `goal` and `verify` work is detached Work Unit work. The Operations
-Lead should not leave the main session idle while a Team Lead executes; source
+Lead should not hold the main session blocked on Team Lead execution; source
 artifacts, claim state, proof/progress logs, and the dashboard mirror carry the
 recoverable state until the Team Lead result is ready for Operations Lead
 review.
@@ -56,8 +56,10 @@ draft-handoff dry-run gate, and Phase 5.6 Pulse activation decision are
 complete.
 
 Phase 5.7 Packaging Readiness Decision is complete: the Phase 6 included
-surfaces, deferred surfaces, and no-go surfaces are locked before building an
-installable package.
+surfaces, deferred surfaces, and no-go surfaces are locked. Phase 5.8
+Stabilization Gate is now the required pre-Phase-6 gate for live workflow
+lifecycle, proof, closeout, and detached dispatch issues found during real
+testing.
 
 Phase 5.1 accepted the visibility contract: `discord card`, foreground
 `discord publish-card`, and `discord proof-validate` are the stable live
@@ -133,6 +135,7 @@ guess targets, or grant permissions on the user's behalf.
 - [Implementation Setup Guide](docs/implementation-setup-guide.md)
 - [Manual Day-0 Templates](docs/templates/README.md)
 - [Operations Manual](docs/operations-manual.md)
+- [Phase 5.8 Stabilization Gate](docs/phase-5.8-stabilization-gate.md)
 - [Discord Event Visibility](docs/discord-event-visibility.md)
 - [Visibility Card Implementation Plan](docs/visibility-card-implementation-plan.md)
 - [Company Dashboard Timing](docs/company-dashboard-timing.md)
@@ -151,8 +154,10 @@ guess targets, or grant permissions on the user's behalf.
 
 ## Planned Work
 
-- Begin Phase 6 Packaging / Public v1 from the accepted Phase 5.7 package
-  boundary.
+- Complete Phase 5.8 Stabilization Gate before beginning Phase 6 Packaging /
+  Public v1.
+- Begin Phase 6 Packaging / Public v1 only after the accepted Phase 5.7 package
+  boundary and Phase 5.8 live workflow stabilization gate are both satisfied.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.

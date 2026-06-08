@@ -197,7 +197,7 @@ Acceptance gate:
 - Dangerous-command fixtures are blocked.
 - Normal repo inspection, artifact reads, and smoke commands are not blocked.
 - A seeded missing-evidence completion case is caught.
-- A seeded valid blocked or hold case is allowed.
+- A seeded valid blocked case is allowed.
 - Existing setup smokes still pass.
 - The hook can be disabled or bypassed deliberately for troubleshooting.
 - No hook behavior creates hidden orchestration, automatic recovery,
@@ -469,7 +469,7 @@ Decision record:
   - simple non-Work-Unit completion no-ops;
   - seeded missing-evidence completion is caught for numeric and suffix Work
     Unit ids;
-  - seeded blocked/hold evidence is allowed.
+  - seeded blocked evidence is allowed.
 - Boundary:
   - no `checkpoint-needed` user-facing feature;
   - no yieldable long-work runner;
@@ -1247,6 +1247,37 @@ Phase 6 implementation decisions to keep narrow:
 Decision output: accepted. Phase 5.7 locks the Phase 6 included surfaces,
 deferred surfaces, and no-go surfaces listed above.
 
+### Phase 5.8: Live Workflow Stabilization Gate
+
+Purpose: resolve the live workflow lifecycle issues found in
+`WU-260608-001` through `WU-260608-004` before Phase 6 packaging begins.
+
+Implementation reference: `docs/phase-5.8-stabilization-gate.md`.
+
+Scope:
+
+- Record the live workflow issue register and phase order.
+- Separate lifecycle state from responsibility state before changing status
+  behavior.
+- Add a canonical `STARTED` transition and result-ready guard.
+- Make closeout finalization update lifecycle/status consistently.
+- Preserve or rehydrate Work Card links in Operations Lead decisions.
+- Define and implement the minimum detached dispatch behavior required for
+  Operations Lead handoff without blocking on Team Lead execution.
+- Add a no-bypass regression gate for live workflow tests.
+
+Acceptance gate:
+
+- Phase 5.8 P0 items are resolved.
+- A small live workflow regression batch passes without manual lifecycle proof
+  insertion.
+- Status output and decision artifacts agree after closeout.
+- Final decisions retain Work Card references when source artifacts contain
+  them.
+- The tested detached path does not require the Operations Lead to hold the
+  Team Lead foreground execution.
+- Any remaining P1/P2 items have explicit owner-approved defer rationale.
+
 Phase 5 acceptance gate:
 
 - Each activation has an explicit yes/no decision with rationale.
@@ -1262,6 +1293,9 @@ Phase 5 acceptance gate:
 ## Phase 6: Packaging / Public v1
 
 Purpose: make the validated operating surface reproducible.
+
+Precondition: Phase 5.7 package boundary and Phase 5.8 live workflow
+stabilization gate are both satisfied.
 
 Scope:
 

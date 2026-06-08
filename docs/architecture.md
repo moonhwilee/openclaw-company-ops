@@ -208,7 +208,7 @@ protocol_capsule:
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
   result: map_evidence_to_done_and_verification_criteria
-  revision_rule: reject_means_reenter_selected_mode
+  revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
 
 ### 4. Team Lead Session
@@ -307,13 +307,15 @@ Expected states:
 - `waiting`
 - `blocked`
 - `result_ready`
-- `done`
 
 `last_claim` is a short status claim that includes timestamp meaning. It is used
 to judge staleness.
 
-`done` is not completion truth. It is an expected responsibility state after the
-Operations Lead has made the decision.
+The claim state is not lifecycle truth. User-facing status derives lifecycle
+from source artifacts in this order: final Operations Lead decision, result
+evidence/proof, claim responsibility, then assignment. Accepted work remains
+`accepted` until owner inspection and Work Card cleanup make it archival
+`done`.
 
 ### 8. Pulse Monitor
 

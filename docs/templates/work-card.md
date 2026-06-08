@@ -12,7 +12,8 @@ link back to this artifact when used.
 - Title:
 - Repository:
 - Priority:
-- Current state:
+- Lifecycle state:
+- Responsibility state:
 
 ## Ownership
 

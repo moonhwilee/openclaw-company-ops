@@ -279,20 +279,22 @@ def derive_status(summary: dict[str, Any]) -> tuple[str, str]:
     evidence_status = normalize(summary["evidence"]["status"])
     decision_status = normalize(summary["decision"]["status"])
     decision = normalize(decision_value(summary))
+    lifecycle = normalize(str(summary.get("lifecycle", {}).get("state") or ""))
+    lifecycle_reason = str(summary.get("lifecycle", {}).get("reason") or "")
 
+    if lifecycle == "accepted" or decision in {"accept", "accepted"} or decision_status == "accepted":
+        return "Accepted", lifecycle_reason or "Operations Lead decision accepted"
+    if lifecycle == "revision requested" or decision in {"revise", "revision"} or "revise" in decision_status:
+        return "Revise", lifecycle_reason or "Operations Lead decision requests revision"
+    if lifecycle == "blocked" or claim_state == "blocked" or "blocked" in decision_status or decision == "blocked":
+        return "Blocked", lifecycle_reason or "source artifact records blocked state"
     if "assignment.md" in missing:
         return "Blocked", "missing Assignment Packet"
     if "claim.md" in missing:
         return "Blocked", "missing Ops Claim Ledger artifact"
-    if claim_state == "blocked" or "blocked" in decision_status or decision == "blocked":
-        return "Blocked", "source artifact records blocked state"
-    if decision in {"accept", "accepted"} or decision_status == "accepted":
-        return "Accepted", "Operations Lead decision accepted"
-    if decision in {"revise", "revision"} or "revise" in decision_status:
-        return "Revise", "Operations Lead decision requests revision"
-    if "result ready" in evidence_status or claim_state == "result ready":
-        return "Result Ready", "Evidence is ready for Operations Lead review"
-    if claim_state in {"working", "waiting"}:
+    if lifecycle == "result ready" or "result ready" in evidence_status or claim_state == "result ready":
+        return "Result Ready", lifecycle_reason or "Evidence is ready for Operations Lead review"
+    if lifecycle == "working" or claim_state in {"working", "waiting"}:
         return "In Progress", f"claim expected_state is {claim_state}"
     return "Assigned", "Assignment Packet exists"
 

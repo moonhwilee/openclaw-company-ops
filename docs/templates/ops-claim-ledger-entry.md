@@ -2,8 +2,9 @@
 
 Status: Manual Day-0
 
-The Ops Claim Ledger records expected responsibility. It is not runtime truth,
-progress history, evidence storage, a dashboard database, or a recovery system.
+The Ops Claim Ledger records expected responsibility. It is not lifecycle
+truth, progress history, evidence storage, a dashboard database, or a recovery
+system.
 
 ## Claim Identity
 
@@ -29,10 +30,12 @@ Allowed expected states:
 - `waiting`
 - `blocked`
 - `result_ready`
-- `done`
 
-`done` is not completion truth. It is an expected responsibility state after
-the Operations Lead has made a decision.
+Do not use this field as completion truth. User-facing status derives lifecycle
+from source artifacts in this order: final Operations Lead decision, result
+evidence/proof, claim responsibility, then assignment. Accepted work remains
+`accepted` until owner inspection and Work Card cleanup make it archival
+`done`.
 
 ## Artifact References
 
