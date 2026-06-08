@@ -2513,6 +2513,119 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("dispatch dry-run wrote dispatch.json")
     if (start_dir / "progress.jsonl").read_text(encoding="utf-8") != dispatch_progress_before:
         raise RuntimeError("dispatch dry-run mutated progress.jsonl")
+    capacity_root = work_dir / "capacity-artifacts"
+    capacity_dirs: list[Path] = []
+    for index in range(1, 10):
+        wu_id = f"WU-260607-20{index}"
+        capacity_dir = capacity_root / wu_id
+        require_success(
+            run_command(
+                [
+                    sys.executable,
+                    str(ARTIFACTS),
+                    "work-unit",
+                    "create",
+                    "--work-unit-id",
+                    wu_id,
+                    "--title",
+                    f"Capacity smoke {index}",
+                    "--work-card",
+                    f"local-smoke://{wu_id}",
+                    "--operations-lead",
+                    "gbee",
+                    "--team-lead",
+                    "ops",
+                    "--output-root",
+                    str(capacity_root),
+                    "--created-at",
+                    args.created_at,
+                ]
+            ),
+            f"capacity artifact create {wu_id}",
+        )
+        mark_artifact_started(capacity_dir, work_unit_id=wu_id)
+        capacity_dirs.append(capacity_dir)
+    low_config = work_dir / "low-openclaw-config.json"
+    write_json(
+        low_config,
+        {
+            "agents": {
+                "defaults": {
+                    "maxConcurrent": 4,
+                    "subagents": {"maxConcurrent": 8},
+                }
+            }
+        },
+    )
+    capacity_preflight = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "capacity-check",
+            "--artifact-root",
+            str(capacity_root),
+            "--config-json",
+            str(low_config),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(capacity_preflight, "work-unit capacity-check")
+    capacity_preflight_payload = json.loads(capacity_preflight.stdout)
+    if capacity_preflight_payload.get("status") != "WARN":
+        raise RuntimeError("capacity-check did not warn for low OpenClaw host config")
+    if capacity_preflight_payload.get("recommended", {}).get("agents.defaults.maxConcurrent") != 10:
+        raise RuntimeError("capacity-check did not derive current package recommendation 10")
+    if capacity_preflight_payload.get("recommended", {}).get("agents.defaults.subagents.maxConcurrent") != 20:
+        raise RuntimeError("capacity-check did not derive current package recommendation 20")
+    if capacity_preflight_payload.get("derived", {}).get("company_ops_active_wu_cap") != 2:
+        raise RuntimeError("capacity-check did not derive cap from the supplied low config")
+    top_level_preflight = run_command(
+        [
+            sys.executable,
+            str(SCRIPT_DIR / "openclaw_company_ops.py"),
+            "preflight",
+            "--artifact-root",
+            str(capacity_root),
+            "--config-json",
+            str(low_config),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(top_level_preflight, "top-level preflight")
+    capacity_full_progress_before = (capacity_dirs[-1] / "progress.jsonl").read_text(encoding="utf-8")
+    capacity_full_dispatch = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "dispatch",
+            "--work-unit-id",
+            "WU-260607-209",
+            "--artifact-root",
+            str(capacity_root),
+            "--capacity-max-concurrent",
+            "10",
+            "--source-ref",
+            str(capacity_dirs[-1] / "assignment.md"),
+            "--publish",
+            "--session-ref",
+            "session:capacity-over-cap",
+            "--format",
+            "json",
+        ]
+    )
+    if capacity_full_dispatch.returncode == 0:
+        raise RuntimeError("dispatch accepted a Work Unit over the active WU cap")
+    capacity_full_payload = json.loads(capacity_full_dispatch.stdout)
+    if capacity_full_payload.get("status") != "capacity-full":
+        raise RuntimeError("capacity-full dispatch did not report capacity-full")
+    if (capacity_dirs[-1] / "dispatch.json").exists():
+        raise RuntimeError("capacity-full dispatch wrote dispatch.json")
+    if (capacity_dirs[-1] / "progress.jsonl").read_text(encoding="utf-8") != capacity_full_progress_before:
+        raise RuntimeError("capacity-full dispatch mutated progress.jsonl")
     dispatch_missing_started = run_command(
         [
             sys.executable,

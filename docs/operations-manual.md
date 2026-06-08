@@ -120,6 +120,14 @@ Do not use a hidden background orchestrator to satisfy this rule. The detached
 state is the Work Unit source artifacts, proof/progress logs, claim state, and
 dashboard mirror.
 
+Detached Work Unit dispatch is bounded by the general
+[capacity policy](capacity-policy.md). Company Ops reserves two OpenClaw
+concurrency slots outside its active Work Unit cap so the Operations Lead main
+session, owner requests, result-ready/closeout handling, hooks, and exceptional
+operating work can still run. Capacity is checked from source artifacts and
+OpenClaw host config; dispatch must fail closed when the active Work Unit cap is
+full.
+
 ## Work Unit Handoff Change Rule
 
 The initial handoff is a source-backed starting contract, not a promise that
@@ -205,6 +213,10 @@ does not create a new lifecycle state and does not replace `start`; it requires
 prior source-backed STARTED evidence, prepares the Team Lead dispatch packet,
 and records a recoverable session/job/message reference in `dispatch.json` plus
 a `dispatched` progress row only on publish.
+
+Dispatch also applies the Company Ops active Work Unit cap from
+[`docs/capacity-policy.md`](capacity-policy.md). A capacity-full dispatch writes
+no source artifacts and starts no runtime path.
 
 For `--runtime record-ref`, dispatch records a manually obtained
 `--session-ref`, `--job-ref`, or `--message-ref`. For

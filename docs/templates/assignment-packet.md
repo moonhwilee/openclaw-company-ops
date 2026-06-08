@@ -118,9 +118,23 @@ protocol_capsule:
     - operations_lead_or_user_pause
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
+  subagent_budget: <none|2|3|5>
+  subagent_budget_reason: <team_lead_direct|simple_delegated|normal|complex_high_risk>
+  subagent_budget_enforcement: prompt_and_packet_contract_only
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
+
+Subagent budget policy:
+
+- `none`: Team Lead handles the Work Unit directly.
+- `2`: simple delegated work.
+- `3`: normal goal/verify work.
+- `5`: complex, high-risk, or broad verification work.
+- More than `5` requires explicit Operations Lead or owner approval.
+
+This budget is an Assignment Packet and package-prompt contract. It is not a
+runtime hook, tool policy, or hard enforcement layer.
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
 repeat implementation or improvement and verification until a `stop_only_on`

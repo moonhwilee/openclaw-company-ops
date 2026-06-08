@@ -29,6 +29,24 @@ DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
 DISPATCH_RUNTIME_CHOICES = ("record-ref", "openclaw-agent")
 DISPATCH_ADAPTER_CHOICES = ("auto", "fake", "command")
 DISPATCH_ADAPTER_COMMAND_ENV = "COMPANY_OPS_DISPATCH_ADAPTER_COMMAND"
+DEFAULT_COMPANY_OPS_AGENT_COUNT = 5
+DEFAULT_CAPACITY_RESERVED_SLOTS = 2
+OPENCLAW_MAX_CONCURRENT_FLOOR = 8
+OPENCLAW_SUBAGENTS_MAX_CONCURRENT_FLOOR = 16
+OPENCLAW_MAX_CONCURRENT_PER_AGENT = 2
+OPENCLAW_SUBAGENTS_MAX_CONCURRENT_PER_AGENT = 4
+ACTIVE_WU_TERMINAL_STATES = {
+    "accepted",
+    "blocked",
+    "blocked_detail",
+    "completed",
+    "done",
+    "needs_revision",
+    "result_ready",
+    "revise",
+    "revision_requested",
+}
+ACTIVE_WU_SOURCE_STATES = {"start", "started", "dispatch", "dispatched", "working"}
 FINAL_REVIEW_KINDS = {"ACCEPTED", "REVISE", "BLOCKED_DETAIL"}
 CLOSEOUT_BY_FINAL_REVIEW = {
     "ACCEPTED": "COMPLETED",
@@ -88,6 +106,8 @@ DRAFT_HANDOFF_SPEC_FIELDS = {
     "next",
     "report",
     "created_at",
+    "subagent_budget",
+    "subagent_budget_reason",
 }
 STABLE_HANDOFF_FIELDS = {
     "work unit id",
@@ -97,6 +117,7 @@ STABLE_HANDOFF_FIELDS = {
     "mode",
     "created at",
 }
+SUBAGENT_BUDGET_CHOICES = {"none", "2", "3", "5"}
 
 
 def required(value: str) -> str:
@@ -199,6 +220,90 @@ def read_json_file(path: Path) -> dict[str, Any]:
     return loaded
 
 
+def nested_config_value(data: dict[str, Any], path: str) -> Any:
+    current: Any = data
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if re.fullmatch(r"-?\d+", cleaned):
+            return int(cleaned)
+    return None
+
+
+def recommended_main_concurrency(agent_count: int) -> int:
+    return max(OPENCLAW_MAX_CONCURRENT_FLOOR, agent_count * OPENCLAW_MAX_CONCURRENT_PER_AGENT)
+
+
+def recommended_subagent_concurrency(agent_count: int) -> int:
+    return max(
+        OPENCLAW_SUBAGENTS_MAX_CONCURRENT_FLOOR,
+        agent_count * OPENCLAW_SUBAGENTS_MAX_CONCURRENT_PER_AGENT,
+    )
+
+
+def active_wu_cap(max_concurrent: int, reserved_slots: int = DEFAULT_CAPACITY_RESERVED_SLOTS) -> int:
+    return max(1, max_concurrent - reserved_slots)
+
+
+def read_openclaw_config_value(path: str) -> tuple[int | None, str]:
+    result = subprocess.run(
+        ["openclaw", "config", "get", "--json", path],
+        check=False,
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        return None, result.stderr.strip() or result.stdout.strip() or f"openclaw config get failed: {path}"
+    value = int_or_none(result.stdout.strip())
+    if value is None:
+        return None, f"openclaw config get returned non-integer for {path}: {result.stdout.strip()!r}"
+    return value, ""
+
+
+def openclaw_capacity_values(args: argparse.Namespace) -> tuple[int | None, int | None, list[str], str]:
+    warnings: list[str] = []
+    source = "openclaw-config"
+    max_concurrent = int_or_none(getattr(args, "openclaw_max_concurrent", None))
+    subagents_max = int_or_none(getattr(args, "openclaw_subagents_max_concurrent", None))
+    config_json = getattr(args, "config_json", None)
+    if config_json:
+        source = str(config_json)
+        try:
+            config = read_json_file(config_json)
+        except (OSError, ValueError) as exc:
+            warnings.append(f"could not read config JSON: {exc}")
+            config = {}
+        if max_concurrent is None:
+            max_concurrent = int_or_none(nested_config_value(config, "agents.defaults.maxConcurrent"))
+        if subagents_max is None:
+            subagents_max = int_or_none(nested_config_value(config, "agents.defaults.subagents.maxConcurrent"))
+    if max_concurrent is None and not config_json:
+        value, warning = read_openclaw_config_value("agents.defaults.maxConcurrent")
+        max_concurrent = value
+        if warning:
+            warnings.append(warning)
+    if subagents_max is None and not config_json:
+        value, warning = read_openclaw_config_value("agents.defaults.subagents.maxConcurrent")
+        subagents_max = value
+        if warning:
+            warnings.append(warning)
+    return max_concurrent, subagents_max, warnings, source
+
+
 def require_spec_text(spec: dict[str, Any], key: str) -> str:
     value = spec.get(key)
     if not isinstance(value, str) or not value.strip():
@@ -213,6 +318,26 @@ def optional_spec_text(spec: dict[str, Any], key: str, default: str = "") -> str
     if not isinstance(value, str):
         raise ValueError(f"handoff spec field must be a string: {key}")
     return value.strip()
+
+
+def normalize_subagent_budget(value: Any, default: str = "3") -> str:
+    raw = default if value is None or value == "" else str(value).strip().lower()
+    if raw in {"0", "no", "none", "unused"}:
+        raw = "none"
+    if raw not in SUBAGENT_BUDGET_CHOICES:
+        raise ValueError("subagent_budget must be one of: none, 2, 3, 5")
+    return raw
+
+
+def normalize_subagent_budget_reason(value: Any, budget: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return {
+        "none": "team_lead_direct",
+        "2": "simple_delegated",
+        "3": "normal",
+        "5": "complex_high_risk",
+    }[budget]
 
 
 def spec_text_list(spec: dict[str, Any], key: str) -> list[str]:
@@ -669,6 +794,159 @@ def iter_work_unit_ids(artifact_root: Path, requested: str = "") -> list[str]:
     return sorted(path.name for path in artifact_root.iterdir() if path.is_dir() and WORK_UNIT_RE.match(path.name))
 
 
+def progress_states(progress_path: Path, work_unit: str) -> set[str]:
+    states: set[str] = set()
+    if not progress_path.exists():
+        return states
+    for line in progress_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        row_work_unit = str(row.get("work_unit_id") or "")
+        if row_work_unit and row_work_unit != work_unit:
+            continue
+        state = normalized_state(str(row.get("transition_kind") or ""))
+        if state:
+            states.add(state)
+    return states
+
+
+def active_wu_item(artifact_root: Path, work_unit: str) -> dict[str, Any]:
+    artifact_dir = artifact_root / work_unit
+    claim = parse_markdown_source(artifact_dir / "claim.md")
+    evidence = parse_markdown_source(artifact_dir / "evidence.md")
+    decision = parse_markdown_source(artifact_dir / "decision.md")
+    assignment = parse_markdown_source(artifact_dir / "assignment.md")
+    states = progress_states(artifact_dir / "progress.jsonl", work_unit)
+    claim_state = normalized_state(str(claim.get("fields", {}).get("expected state") or ""))
+    evidence_status = normalized_state(str(evidence.get("status") or ""))
+    decision_text = str(decision.get("fields", {}).get("decision") or "")
+    terminal = (
+        decision_is_final(str(decision.get("status") or ""), decision_text)
+        or claim_state in ACTIVE_WU_TERMINAL_STATES
+        or evidence_status in ACTIVE_WU_TERMINAL_STATES
+        or bool(states & ACTIVE_WU_TERMINAL_STATES)
+    )
+    source_active = (
+        bool(states & ACTIVE_WU_SOURCE_STATES)
+        or claim_state in {"working", "waiting"}
+        or (artifact_dir / "dispatch.json").exists()
+    )
+    active = source_active and not terminal
+    return {
+        "work_unit_id": work_unit,
+        "active": active,
+        "source_active": source_active,
+        "terminal": terminal,
+        "claim_state": claim_state,
+        "evidence_status": evidence_status,
+        "progress_states": sorted(states),
+        "team": assignment.get("fields", {}).get("assigned team lead openclaw agent", ""),
+        "artifact_dir": str(artifact_dir),
+    }
+
+
+def active_wu_capacity(artifact_root: Path, current_work_unit_id: str = "") -> dict[str, Any]:
+    items = [active_wu_item(artifact_root, work_unit) for work_unit in iter_work_unit_ids(artifact_root)]
+    active_items = [item for item in items if item["active"]]
+    current_active = any(item["work_unit_id"] == current_work_unit_id and item["active"] for item in items)
+    other_active_items = [item for item in active_items if item["work_unit_id"] != current_work_unit_id]
+    return {
+        "artifact_root": str(artifact_root),
+        "active_count": len(active_items),
+        "other_active_count": len(other_active_items),
+        "current_active": current_active,
+        "active_work_units": active_items,
+    }
+
+
+def capacity_check(args: argparse.Namespace) -> int:
+    agent_count = args.company_ops_agent_count
+    if agent_count < 1:
+        print("error: --company-ops-agent-count must be >= 1", file=sys.stderr)
+        return 1
+    if args.reserved_slots < 0:
+        print("error: --reserved-slots must be >= 0", file=sys.stderr)
+        return 1
+    recommended_main = recommended_main_concurrency(agent_count)
+    recommended_subagents = recommended_subagent_concurrency(agent_count)
+    max_concurrent, subagents_max, warnings, config_source = openclaw_capacity_values(args)
+    effective_max = max_concurrent if max_concurrent is not None else recommended_main
+    cap = active_wu_cap(effective_max, args.reserved_slots)
+    capacity = active_wu_capacity(args.artifact_root.expanduser(), args.work_unit_id)
+    host_warnings: list[str] = []
+    if max_concurrent is None:
+        host_warnings.append(
+            f"agents.defaults.maxConcurrent unreadable; using recommended value {recommended_main} for derived Company Ops cap"
+        )
+    elif max_concurrent < recommended_main:
+        host_warnings.append(
+            f"agents.defaults.maxConcurrent is {max_concurrent}; recommended minimum is {recommended_main}"
+        )
+    if subagents_max is None:
+        host_warnings.append(f"agents.defaults.subagents.maxConcurrent unreadable; recommended minimum is {recommended_subagents}")
+    elif subagents_max < recommended_subagents:
+        host_warnings.append(
+            f"agents.defaults.subagents.maxConcurrent is {subagents_max}; recommended minimum is {recommended_subagents}"
+        )
+    capacity_warnings: list[str] = []
+    if capacity["active_count"] > cap:
+        capacity_warnings.append(f"Company Ops active WU count is {capacity['active_count']}; cap is {cap}")
+    elif capacity["active_count"] == cap and not capacity["current_active"]:
+        capacity_warnings.append(f"Company Ops active WU cap is full at {cap}")
+    status = "OK" if not host_warnings and not capacity_warnings else "WARN"
+    payload = {
+        "status": status,
+        "source": "local-source-artifacts-and-openclaw-config",
+        "config_source": config_source,
+        "company_ops_agent_count": agent_count,
+        "recommended": {
+            "agents.defaults.maxConcurrent": recommended_main,
+            "agents.defaults.subagents.maxConcurrent": recommended_subagents,
+            "reserved_slots": args.reserved_slots,
+        },
+        "current": {
+            "agents.defaults.maxConcurrent": max_concurrent,
+            "agents.defaults.subagents.maxConcurrent": subagents_max,
+        },
+        "derived": {
+            "effective_maxConcurrent": effective_max,
+            "company_ops_active_wu_cap": cap,
+        },
+        "active": capacity,
+        "warnings": [*warnings, *host_warnings, *capacity_warnings],
+        "apply_policy": {
+            "openclaw_config_auto_mutation": False,
+            "gateway_restart_auto": False,
+            "session_cleanup_auto_enforce": False,
+            "subagent_budget_runtime_enforcement": False,
+        },
+        "next_action": (
+            "Review warnings and explicitly update OpenClaw host config if appropriate."
+            if status == "WARN"
+            else "Capacity policy is within the recommended boundary."
+        ),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"{status} Company Ops capacity preflight")
+        print(f"- Company Ops agents: {agent_count}")
+        print(f"- Recommended OpenClaw maxConcurrent/subagents: {recommended_main}/{recommended_subagents}")
+        print(f"- Current OpenClaw maxConcurrent/subagents: {max_concurrent or 'unreadable'}/{subagents_max or 'unreadable'}")
+        print(f"- Derived Company Ops active WU cap: {cap}")
+        print(f"- Active WUs: {capacity['active_count']}")
+        for warning in payload["warnings"]:
+            print(f"- WARN: {warning}")
+        print(f"- Next: {payload['next_action']}")
+    return 0
+
+
 def create_work_unit(args: argparse.Namespace) -> int:
     output_dir = args.output_root.expanduser() / args.work_unit_id
     created_at = args.created_at or dt.date.today().isoformat()
@@ -731,6 +1009,7 @@ def validate_handoff_spec(spec: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(team_target, str) or not team_target.strip():
         raise ValueError("handoff spec requires non-empty targets.team_detail")
 
+    subagent_budget = normalize_subagent_budget(spec.get("subagent_budget"), default="3")
     normalized = {
         "work_unit_id": work_unit_id(require_spec_text(spec, "work_unit_id")),
         "title": require_spec_text(spec, "title"),
@@ -756,6 +1035,8 @@ def validate_handoff_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "work_card_repo": optional_spec_text(spec, "work_card_repo"),
         "created_at": optional_spec_text(spec, "created_at"),
         "source_refs": spec_text_list(spec, "source_refs") if "source_refs" in spec else [],
+        "subagent_budget": subagent_budget,
+        "subagent_budget_reason": normalize_subagent_budget_reason(spec.get("subagent_budget_reason"), subagent_budget),
     }
     if not normalized["work_card"] and not normalized["work_card_repo"]:
         raise ValueError("handoff spec requires work_card/work_card_ref or work_card_repo")
@@ -913,9 +1194,23 @@ protocol_capsule:
   support: []
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
+  subagent_budget: {context["subagent_budget"]}
+  subagent_budget_reason: {context["subagent_budget_reason"]}
+  subagent_budget_enforcement: prompt_and_packet_contract_only
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
+
+Subagent budget policy:
+
+- `none`: Team Lead handles the Work Unit directly.
+- `2`: simple delegated work.
+- `3`: normal goal/verify work.
+- `5`: complex, high-risk, or broad verification work.
+- More than `5` requires explicit Operations Lead or owner approval.
+
+This budget is an Assignment Packet and package-prompt contract. It is not a
+runtime hook, tool policy, or hard enforcement layer.
 
 ## Expected Outputs
 
@@ -950,6 +1245,8 @@ def render_handoff_artifacts(spec: dict[str, Any], output_dir: Path, created_at:
         "verification_criteria": spec["verification_criteria"],
         "source_refs": spec["source_refs"],
         "report": spec["report"],
+        "subagent_budget": spec["subagent_budget"],
+        "subagent_budget_reason": spec["subagent_budget_reason"],
         "created_at": created_at,
         "assignment_path": f"{output_dir / 'assignment.md'}",
         "claim_path": f"{output_dir / 'claim.md'}",
@@ -1234,6 +1531,7 @@ def validate_draft_handoff_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], l
         "team_detail": optional_spec_text(raw_targets, "team_detail"),
     }
 
+    subagent_budget = normalize_subagent_budget(spec.get("subagent_budget"), default="3")
     normalized = {
         "work_unit_id": optional_spec_text(spec, "work_unit_id"),
         "title": title,
@@ -1259,6 +1557,8 @@ def validate_draft_handoff_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], l
             "Result summary, evidence links, checks performed, remaining risks, blockers.",
         ),
         "created_at": optional_spec_text(spec, "created_at"),
+        "subagent_budget": subagent_budget,
+        "subagent_budget_reason": normalize_subagent_budget_reason(spec.get("subagent_budget_reason"), subagent_budget),
     }
     return normalized, warnings
 
@@ -2004,6 +2304,11 @@ def dispatch_progress_row(
 
 def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifact_dir: Path) -> dict[str, Any]:
     evidence_path = artifact_dir / "evidence.md"
+    fields = assignment.get("fields", {})
+    subagent_budget = clean_markdown_value(str(fields.get("subagent_budget") or fields.get("subagent budget") or "3"))
+    subagent_budget_reason = clean_markdown_value(
+        str(fields.get("subagent_budget_reason") or fields.get("subagent budget reason") or "normal")
+    )
     return {
         "protocol": "company_ops_detached_dispatch_v1",
         "work_unit_id": args.work_unit_id,
@@ -2018,6 +2323,11 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         "work_card": clean_markdown_value(str(assignment["fields"].get("work card") or "")),
         "assignment_packet": str(artifact_dir / "assignment.md"),
         "evidence_ref": str(evidence_path),
+        "subagent_budget": {
+            "budget": subagent_budget,
+            "reason": subagent_budget_reason,
+            "enforcement": "prompt_and_packet_contract_only",
+        },
         "result_ready_contract": {
             "command": (
                 "python3 scripts/openclaw_company_ops.py work-unit result-ready "
@@ -2029,6 +2339,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         "instructions": [
             "Read assignment.md before executing.",
             "Do not mutate outside the assigned Work Unit scope.",
+            "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
             "Return result evidence through the result-ready path.",
             "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch.",
         ],
@@ -2090,6 +2401,60 @@ def print_dispatch_failure(args: argparse.Namespace, payload: dict[str, Any]) ->
         print(f"error: {payload['status']}: {payload['reason']}", file=sys.stderr)
 
 
+def dispatch_capacity_failure(args: argparse.Namespace, artifact_root: Path) -> dict[str, Any] | None:
+    max_concurrent = args.capacity_max_concurrent
+    capacity_config_source = "cli-override"
+    capacity_warnings: list[str] = []
+    if max_concurrent is None:
+        value, warning = read_openclaw_config_value("agents.defaults.maxConcurrent")
+        if value is None:
+            max_concurrent = recommended_main_concurrency(DEFAULT_COMPANY_OPS_AGENT_COUNT)
+            capacity_config_source = "recommended-fallback"
+            capacity_warnings.append(
+                warning
+                or "agents.defaults.maxConcurrent unreadable; using recommended value for dispatch capacity"
+            )
+        else:
+            max_concurrent = value
+            capacity_config_source = "openclaw-config"
+    if max_concurrent < 1:
+        return setup_needed_payload(args, "capacity config invalid: --capacity-max-concurrent must be >= 1")
+    if args.capacity_reserved_slots < 0:
+        return setup_needed_payload(args, "capacity config invalid: --capacity-reserved-slots must be >= 0")
+    cap = active_wu_cap(max_concurrent, args.capacity_reserved_slots)
+    capacity = active_wu_capacity(artifact_root, args.work_unit_id)
+    would_exceed = capacity["active_count"] > cap or (capacity["other_active_count"] >= cap and not capacity["current_active"])
+    if not would_exceed:
+        args.capacity_active_wu_cap = cap
+        args.capacity_active_count = capacity["active_count"]
+        args.capacity_effective_max_concurrent = max_concurrent
+        args.capacity_config_source = capacity_config_source
+        args.capacity_warnings = capacity_warnings
+        return None
+    payload = setup_needed_payload(
+        args,
+        (
+            "capacity-full: Company Ops active WU cap reached "
+            f"({capacity['other_active_count']} active other Work Units, cap {cap})"
+        ),
+    )
+    payload.update(
+        {
+            "status": "capacity-full",
+            "capacity": {
+                **capacity,
+                "effective_maxConcurrent": max_concurrent,
+                "reserved_slots": args.capacity_reserved_slots,
+                "company_ops_active_wu_cap": cap,
+                "config_source": capacity_config_source,
+                "warnings": capacity_warnings,
+            },
+            "next_action": "Close or revise existing active Work Units, or explicitly raise OpenClaw capacity after preflight.",
+        }
+    )
+    return payload
+
+
 def dispatch_work_unit(args: argparse.Namespace) -> int:
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
@@ -2140,6 +2505,10 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         return 1
     if assignment_requires_live_visibility(assignment) and not proof_has_event(proof_log, args.work_unit_id, "STARTED"):
         print("error: dispatch requires prior STARTED visibility proof for discord-bound Work Units", file=sys.stderr)
+        return 1
+    capacity_failure = dispatch_capacity_failure(args, artifact_root)
+    if capacity_failure:
+        print_dispatch_failure(args, capacity_failure)
         return 1
     dispatch_path = artifact_dir / "dispatch.json"
     if not args.force:
@@ -2207,6 +2576,14 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         "job_ref": args.job_ref,
         "message_ref": args.message_ref,
         "accepted_proof": accepted_proof,
+        "capacity": {
+            "effective_maxConcurrent": args.capacity_effective_max_concurrent,
+            "reserved_slots": args.capacity_reserved_slots,
+            "company_ops_active_wu_cap": args.capacity_active_wu_cap,
+            "active_wu_count": args.capacity_active_count,
+            "config_source": args.capacity_config_source,
+            "warnings": args.capacity_warnings,
+        },
         "dispatch_packet": packet,
         "dispatch_record": record,
         "progress_row": row,
@@ -3116,9 +3493,23 @@ protocol_capsule:
     - operations_lead_or_user_pause
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
+  subagent_budget: <none|2|3|5>
+  subagent_budget_reason: <team_lead_direct|simple_delegated|normal|complex_high_risk>
+  subagent_budget_enforcement: prompt_and_packet_contract_only
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```
+
+Subagent budget policy:
+
+- `none`: Team Lead handles the Work Unit directly.
+- `2`: simple delegated work.
+- `3`: normal goal/verify work.
+- `5`: complex, high-risk, or broad verification work.
+- More than `5` requires explicit Operations Lead or owner approval.
+
+This budget is an Assignment Packet and package-prompt contract. It is not a
+runtime hook, tool policy, or hard enforcement layer.
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
 repeat implementation or improvement and verification until a `stop_only_on`
@@ -3363,6 +3754,29 @@ def build_parser() -> argparse.ArgumentParser:
 
     work_unit = subparsers.add_parser("work-unit", help="Manage Work Unit artifacts")
     work_unit_subparsers = work_unit.add_subparsers(dest="action")
+    capacity = work_unit_subparsers.add_parser(
+        "capacity-check",
+        help="Read-only Company Ops capacity preflight",
+    )
+    capacity.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing Work Unit source artifacts",
+    )
+    capacity.add_argument("--work-unit-id", default="", type=str, help="Optional current Work Unit id")
+    capacity.add_argument("--company-ops-agent-count", type=int, default=DEFAULT_COMPANY_OPS_AGENT_COUNT)
+    capacity.add_argument("--reserved-slots", type=int, default=DEFAULT_CAPACITY_RESERVED_SLOTS)
+    capacity.add_argument("--config-json", type=Path, help="Optional OpenClaw config JSON for offline preflight")
+    capacity.add_argument("--openclaw-max-concurrent", type=int, help="Override current agents.defaults.maxConcurrent")
+    capacity.add_argument(
+        "--openclaw-subagents-max-concurrent",
+        type=int,
+        help="Override current agents.defaults.subagents.maxConcurrent",
+    )
+    capacity.add_argument("--format", choices=("text", "json"), default="text")
+    capacity.set_defaults(func=capacity_check)
+
     create = work_unit_subparsers.add_parser(
         "create",
         help="Create assignment.md, claim.md, evidence.md, and decision.md",
@@ -3601,6 +4015,20 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--next-checkpoint", default="Team Lead reports result-ready or blocker.", help="Next expected checkpoint")
     dispatch.add_argument("--mode", default="", help="Progress mode; defaults from assignment.md")
     dispatch.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
+    dispatch.add_argument(
+        "--capacity-max-concurrent",
+        type=int,
+        help=(
+            "Override effective OpenClaw maxConcurrent used for Company Ops active WU cap; "
+            "defaults to current OpenClaw config, then recommended fallback if unreadable"
+        ),
+    )
+    dispatch.add_argument(
+        "--capacity-reserved-slots",
+        type=int,
+        default=DEFAULT_CAPACITY_RESERVED_SLOTS,
+        help="Slots reserved outside Company Ops active WU dispatch",
+    )
     dispatch.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
     dispatch.add_argument("--recorded-by", default="operations-lead", help="Recorder identity")
     dispatch.add_argument(
@@ -3619,6 +4047,26 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without source or runtime mutation")
     dispatch_mode.add_argument("--publish", action="store_true", help="Write dispatch.json and a dispatched progress row")
     dispatch.set_defaults(func=dispatch_work_unit)
+
+    preflight = subparsers.add_parser("preflight", help="Read-only Company Ops setup/capacity preflight")
+    preflight.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing Work Unit source artifacts",
+    )
+    preflight.add_argument("--work-unit-id", default="", type=str, help="Optional current Work Unit id")
+    preflight.add_argument("--company-ops-agent-count", type=int, default=DEFAULT_COMPANY_OPS_AGENT_COUNT)
+    preflight.add_argument("--reserved-slots", type=int, default=DEFAULT_CAPACITY_RESERVED_SLOTS)
+    preflight.add_argument("--config-json", type=Path, help="Optional OpenClaw config JSON for offline preflight")
+    preflight.add_argument("--openclaw-max-concurrent", type=int, help="Override current agents.defaults.maxConcurrent")
+    preflight.add_argument(
+        "--openclaw-subagents-max-concurrent",
+        type=int,
+        help="Override current agents.defaults.subagents.maxConcurrent",
+    )
+    preflight.add_argument("--format", choices=("text", "json"), default="text")
+    preflight.set_defaults(func=capacity_check)
 
     checkpoint = work_unit_subparsers.add_parser(
         "checkpoint",

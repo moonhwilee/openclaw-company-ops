@@ -117,6 +117,11 @@ Subagents are workers under a team lead.
 
 Subagents report to the team lead, not directly to the Operations Lead.
 
+The Assignment Packet carries a `subagent_budget` of `none`, `2`, `3`, or `5`.
+That budget is a packet/prompt contract. It is not a hook, tool-policy, or hard
+runtime enforcement layer. The current numeric budget and OpenClaw host sizing
+rules live in [capacity policy](capacity-policy.md).
+
 ## Operating Elements
 
 OpenClaw Company Ops has eight v1 elements.
@@ -207,6 +212,8 @@ protocol_capsule:
     - operations_lead_or_user_pause
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
+  subagent_budget: <none|2|3|5>
+  subagent_budget_enforcement: prompt_and_packet_contract_only
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: revise_means_operations_lead_replan_then_reenter_selected_mode
 ```

@@ -17,6 +17,7 @@ ROUTES = {
     "discord": ("discord_ops.py", False),
     "dashboard": ("dashboard_snapshot.py", True),
     "project-sync": ("project_sync.py", True),
+    "preflight": ("work_unit_artifacts.py", True),
     "status": ("work_unit_status.py", True),
     "smoke": ("company_ops_smoke.py", False),
 }
@@ -30,6 +31,7 @@ def print_help() -> None:
     print()
     print("examples:")
     print("  python3 scripts/openclaw_company_ops.py work-unit create --help")
+    print("  python3 scripts/openclaw_company_ops.py preflight --format json")
     print("  python3 scripts/openclaw_company_ops.py claim status --help")
     print("  python3 scripts/openclaw_company_ops.py status work-unit --help")
     print("  python3 scripts/openclaw_company_ops.py project-sync dry-run --work-unit-id WU-260606-001")

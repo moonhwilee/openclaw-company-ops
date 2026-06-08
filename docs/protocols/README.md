@@ -79,12 +79,19 @@ protocol_capsule:
     - operations_lead_or_user_pause
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
+  subagent_budget: <none|2|3|5>
+  subagent_budget_enforcement: prompt_and_packet_contract_only
   result: map_evidence_to_done_and_verification_criteria
   revision_rule: revise_means_operations_lead_replan_then_reenter_goal_loop
 ```
 
 The capsule cannot replace the Assignment Packet. It only tells the Team Lead
 how to execute the packet.
+
+Subagent budget is an Assignment Packet and package-prompt contract. The
+canonical budget values are defined in [capacity policy](../capacity-policy.md);
+do not add hook/tool-policy enforcement unless a later accepted policy changes
+that boundary.
 
 `goal` mode must not stop after a single failed verification. The Team Lead
 plans once, then repeats implementation or improvement and verification until

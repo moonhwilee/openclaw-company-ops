@@ -16,6 +16,11 @@ the regression gate passes.
 This gate is not a feature expansion. It stabilizes the Work Unit runtime
 contract that Phase 6 packaging depends on.
 
+Capacity sizing for detached Work Unit dispatch is governed by
+[`docs/capacity-policy.md`](capacity-policy.md). This phase may require that
+policy, but the policy itself is a general Company Ops operating rule rather
+than a Phase 5.8-only decision.
+
 ## Why This Gate Exists
 
 The live test batch showed that the current repository has strong source

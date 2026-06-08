@@ -61,6 +61,11 @@ Stabilization Gate is now the required pre-Phase-6 gate for live workflow
 lifecycle, proof, closeout, and detached dispatch issues found during real
 testing.
 
+Company Ops capacity sizing is a general operating policy, not a phase-local
+patch. See [`docs/capacity-policy.md`](docs/capacity-policy.md) for OpenClaw
+host recommendations, Company Ops active Work Unit caps, and subagent budget
+contracts.
+
 Phase 5.1 accepted the visibility contract: `discord card`, foreground
 `discord publish-card`, and `discord proof-validate` are the stable live
 visibility path. Phase 5.2 accepted only a narrow, optional repo-local hook

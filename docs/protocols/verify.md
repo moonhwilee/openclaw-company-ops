@@ -25,6 +25,10 @@ It may run as a standalone verification Work Unit or inside the `goal` loop.
 6. If running as verification-only, recommend `accept`, `revise`, or
    `blocked`.
 
+If the Assignment Packet authorizes subagents for verification, use only the
+packet's `subagent_budget`. The budget is a prompt/packet contract, not a
+runtime hook or hard enforcement layer.
+
 ## Evidence Standard
 
 Verification recognizes evidence, not effort.

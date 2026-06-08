@@ -27,7 +27,8 @@ condition is met.
    the Assignment Packet. The plan should be proportional to the Work Unit: a
    small task may need only a few bullets, while risky or multi-step work needs
    a fuller plan.
-3. Act on the plan. Use subagents only under direct Team Lead control.
+3. Act on the plan. Use subagents only under direct Team Lead control and
+   within the Assignment Packet's `subagent_budget` contract.
 4. Run `verify` against the outputs and evidence.
 5. If verification fails or is unknown, identify the concrete gap and improve
    the work.
