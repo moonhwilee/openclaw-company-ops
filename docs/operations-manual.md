@@ -878,7 +878,10 @@ A `result_ready` claim without an existing non-draft Evidence & Result Record is
 a repair-needed ready transition, not a weak ready item and not Work Unit
 failure. The shared Result Ready Gate must keep the Work Unit `In Progress`,
 avoid writing or mirroring `Result Ready`, and return structured repair hints
-until the missing source artifact, evidence, or proof is fixed.
+until the missing source artifact, evidence, or proof is fixed. In the Project
+dashboard, keep the coarse `Status` as `In Progress`; put
+`result preflight repair needed` in `Progress` and the concrete repair reason in
+`Blocker`.
 
 ## Decision Rules
 
@@ -890,6 +893,13 @@ Allowed decisions:
 - `revise`: result is useful but needs changes.
 - `blocked`: decision is blocked by missing evidence, dependency, context, or
   required owner/external action.
+
+For standalone `verify` Work Units, `accept` approves the verification report,
+not necessarily the candidate output under test. A complete verification report
+can be accepted while its criterion mapping records that the candidate failed or
+is unknown. Candidate non-compliance belongs in the Evidence & Result Record and
+follow-up routing; incomplete verification evidence should be `revise` or
+`blocked`, not accepted.
 
 Only `accept` can move the lifecycle to `accepted`; it is not archival `done`
 until owner inspection and Work Card cleanup are complete. A merged PR, green

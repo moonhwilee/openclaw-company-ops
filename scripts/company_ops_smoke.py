@@ -2211,6 +2211,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     invalid_proof_fields = json.loads(invalid_proof_result.stdout)["work_units"][0]["desired_fields"]
     if invalid_proof_fields.get("Progress") != "result preflight repair needed":
         raise RuntimeError("project sync dry-run did not surface invalid proof repair state")
+    if not invalid_proof_fields.get("Blocker"):
+        raise RuntimeError("project sync dry-run did not surface invalid proof repair reason")
     if invalid_proof_fields.get("Last proof or last source update") not in {"", "pending"}:
         raise RuntimeError("project sync dry-run used narrative or invalid proof timestamp as last update")
 
@@ -4582,8 +4584,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("Project sync mirrored invalid result_ready as Result Ready")
     if invalid_project_fields.get("Progress") != "result preflight repair needed":
         raise RuntimeError("Project sync did not show repair-needed progress for invalid result_ready")
-    if invalid_project_fields.get("Blocker"):
-        raise RuntimeError("Project sync treated repair-needed result_ready as a Blocked Work Unit")
+    if not invalid_project_fields.get("Blocker"):
+        raise RuntimeError("Project sync did not surface repair-needed reason in Blocker")
     assert_status_lifecycle(artifact_root, "WU-260607-110", "working")
     assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-110", "In Progress")
 

@@ -373,6 +373,10 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
             status = "In Progress"
             reason = "result_ready gate requires repair"
             progress_display = "result preflight repair needed"
+    blocker = derive_blocker(summary, status, reason)
+    if gate and not gate.get("ready"):
+        blockers = gate.get("blockers") or []
+        blocker = "; ".join(str(blocker) for blocker in blockers if blocker) or reason
     fields = {
         "Work Unit id": summary["work_unit_id"],
         "Repository": repository,
@@ -381,7 +385,7 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
         "Status": status,
         "Progress": progress_display,
         "Priority": "",
-        "Blocker": "" if gate and not gate.get("ready") else derive_blocker(summary, status, reason),
+        "Blocker": blocker,
         "Evidence present": "yes" if evidence["exists"] and has_real_ref(evidence["ref"]) else "no",
         "Decision": decision_value(summary),
         "Last proof or last source update": format_dashboard_timestamp(last_update),
