@@ -114,13 +114,16 @@ small:
 - Phase 5.3 accepted a GitHub Project dashboard for owner-facing at-a-glance
   visibility. Phase 5.7/6 keeps it as a bounded foreground mirror of Issues and
   source artifacts, not as operating truth or a scheduled background job.
-- For long Work Units, the dashboard `Progress` field is derived from the
-  latest valid `progress.jsonl` row. Prefer `work-unit checkpoint` during live
-  work so Discord `CHECKPOINT`, source-backed progress, and optional Project
-  mirror sync use the same payload. Short Work Units without a progress row may
+- For active long Work Units, the dashboard `Progress` field is derived from
+  the latest valid `progress.jsonl` row. Prefer `work-unit checkpoint` during
+  live work so Discord `CHECKPOINT`, source-backed progress, and optional
+  Project mirror sync use the same payload. After terminal closeout, Project
+  sync overrides checkpoint progress with `Final: Accepted`,
+  `Final: Revise requested`, or `Final: Blocked` so completed Work Units do not
+  look stuck mid-phase. Short non-terminal Work Units without a progress row may
   show a compact proof-derived lifecycle display from local
-  `visibility-proof.jsonl`, for example `verify · accepted`. Do not manually
-  backfill Progress from Project edits or Discord text.
+  `visibility-proof.jsonl`. Do not manually backfill Progress from Project
+  edits or Discord text.
 - `Last proof or last source update` is a dashboard text mirror. Keep source
   artifact timestamps in UTC, but let `project-sync` display the value in the
   runner machine's local timezone. This field should contain timestamps only,

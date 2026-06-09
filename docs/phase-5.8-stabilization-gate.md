@@ -1211,9 +1211,11 @@ Acceptance:
   `card.kind == CHECKPOINT` and `progress_row.transition_kind == checkpoint`.
 - Lifecycle/proof sequence validation still accepts
   `STARTED -> CHECKPOINT -> RESULT_READY`.
-- Project `Progress` derivation continues to use source `progress.jsonl`; proof
-  rows preserve the rendered fields as readback receipts, not as a new source of
-  truth.
+- Active Project `Progress` derivation continues to use source
+  `progress.jsonl`; proof rows preserve the rendered fields as readback
+  receipts, not as a new source of truth. Terminal Accepted/Revise/Blocked Work
+  Units override checkpoint progress with a final decision summary so completed
+  work does not appear stuck mid-phase.
 - Smoke expectations are updated for the rendered Progress header.
 - Active-path scans prove this phase introduced no aliases, fallback readers,
   hard-renamed checkpoint commands, or historical artifact rewrites.

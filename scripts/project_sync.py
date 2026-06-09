@@ -312,6 +312,18 @@ def format_progress(progress: dict[str, Any]) -> str:
     return render_progress_summary(progress)
 
 
+def terminal_progress_display(summary: dict[str, Any], status: str) -> str:
+    decision_status = normalize(summary["decision"]["status"])
+    decision = normalize(decision_value(summary))
+    if status == "Accepted" and (decision_status == "accepted" or decision in {"accept", "accepted"}):
+        return "Final: Accepted"
+    if status == "Revise" and ("revise" in decision_status or decision in {"revise", "revision"}):
+        return "Final: Revise requested"
+    if status == "Blocked" and ("blocked" in decision_status or decision == "blocked"):
+        return "Final: Blocked"
+    return ""
+
+
 def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     status, reason = derive_status(summary)
     evidence = summary["evidence"]
@@ -319,8 +331,12 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     claim = summary["claim"]
     progress = summary.get("progress") or {}
     lifecycle_projection = proof_lifecycle_projection(summary)
-    progress_display = format_progress(progress) or lifecycle_projection["progress"]
-    last_update = progress.get("updated_at") or lifecycle_projection["timestamp"]
+    terminal_progress = terminal_progress_display(summary, status)
+    progress_display = terminal_progress or format_progress(progress) or lifecycle_projection["progress"]
+    if terminal_progress and lifecycle_projection["timestamp"]:
+        last_update = lifecycle_projection["timestamp"]
+    else:
+        last_update = progress.get("updated_at") or lifecycle_projection["timestamp"]
     gate: dict[str, Any] = {}
     if status == "Result Ready":
         artifact_dir = Path(str(summary.get("artifact_dir") or ""))

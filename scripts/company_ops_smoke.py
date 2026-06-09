@@ -280,6 +280,13 @@ def assert_project_status(
     work_unit_id: str,
     expected_status: str,
 ) -> None:
+    fields = project_desired_fields(artifact_root, field_map, work_unit_id)
+    status = fields["Status"]
+    if status != expected_status:
+        raise RuntimeError(f"{work_unit_id} Project Status expected {expected_status}, got {status}")
+
+
+def project_desired_fields(artifact_root: Path, field_map: Path, work_unit_id: str) -> dict[str, str]:
     result = run_command(
         [
             sys.executable,
@@ -298,9 +305,7 @@ def assert_project_status(
         ]
     )
     require_success(result, f"project status {work_unit_id}")
-    status = json.loads(result.stdout)["work_units"][0]["desired_fields"]["Status"]
-    if status != expected_status:
-        raise RuntimeError(f"{work_unit_id} Project Status expected {expected_status}, got {status}")
+    return json.loads(result.stdout)["work_units"][0]["desired_fields"]
 
 
 def run_pulse_ok(args: argparse.Namespace, ledger: Path, snapshot: Path) -> None:
@@ -5362,6 +5367,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("already-decided commit-request failure did not cite final decision guard")
     assert_status_lifecycle(artifact_root, "WU-260607-101", "accepted")
     assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-101", "Accepted")
+    accepted_project_fields = project_desired_fields(
+        artifact_root, invalid_project_field_map, "WU-260607-101"
+    )
+    if accepted_project_fields.get("Progress") != "Final: Accepted":
+        raise RuntimeError("accepted closeout did not override stale checkpoint Progress")
 
     closeout_revise = run_command(
         [
@@ -5398,6 +5408,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     (ready_early / "decision.md").write_text(revise_payload["decision_preview"], encoding="utf-8")
     assert_status_lifecycle(artifact_root, "WU-260607-102", "revision_requested")
     assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-102", "Revise")
+    revise_project_fields = project_desired_fields(
+        artifact_root, invalid_project_field_map, "WU-260607-102"
+    )
+    if revise_project_fields.get("Progress") != "Final: Revise requested":
+        raise RuntimeError("revise closeout did not override stale checkpoint Progress")
 
     blocked_dir = create_artifacts(args, inbox_work_dir, "WU-260607-108", "build-lab")
     blocked_closeout = run_command(
@@ -5443,6 +5458,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     (blocked_dir / "decision.md").write_text(blocked_payload["decision_preview"], encoding="utf-8")
     assert_status_lifecycle(artifact_root, "WU-260607-108", "blocked")
     assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-108", "Blocked")
+    blocked_project_fields = project_desired_fields(
+        artifact_root, invalid_project_field_map, "WU-260607-108"
+    )
+    if blocked_project_fields.get("Progress") != "Final: Blocked":
+        raise RuntimeError("blocked closeout did not override Progress with terminal state")
 
     missing_work_card_dir = create_artifacts(args, inbox_work_dir, "WU-260607-109", "build-lab")
     mark_artifact_started(missing_work_card_dir)

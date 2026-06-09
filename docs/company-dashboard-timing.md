@@ -212,18 +212,22 @@ separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 3`; those are progress metadata, not lifecycle states. The recommended shape is:
 
 - `Status`: lifecycle state such as `In Progress`, `Result Ready`, or `Revise`.
-- `Progress`: current phase, round, or slice label from a source-backed progress artifact
-  or checkpoint.
+- `Progress`: current phase, round, or slice label from a source-backed
+  progress artifact or checkpoint while work is active; terminal closeouts show
+  a final summary such as `Final: Accepted`.
 - optional later fields such as `Round`, `Current slice`, or `Next checkpoint`
   only if they are populated from source artifacts or proof logs.
 
 For v1, source-backed progress is recorded as optional Work Unit
-`progress.jsonl` rows. `project-sync` derives the dashboard `Progress` field from
-the latest valid row. A compact value such as `2/7 · implementation` is enough
-for one-pass work. When a Work Unit is `goal` or `convergence` mode, or the
-owner explicitly asks to see rounds, display the round first in compact form,
-for example `R1 · 2/7 · implementation`. This confirms that work is active
-without requiring a new LLM summary or expensive progress calculation.
+`progress.jsonl` rows. While work is active, `project-sync` derives the
+dashboard `Progress` field from the latest valid row. A compact value such as
+`2/7 · implementation` is enough for one-pass work. When a Work Unit is `goal`
+or `convergence` mode, display the round first in compact form, for example
+`R1 · 2/7 · implementation`. After final closeout, `project-sync` overrides the
+checkpoint-derived value with `Final: Accepted`, `Final: Revise requested`, or
+`Final: Blocked` so terminal Work Units do not look partially complete. This
+keeps active work distinct from completed work without requiring a new LLM
+summary or expensive progress calculation.
 
 Short Work Units may not need a checkpoint or explicit `progress.jsonl` row.
 When no valid progress row exists, `project-sync` may display a proof-derived
@@ -413,8 +417,9 @@ Current implementation state:
   validates one payload, publishes/readbacks the team `CHECKPOINT`, appends the
   matching progress row, and can run one changed-only Project mirror sync.
 - `project-sync` derives the dashboard `Progress` field from the latest valid
-  progress row, or from a proof-derived lifecycle display when no progress row
-  exists.
+  progress row for active work, from a proof-derived lifecycle display when no
+  progress row exists, and from the final decision when the Work Unit is
+  terminal.
 - The sync path performs no GitHub Issue close/open, Discord semantic publish,
   source artifact, claim, evidence, or decision mutation.
 
