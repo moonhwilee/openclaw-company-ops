@@ -370,6 +370,12 @@ Implement the dashboard sync in narrow stages:
    - Run explicitly by Operations Lead as stale-dashboard recovery; public v1
      must not install a scheduled reconcile by default.
    - Reports/logs failure without mutating source state.
+   - With `--sync-issue-labels`, the same foreground pass may also converge
+     GitHub Issue queue labels from source-derived status. The label policy is
+     intentionally narrow: Accepted -> `done`, Revise -> `working`, Blocked ->
+     `blocked`, Result Ready -> `result-ready` + `decision-needed`, In Progress
+     -> `working`, Assigned -> `assignment-ready`. It does not close, reopen,
+     archive, or import truth from labels.
 
 ## Creation Checklist
 
@@ -420,8 +426,10 @@ Current implementation state:
   progress row for active work, from a proof-derived lifecycle display when no
   progress row exists, and from the final decision when the Work Unit is
   terminal.
-- The sync path performs no GitHub Issue close/open, Discord semantic publish,
-  source artifact, claim, evidence, or decision mutation.
+- The default sync path performs no GitHub Issue close/open, Discord semantic
+  publish, source artifact, claim, evidence, or decision mutation. The optional
+  `--sync-issue-labels` path mutates only managed queue labels and then
+  readbacks the live label set.
 
 Operational enablement still requires a real GitHub Project, text-compatible
 fields, a local field-id map, and `gh auth refresh -s project` on the runner.

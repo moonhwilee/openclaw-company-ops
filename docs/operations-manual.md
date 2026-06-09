@@ -769,6 +769,13 @@ GitHub labels are visibility signals only.
 Labels do not prove completion. They must not replace the claim, evidence, or
 decision artifacts.
 
+When GitHub issue hygiene is needed, use the explicit foreground path
+`project-sync apply --sync-issue-labels` or `project-sync reconcile
+--sync-issue-labels`. It derives desired labels from source status and only
+changes managed queue labels. It does not close Accepted issues; Accepted
+remains an owner-inspection lifecycle until a separate cleanup/archive action is
+approved.
+
 ## Assignment Packet Rules
 
 The Assignment Packet is required before execution starts.

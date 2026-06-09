@@ -1948,6 +1948,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     original_add_item = project_sync_module.add_project_item
     original_edit_field = project_sync_module.edit_project_field
     original_append_audit = project_sync_module.append_audit
+    original_fetch_issue_labels = project_sync_module.fetch_issue_labels
+    original_run_text_command = project_sync_module.run_text_command
     try:
         project_sync_module.list_project_items = lambda args, fmap: {}
         project_sync_module.add_project_item = lambda args, fmap, work_card: (_ for _ in ()).throw(
@@ -1988,12 +1990,96 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             raise RuntimeError("project sync apply did not fail closed on desired-vs-live mismatch")
         if not mismatch_apply.get("readback", {}).get("mismatches"):
             raise RuntimeError("project sync readback mismatch did not include mismatch details")
+
+        planned_github = {**planned, "work_card": "https://github.com/moonhwilee/openclaw-company-ops/issues/123"}
+        project_sync_module.list_project_items = lambda args, fmap: {
+            planned_github["work_card"]: {"id": "PVTI_item", "url": planned_github["work_card"]}
+        }
+        project_sync_module.fetch_current_field_values = lambda args, item_node_id: dict(planned_github["desired_fields"])
+        project_sync_module.edit_project_field = lambda args, fmap, item_id, field_name, field_id, desired: (_ for _ in ()).throw(
+            RuntimeError("label-only sync should not edit already-current Project fields")
+        )
+        label_fetches = {"count": 0}
+
+        def fake_fetch_issue_labels(args: argparse.Namespace, parts: dict[str, str]) -> set[str]:
+            label_fetches["count"] += 1
+            if label_fetches["count"] == 1:
+                return {"work-unit", "assignment-ready"}
+            return {"work-unit", "result-ready", "decision-needed"}
+
+        label_commands: list[list[str]] = []
+        project_sync_module.fetch_issue_labels = fake_fetch_issue_labels
+        project_sync_module.run_text_command = lambda command, timeout: label_commands.append(command) or ""
+        label_apply = project_sync_module.apply_work_units(
+            argparse.Namespace(
+                no_create_missing_project_item=False,
+                skip_missing_project_items=False,
+                sync_issue_labels=True,
+                audit_log=artifact_root.parent / "project-label-audit.jsonl",
+                gh_binary="fake-gh",
+                timeout=1,
+            ),
+            {"work_units": [planned_github]},
+            field_map_data,
+        )
+        if label_apply.get("sync_state") != "attempted_ok":
+            raise RuntimeError(f"project sync label hygiene failed: {label_apply.get('sync_state')}")
+        unit_actions = label_apply.get("work_units", [{}])[0].get("actions", [])
+        label_action = next((action for action in unit_actions if action.get("type") == "sync_issue_labels"), {})
+        if label_action.get("result") != "changed":
+            raise RuntimeError("project sync issue label action did not report changed")
+        if label_action.get("add") != "decision-needed,result-ready":
+            raise RuntimeError(f"project sync issue label action added wrong labels: {label_action}")
+        if label_action.get("remove") != "assignment-ready":
+            raise RuntimeError(f"project sync issue label action removed wrong labels: {label_action}")
+        if not label_commands or "issue" not in label_commands[0] or "edit" not in label_commands[0]:
+            raise RuntimeError("project sync issue label action did not use gh issue edit")
+
+        planned_accepted = {
+            **planned_github,
+            "desired_fields": {**planned_github["desired_fields"], "Status": "Accepted"},
+            "desired_issue_labels": ["done"],
+        }
+        project_sync_module.list_project_items = lambda args, fmap: {
+            planned_accepted["work_card"]: {"id": "PVTI_item", "url": planned_accepted["work_card"]}
+        }
+        project_sync_module.fetch_current_field_values = lambda args, item_node_id: dict(planned_accepted["desired_fields"])
+        label_fetches["count"] = 0
+        label_commands.clear()
+
+        def fake_fetch_accepted_labels(args: argparse.Namespace, parts: dict[str, str]) -> set[str]:
+            label_fetches["count"] += 1
+            if label_fetches["count"] == 1:
+                return {"work-unit", "result-ready", "decision-needed"}
+            return {"work-unit", "done"}
+
+        project_sync_module.fetch_issue_labels = fake_fetch_accepted_labels
+        accepted_label_apply = project_sync_module.apply_work_units(
+            argparse.Namespace(
+                no_create_missing_project_item=False,
+                skip_missing_project_items=False,
+                sync_issue_labels=True,
+                audit_log=artifact_root.parent / "project-accepted-label-audit.jsonl",
+                gh_binary="fake-gh",
+                timeout=1,
+            ),
+            {"work_units": [planned_accepted]},
+            field_map_data,
+        )
+        accepted_actions = accepted_label_apply.get("work_units", [{}])[0].get("actions", [])
+        accepted_label_action = next((action for action in accepted_actions if action.get("type") == "sync_issue_labels"), {})
+        if accepted_label_action.get("add") != "done":
+            raise RuntimeError(f"accepted issue label sync did not add done: {accepted_label_action}")
+        if accepted_label_action.get("remove") != "decision-needed,result-ready":
+            raise RuntimeError(f"accepted issue label sync did not remove review queue labels: {accepted_label_action}")
     finally:
         project_sync_module.list_project_items = original_list_items
         project_sync_module.fetch_current_field_values = original_fetch_values
         project_sync_module.add_project_item = original_add_item
         project_sync_module.edit_project_field = original_edit_field
         project_sync_module.append_audit = original_append_audit
+        project_sync_module.fetch_issue_labels = original_fetch_issue_labels
+        project_sync_module.run_text_command = original_run_text_command
 
     proof_only_root = artifact_root.parent / "proof-only-artifacts"
     shutil.copytree(artifact_root / work_unit_id, proof_only_root / work_unit_id)

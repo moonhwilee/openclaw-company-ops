@@ -47,6 +47,9 @@ DEFAULT_AUDIT_LOG = Path.home() / ".openclaw" / "state" / "openclaw-company-ops"
 DEFAULT_LOCK_FILE = Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync.lock"
 PROJECT_SCOPE_HINT = "run: gh auth refresh -s project"
 GITHUB_ISSUE_OR_PR_RE = re.compile(r"^https://github\.com/[^/\s]+/[^/\s]+/(?:issues|pull)/\d+(?:[?#].*)?$")
+GITHUB_ISSUE_OR_PR_PARTS_RE = re.compile(
+    r"^https://github\.com/(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+)/(?:issues|pull)/(?P<number>\d+)(?:[?#].*)?$"
+)
 PROOF_LOG_NAME = "visibility-proof.jsonl"
 PROOF_TIMESTAMP_FIELDS = ("discord_timestamp", "readback_at", "sent_at", "transition_at")
 PROOF_LIFECYCLE_LABELS = {
@@ -62,6 +65,24 @@ PROOF_LIFECYCLE_LABELS = {
     "BLOCKED_DETAIL": "blocked",
     "BLOCKED": "blocked",
 }
+ISSUE_LABEL_POLICY = {
+    "Accepted": {"done"},
+    "Revise": {"working"},
+    "Blocked": {"blocked"},
+    "Result Ready": {"result-ready", "decision-needed"},
+    "In Progress": {"working"},
+    "Assigned": {"assignment-ready"},
+}
+ISSUE_QUEUE_LABELS = frozenset(
+    {
+        "assignment-ready",
+        "working",
+        "result-ready",
+        "decision-needed",
+        "blocked",
+        "done",
+    }
+)
 
 
 class ProjectSyncError(RuntimeError):
@@ -418,6 +439,7 @@ def plan_work_unit(args: argparse.Namespace, work_unit_id: str, field_map: dict[
             "decision_ref": summary["decision"]["ref"],
         },
         "desired_fields": fields,
+        "desired_issue_labels": sorted(desired_issue_labels(fields["Status"])),
         "planned_actions": build_actions(fields, field_map),
         "audit_problems": summary["audit_problems"],
         "missing_artifacts": summary["missing_artifacts"],
@@ -522,6 +544,14 @@ def run_json_command(command: list[str], timeout: int) -> dict[str, Any]:
     return parsed
 
 
+def run_text_command(command: list[str], timeout: int) -> str:
+    result = subprocess.run(command, text=True, capture_output=True, check=False, timeout=timeout)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ProjectSyncError(f"command failed: {' '.join(command[:4])}: {detail}")
+    return result.stdout
+
+
 def append_audit(path: Path, row: dict[str, Any]) -> None:
     expanded = path.expanduser()
     expanded.parent.mkdir(parents=True, exist_ok=True)
@@ -537,6 +567,93 @@ def item_url(item: dict[str, Any]) -> str:
 def item_id(item: dict[str, Any]) -> str:
     content = item.get("content") if isinstance(item.get("content"), dict) else {}
     return str(item.get("id") or item.get("item_id") or content.get("id") or "")
+
+
+def github_issue_parts(work_card: str) -> dict[str, str]:
+    match = GITHUB_ISSUE_OR_PR_PARTS_RE.match(work_card or "")
+    if not match:
+        return {}
+    return match.groupdict()
+
+
+def desired_issue_labels(status: str) -> set[str]:
+    return set(ISSUE_LABEL_POLICY.get(status, set()))
+
+
+def fetch_issue_labels(args: argparse.Namespace, parts: dict[str, str]) -> set[str]:
+    issue = run_json_command(
+        [
+            args.gh_binary,
+            "api",
+            f"repos/{parts['owner']}/{parts['repo']}/issues/{parts['number']}",
+        ],
+        args.timeout,
+    )
+    labels = issue.get("labels") or []
+    if not isinstance(labels, list):
+        raise ProjectSyncError("GitHub issue labels response is not a list")
+    current: set[str] = set()
+    for label in labels:
+        if isinstance(label, dict) and label.get("name"):
+            current.add(str(label["name"]))
+        elif isinstance(label, str):
+            current.add(label)
+    return current
+
+
+def apply_issue_label_sync(args: argparse.Namespace, item_plan: dict[str, Any]) -> dict[str, Any]:
+    parts = github_issue_parts(item_plan.get("work_card", ""))
+    if not parts:
+        return {"result": "skipped", "reason": "non-GitHub Work Card"}
+
+    desired = desired_issue_labels(str(item_plan.get("desired_fields", {}).get("Status") or ""))
+    current = fetch_issue_labels(args, parts)
+    managed_current = current & ISSUE_QUEUE_LABELS
+    add_labels = sorted(desired - current)
+    remove_labels = sorted((managed_current - desired))
+    if not add_labels and not remove_labels:
+        return {
+            "result": "unchanged",
+            "current": sorted(current),
+            "desired": sorted((current - ISSUE_QUEUE_LABELS) | desired),
+            "add": [],
+            "remove": [],
+            "readback": {"ok": True, "mismatches": []},
+        }
+
+    command = [
+        args.gh_binary,
+        "issue",
+        "edit",
+        parts["number"],
+        "--repo",
+        f"{parts['owner']}/{parts['repo']}",
+    ]
+    if add_labels:
+        command.extend(["--add-label", ",".join(add_labels)])
+    if remove_labels:
+        command.extend(["--remove-label", ",".join(remove_labels)])
+    run_text_command(command, args.timeout)
+
+    live = fetch_issue_labels(args, parts)
+    live_managed = live & ISSUE_QUEUE_LABELS
+    mismatches = []
+    if live_managed != desired:
+        mismatches.append(
+            {
+                "field": "issue_labels",
+                "desired": sorted(desired),
+                "live": sorted(live_managed),
+            }
+        )
+    return {
+        "result": "readback_mismatch" if mismatches else "changed",
+        "current": sorted(current),
+        "desired": sorted((current - ISSUE_QUEUE_LABELS) | desired),
+        "add": add_labels,
+        "remove": remove_labels,
+        "readback": {"ok": not mismatches, "mismatches": mismatches},
+    }
 
 
 def list_project_items(args: argparse.Namespace, field_map: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -786,7 +903,16 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
         "project_mutation": True,
         "llm_calls": 0,
         "work_units": [],
-        "summary": {"changed": 0, "unchanged": 0, "failed": 0, "skipped": 0, "readback_mismatch": 0},
+        "summary": {
+            "changed": 0,
+            "unchanged": 0,
+            "failed": 0,
+            "skipped": 0,
+            "readback_mismatch": 0,
+            "issue_labels_changed": 0,
+            "issue_labels_unchanged": 0,
+            "issue_labels_skipped": 0,
+        },
         "readback": {"checked": True, "ok": True, "mismatches": []},
         "skipped_work_units": [],
     }
@@ -855,6 +981,69 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
                 }
             )
 
+        issue_labels = {"result": "disabled"}
+        issue_label_failed = False
+        if getattr(args, "sync_issue_labels", False):
+            try:
+                issue_labels = apply_issue_label_sync(args, item_plan)
+            except (subprocess.TimeoutExpired, ProjectSyncError) as exc:
+                issue_labels = {"result": "failed", "error": str(exc), "readback": {"ok": False, "mismatches": []}}
+            label_result = issue_labels.get("result")
+            if label_result == "changed":
+                item_changed = True
+                result["summary"]["issue_labels_changed"] += 1
+                actions.append(
+                    {
+                        "type": "sync_issue_labels",
+                        "result": "changed",
+                        "add": ",".join(issue_labels.get("add", [])),
+                        "remove": ",".join(issue_labels.get("remove", [])),
+                    }
+                )
+            elif label_result == "unchanged":
+                result["summary"]["issue_labels_unchanged"] += 1
+                actions.append({"type": "sync_issue_labels", "result": "unchanged"})
+            elif label_result == "skipped":
+                result["summary"]["issue_labels_skipped"] += 1
+                actions.append(
+                    {
+                        "type": "sync_issue_labels",
+                        "result": "skipped",
+                        "reason": str(issue_labels.get("reason") or ""),
+                    }
+                )
+            else:
+                issue_label_failed = True
+                readback_mismatch = label_result == "readback_mismatch"
+                result["summary"]["failed"] += 1
+                if readback_mismatch:
+                    result["summary"]["readback_mismatch"] += 1
+                result["readback"]["ok"] = False
+                for mismatch in issue_labels.get("readback", {}).get("mismatches", []):
+                    result["readback"]["mismatches"].append(
+                        {
+                            "work_unit_id": item_plan["work_unit_id"],
+                            "work_card": work_card,
+                            **mismatch,
+                        }
+                    )
+                if issue_labels.get("error"):
+                    result["readback"]["mismatches"].append(
+                        {
+                            "work_unit_id": item_plan["work_unit_id"],
+                            "work_card": work_card,
+                            "field": "issue_labels",
+                            "error": str(issue_labels.get("error")),
+                        }
+                    )
+                actions.append(
+                    {
+                        "type": "sync_issue_labels",
+                        "result": str(label_result or "failed"),
+                        "error": str(issue_labels.get("error") or ""),
+                    }
+                )
+
         status = "changed" if item_changed else "unchanged"
         readback_values = fetch_current_field_values(args, item_node_id)
         readback_mismatches = []
@@ -876,6 +1065,8 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
                         **mismatch,
                     }
                 )
+        elif issue_label_failed:
+            status = str(issue_labels.get("result") or "issue_label_sync_failed")
         else:
             result["summary"][status] += 1
         unit_result = {
@@ -884,6 +1075,7 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
             "project_item_id": item_node_id,
             "result": status,
             "actions": actions,
+            "issue_labels": issue_labels,
             "readback": {
                 "ok": not readback_mismatches,
                 "mismatches": readback_mismatches,
@@ -904,7 +1096,17 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
         )
     if result["summary"]["failed"]:
         missing = any(unit.get("result") == "project_item_missing" for unit in result["work_units"])
-        result["sync_state"] = "project_item_missing" if missing else "readback_mismatch"
+        issue_label_failed = any(
+            action.get("type") == "sync_issue_labels" and action.get("result") not in {"changed", "unchanged", "skipped"}
+            for unit in result["work_units"]
+            for action in unit.get("actions", [])
+        )
+        if missing:
+            result["sync_state"] = "project_item_missing"
+        elif issue_label_failed:
+            result["sync_state"] = "issue_label_sync_failed"
+        else:
+            result["sync_state"] = "readback_mismatch"
     return result
 
 
@@ -1032,6 +1234,11 @@ def build_parser() -> argparse.ArgumentParser:
             "--no-create-missing-project-item",
             action="store_true",
             help="Fail when the Project item is absent instead of adding it; use for final closeout readback gates",
+        )
+        command.add_argument(
+            "--sync-issue-labels",
+            action="store_true",
+            help="Also converge GitHub issue queue labels from source-derived status; never closes or archives issues",
         )
 
     dry_run = project_subparsers.add_parser("dry-run", help="Show Project changes without mutation")

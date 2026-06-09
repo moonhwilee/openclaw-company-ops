@@ -124,6 +124,11 @@ small:
   show a compact proof-derived lifecycle display from local
   `visibility-proof.jsonl`. Do not manually backfill Progress from Project
   edits or Discord text.
+- `project-sync apply --sync-issue-labels` may also converge GitHub Issue queue
+  labels from the same source-derived status. This is an explicit foreground
+  hygiene step: it removes stale queue labels and adds the one desired queue
+  label set, but it does not close, reopen, archive, or otherwise treat the
+  Issue as source truth.
 - `Last proof or last source update` is a dashboard text mirror. Keep source
   artifact timestamps in UTC, but let `project-sync` display the value in the
   runner machine's local timezone. This field should contain timestamps only,
