@@ -21,13 +21,41 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 ARTIFACTS = SCRIPT_DIR / "work_unit_artifacts.py"
 DISPATCH_SESSIONS_SEND = SCRIPT_DIR / "openclaw_dispatch_sessions_send.py"
-CLOSEOUT_REVIEW_SESSIONS_SEND = SCRIPT_DIR / "openclaw_closeout_review_sessions_send.py"
+CLOSEOUT_DELEGATE_SESSIONS_SEND = SCRIPT_DIR / "openclaw_closeout_delegate_sessions_send.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
 PROJECT_SYNC = SCRIPT_DIR / "project_sync.py"
 HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
 REPO_ROOT = SCRIPT_DIR.parent
+
+ACTIVE_CLOSEOUT_DELEGATE_FILES = (
+    "README.md",
+    "scripts/work_unit_artifacts.py",
+    "scripts/company_ops_smoke.py",
+    "scripts/openclaw_closeout_delegate_sessions_send.py",
+    "docs/operations-manual.md",
+    "docs/phase-5.8-stabilization-gate.md",
+    "docs/capacity-policy.md",
+    "docs/implementation-setup-guide.md",
+    "docs/post-setup-plan.md",
+    ".codex/hooks/company_ops_gate.py",
+)
+LEGACY_CLOSEOUT_DELEGATE_TOKENS = (
+    "closeout-" + "rev" + "iewer",
+    "closeout_" + "rev" + "iew",
+    "closeout-" + "rev" + "iew-wake",
+    "closeout " + "rev" + "iewer",
+    "Closeout " + "rev" + "iewer",
+    "company_ops_closeout_" + "rev" + "iew",
+    "openclaw_closeout_" + "rev" + "iew",
+    "rev" + "iew-wake",
+    "rev" + "iew_payload",
+    "rev" + "iew_ref",
+    "rev" + "iewer_agent",
+    "rev" + "iewer_runtime",
+    "rev" + "iewer_session",
+)
 
 
 def run_command(command: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -39,6 +67,20 @@ def require_success(result: subprocess.CompletedProcess[str], label: str) -> Non
         return
     message = result.stderr.strip() or result.stdout.strip() or "no output"
     raise RuntimeError(f"{label} failed: {message}")
+
+
+def assert_no_legacy_closeout_delegate_names() -> None:
+    hits: list[str] = []
+    for relative_path in ACTIVE_CLOSEOUT_DELEGATE_FILES:
+        path = REPO_ROOT / relative_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in LEGACY_CLOSEOUT_DELEGATE_TOKENS:
+            if token in text:
+                hits.append(f"{relative_path}: {token}")
+    if hits:
+        raise RuntimeError("legacy closeout delegate names remain in active paths: " + "; ".join(hits))
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -344,7 +386,7 @@ def closeout_commit_request(
     return {
         "work_unit_id": work_unit_id,
         "decision": decision,
-        "reason": "Fresh closeout reviewer accepts the source-backed result.",
+        "reason": "Fresh closeout delegate accepts the source-backed result.",
         "source_ref": str(artifact_dir / "evidence.md"),
         "result_ready_proof_id": f"{work_unit_id}:team-detail:RESULT_READY:{proof_id}",
         "artifact_hashes": {
@@ -355,8 +397,8 @@ def closeout_commit_request(
             "visibility-proof.jsonl": file_sha256(artifact_dir / "visibility-proof.jsonl"),
             "result_ready_proof_rows": [canonical_json_hash(proof_row)],
         },
-        "reviewer_session_ref": f"session:{work_unit_id}:closeout-delegate",
-        "reviewer_job_ref": f"job:{work_unit_id}:closeout-delegate",
+        "delegate_session_ref": f"session:{work_unit_id}:closeout-delegate",
+        "delegate_job_ref": f"job:{work_unit_id}:closeout-delegate",
         "autonomy_class": autonomy_class,
         "review_depth": "source-artifacts-and-smoke-diff",
         "red_line_check": red_line_check,
@@ -3088,7 +3130,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "    readback = {",
                 "        'status': 'accepted',",
                 "        'work_unit_id': 'WU-260607-121',",
-                "        'closeout_review_payload_hash': 'smoke-closeout-review-hash',",
+                "        'closeout_delegate_payload_hash': 'smoke-closeout-delegate-hash',",
                 "        'guarded_closeout_contract': 'work-unit closeout --commit-request <json> --publish',",
                 "        'authority_boundary': 'closeout_delegate_guarded_closeout_only',",
                 "    }",
@@ -3118,7 +3160,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         encoding="utf-8",
     )
     closeout_wrapper_request = {
-        "adapter_protocol": "company_ops_closeout_review_adapter_v1",
+        "adapter_protocol": "company_ops_closeout_delegate_adapter_v1",
         "work_unit_id": "WU-260607-121",
         "team": "ops",
         "agent": "main",
@@ -3127,14 +3169,14 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         "artifact_dir": str(work_dir),
         "transition_at": args.created_at,
         "packet": {
-            "protocol": "company_ops_closeout_review_wake_v1",
+            "protocol": "company_ops_closeout_delegate_wake_v1",
             "work_unit_id": "WU-260607-121",
             "guarded_closeout_contract": {"command": "work-unit closeout --commit-request <json> --publish"},
             "authority_boundary": "closeout_delegate_guarded_closeout_only",
         },
         "required_acceptance": {
             "work_unit_id": "WU-260607-121",
-            "closeout_review_payload_hash": "smoke-closeout-review-hash",
+            "closeout_delegate_payload_hash": "smoke-closeout-delegate-hash",
             "guarded_closeout_contract": "work-unit closeout --commit-request <json> --publish",
             "authority_boundary": "closeout_delegate_guarded_closeout_only",
         },
@@ -3142,7 +3184,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
 
     def run_closeout_wrapper(mode: str = "ok") -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(CLOSEOUT_REVIEW_SESSIONS_SEND), "--accept-timeout-ms", "1000"],
+            [sys.executable, str(CLOSEOUT_DELEGATE_SESSIONS_SEND), "--accept-timeout-ms", "1000"],
             check=False,
             text=True,
             input=json.dumps(closeout_wrapper_request),
@@ -3155,39 +3197,39 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         )
 
     closeout_wrapper_result = run_closeout_wrapper()
-    require_success(closeout_wrapper_result, "openclaw closeout review sessions.send wrapper")
+    require_success(closeout_wrapper_result, "openclaw closeout delegate sessions.send wrapper")
     closeout_wrapper_payload = json.loads(closeout_wrapper_result.stdout)
-    if closeout_wrapper_payload.get("adapter") != "openclaw-closeout-review-sessions-send":
-        raise RuntimeError("closeout review wrapper did not report the standard adapter")
+    if closeout_wrapper_payload.get("adapter") != "openclaw-closeout-delegate-sessions-send":
+        raise RuntimeError("closeout delegate wrapper did not report the standard adapter")
     if closeout_wrapper_payload.get("job_ref") != "run-closeout-execute":
-        raise RuntimeError("closeout review wrapper did not preserve execution run reference")
+        raise RuntimeError("closeout delegate wrapper did not preserve execution run reference")
     closeout_gateway = closeout_wrapper_payload.get("gateway", {})
     idempotency_key = closeout_gateway.get("idempotency_key", "")
     if not idempotency_key.startswith("WU-260607-121:closeout-delegate:"):
-        raise RuntimeError("closeout review wrapper did not persist the review idempotency key")
+        raise RuntimeError("closeout delegate wrapper did not persist the delegate idempotency key")
     if closeout_wrapper_payload.get("readback", {}).get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
-        raise RuntimeError("closeout review wrapper did not preserve authority boundary readback")
+        raise RuntimeError("closeout delegate wrapper did not preserve authority boundary readback")
 
     closeout_fallback_result = run_closeout_wrapper("fallback_acceptance")
     if closeout_fallback_result.returncode == 0:
-        raise RuntimeError("closeout review wrapper accepted embedded fallback proof")
+        raise RuntimeError("closeout delegate wrapper accepted embedded fallback proof")
     closeout_fallback_payload = json.loads(closeout_fallback_result.stdout)
     if "embedded gateway fallback" not in str(closeout_fallback_payload.get("reason") or ""):
-        raise RuntimeError("closeout review wrapper did not explain embedded fallback rejection")
+        raise RuntimeError("closeout delegate wrapper did not explain embedded fallback rejection")
 
     closeout_missing_accept_ref = run_closeout_wrapper("missing_accept_ref")
     if closeout_missing_accept_ref.returncode == 0:
-        raise RuntimeError("closeout review wrapper accepted proof without a Gateway acceptance ref")
+        raise RuntimeError("closeout delegate wrapper accepted proof without a Gateway acceptance ref")
     closeout_missing_accept_payload = json.loads(closeout_missing_accept_ref.stdout)
     if "real Gateway reference" not in str(closeout_missing_accept_payload.get("reason") or ""):
-        raise RuntimeError("closeout review wrapper did not reject missing Gateway acceptance ref")
+        raise RuntimeError("closeout delegate wrapper did not reject missing Gateway acceptance ref")
 
     closeout_missing_send_ref = run_closeout_wrapper("missing_send_ref")
     if closeout_missing_send_ref.returncode == 0:
-        raise RuntimeError("closeout review wrapper accepted execution enqueue without a Gateway run ref")
+        raise RuntimeError("closeout delegate wrapper accepted execution enqueue without a Gateway run ref")
     closeout_missing_send_payload = json.loads(closeout_missing_send_ref.stdout)
     if "real Gateway run reference" not in str(closeout_missing_send_payload.get("reason") or ""):
-        raise RuntimeError("closeout review wrapper did not reject missing Gateway execution ref")
+        raise RuntimeError("closeout delegate wrapper did not reject missing Gateway execution ref")
     dispatch_publish = run_command(
         [
             sys.executable,
@@ -3359,25 +3401,25 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if inbox_ids != ["WU-260607-102", "WU-260607-101"]:
         raise RuntimeError(f"result-ready inbox did not sort actionable items deterministically: {inbox_ids}")
 
-    review_wake_dir = create_artifacts(args, inbox_work_dir, "WU-260607-117", "ops")
-    review_command_dir = create_artifacts(args, inbox_work_dir, "WU-260607-118", "ops")
-    review_setup_dir = create_artifacts(args, inbox_work_dir, "WU-260607-119", "ops")
-    review_capacity_dir = create_artifacts(args, inbox_work_dir, "WU-260607-120", "ops")
+    delegate_wake_dir = create_artifacts(args, inbox_work_dir, "WU-260607-117", "ops")
+    delegate_command_dir = create_artifacts(args, inbox_work_dir, "WU-260607-118", "ops")
+    delegate_setup_dir = create_artifacts(args, inbox_work_dir, "WU-260607-119", "ops")
+    delegate_capacity_dir = create_artifacts(args, inbox_work_dir, "WU-260607-120", "ops")
     result_ready_capacity_dir = create_artifacts(args, inbox_work_dir, "WU-260607-122", "ops")
     for artifact_dir in (
-        review_wake_dir,
-        review_command_dir,
-        review_setup_dir,
-        review_capacity_dir,
+        delegate_wake_dir,
+        delegate_command_dir,
+        delegate_setup_dir,
+        delegate_capacity_dir,
         result_ready_capacity_dir,
     ):
         mark_artifact_started(artifact_dir)
         mark_artifact_result_ready(artifact_dir, recommendation="accept")
     for work_unit_id, artifact_dir, proof_id in (
-        ("WU-260607-117", review_wake_dir, "review-wake-001"),
-        ("WU-260607-118", review_command_dir, "review-wake-002"),
-        ("WU-260607-119", review_setup_dir, "review-wake-003"),
-        ("WU-260607-120", review_capacity_dir, "review-wake-004"),
+        ("WU-260607-117", delegate_wake_dir, "delegate-wake-001"),
+        ("WU-260607-118", delegate_command_dir, "delegate-wake-002"),
+        ("WU-260607-119", delegate_setup_dir, "delegate-wake-003"),
+        ("WU-260607-120", delegate_capacity_dir, "delegate-wake-004"),
     ):
         write_jsonl(
             artifact_dir / "visibility-proof.jsonl",
@@ -3390,16 +3432,16 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         result_ready_capacity_dir / "visibility-proof.jsonl",
         proof_rows(
             "WU-260607-122",
-            [("team-detail", "STARTED", "review-wake-started-005", "2026-06-07T01:34:00Z")],
+            [("team-detail", "STARTED", "delegate-wake-started-005", "2026-06-07T01:34:00Z")],
         ),
     )
-    review_wake_progress_before = (review_wake_dir / "progress.jsonl").read_text(encoding="utf-8")
-    review_wake_dry_run = run_command(
+    delegate_wake_progress_before = (delegate_wake_dir / "progress.jsonl").read_text(encoding="utf-8")
+    delegate_wake_dry_run = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
             "work-unit",
-            "review-wake",
+            "delegate-wake",
             "--work-unit-id",
             "WU-260607-117",
             "--artifact-root",
@@ -3407,38 +3449,38 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--team",
             "ops",
             "--source-ref",
-            str(review_wake_dir / "evidence.md"),
-            "--closeout-reviewer-runtime",
+            str(delegate_wake_dir / "evidence.md"),
+            "--closeout-delegate-runtime",
             "openclaw-agent",
-            "--closeout-reviewer-adapter",
+            "--closeout-delegate-adapter",
             "fake",
             "--dry-run",
             "--format",
             "json",
         ]
     )
-    require_success(review_wake_dry_run, "closeout review wake dry-run")
-    review_wake_dry_payload = json.loads(review_wake_dry_run.stdout)
-    if review_wake_dry_payload.get("status") != "ready-to-review-wake":
-        raise RuntimeError("closeout review wake dry-run did not report ready-to-review-wake")
-    review_payload = review_wake_dry_payload.get("review_payload", {})
-    if review_payload.get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
-        raise RuntimeError("closeout review payload did not carry the guarded authority boundary")
-    if review_payload.get("reviewer", {}).get("session_key") != "company-ops-closeout-delegate-wu-260607-117":
-        raise RuntimeError("closeout review payload did not derive a stable reviewer session key")
-    if "evidence.md" not in review_payload.get("artifact_hashes", {}):
-        raise RuntimeError("closeout review payload did not bind evidence to an artifact hash")
-    if (review_wake_dir / "closeout-review-wake.json").exists():
-        raise RuntimeError("closeout review wake dry-run wrote a wake record")
-    if (review_wake_dir / "progress.jsonl").read_text(encoding="utf-8") != review_wake_progress_before:
-        raise RuntimeError("closeout review wake dry-run mutated progress.jsonl")
+    require_success(delegate_wake_dry_run, "closeout delegate wake dry-run")
+    delegate_wake_dry_payload = json.loads(delegate_wake_dry_run.stdout)
+    if delegate_wake_dry_payload.get("status") != "ready-to-delegate-wake":
+        raise RuntimeError("closeout delegate wake dry-run did not report ready-to-delegate-wake")
+    delegate_payload = delegate_wake_dry_payload.get("delegate_payload", {})
+    if delegate_payload.get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
+        raise RuntimeError("closeout delegate payload did not carry the guarded authority boundary")
+    if delegate_payload.get("delegate", {}).get("session_key") != "company-ops-closeout-delegate-wu-260607-117":
+        raise RuntimeError("closeout delegate payload did not derive a stable delegate session key")
+    if "evidence.md" not in delegate_payload.get("artifact_hashes", {}):
+        raise RuntimeError("closeout delegate payload did not bind evidence to an artifact hash")
+    if (delegate_wake_dir / "closeout-delegate-wake.json").exists():
+        raise RuntimeError("closeout delegate wake dry-run wrote a wake record")
+    if (delegate_wake_dir / "progress.jsonl").read_text(encoding="utf-8") != delegate_wake_progress_before:
+        raise RuntimeError("closeout delegate wake dry-run mutated progress.jsonl")
 
-    review_wake_publish = run_command(
+    delegate_wake_publish = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
             "work-unit",
-            "review-wake",
+            "delegate-wake",
             "--work-unit-id",
             "WU-260607-117",
             "--artifact-root",
@@ -3446,31 +3488,31 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--team",
             "ops",
             "--source-ref",
-            str(review_wake_dir / "evidence.md"),
-            "--closeout-reviewer-runtime",
+            str(delegate_wake_dir / "evidence.md"),
+            "--closeout-delegate-runtime",
             "openclaw-agent",
-            "--closeout-reviewer-adapter",
+            "--closeout-delegate-adapter",
             "fake",
             "--publish",
             "--format",
             "json",
         ]
     )
-    require_success(review_wake_publish, "closeout review wake fake adapter publish")
-    review_wake_publish_payload = json.loads(review_wake_publish.stdout)
-    if review_wake_publish_payload.get("status") != "review-wake-enqueued":
-        raise RuntimeError("closeout review wake publish did not report review-wake-enqueued")
-    review_wake_record = json.loads((review_wake_dir / "closeout-review-wake.json").read_text(encoding="utf-8"))
-    if review_wake_record.get("accepted_proof", {}).get("readback", {}).get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
-        raise RuntimeError("closeout review wake record did not persist guarded readback")
-    if (review_wake_dir / "decision.md").read_text(encoding="utf-8").count("Status: Pending") != 1:
-        raise RuntimeError("closeout review wake mutated decision.md")
-    duplicate_review_wake = run_command(
+    require_success(delegate_wake_publish, "closeout delegate wake fake adapter publish")
+    delegate_wake_publish_payload = json.loads(delegate_wake_publish.stdout)
+    if delegate_wake_publish_payload.get("status") != "delegate-wake-enqueued":
+        raise RuntimeError("closeout delegate wake publish did not report delegate-wake-enqueued")
+    delegate_wake_record = json.loads((delegate_wake_dir / "closeout-delegate-wake.json").read_text(encoding="utf-8"))
+    if delegate_wake_record.get("accepted_proof", {}).get("readback", {}).get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
+        raise RuntimeError("closeout delegate wake record did not persist guarded readback")
+    if (delegate_wake_dir / "decision.md").read_text(encoding="utf-8").count("Status: Pending") != 1:
+        raise RuntimeError("closeout delegate wake mutated decision.md")
+    duplicate_delegate_wake = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
             "work-unit",
-            "review-wake",
+            "delegate-wake",
             "--work-unit-id",
             "WU-260607-117",
             "--artifact-root",
@@ -3478,21 +3520,21 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--team",
             "ops",
             "--source-ref",
-            str(review_wake_dir / "evidence.md"),
-            "--closeout-reviewer-runtime",
+            str(delegate_wake_dir / "evidence.md"),
+            "--closeout-delegate-runtime",
             "openclaw-agent",
-            "--closeout-reviewer-adapter",
+            "--closeout-delegate-adapter",
             "fake",
             "--publish",
             "--format",
             "json",
         ]
     )
-    if duplicate_review_wake.returncode == 0:
-        raise RuntimeError("closeout review wake accepted duplicate wake without --force")
+    if duplicate_delegate_wake.returncode == 0:
+        raise RuntimeError("closeout delegate wake accepted duplicate wake without --force")
 
-    review_accept_adapter = work_dir / "accept_closeout_review_adapter.py"
-    review_accept_adapter.write_text(
+    delegate_accept_adapter = work_dir / "accept_closeout_delegate_adapter.py"
+    delegate_accept_adapter.write_text(
         "\n".join(
             [
                 "import json, sys",
@@ -3500,14 +3542,14 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "required = request['required_acceptance']",
                 "print(json.dumps({",
                 "    'status': 'accepted',",
-                "    'adapter': 'smoke-closeout-review-command',",
+                "    'adapter': 'smoke-closeout-delegate-command',",
                 "    'session_ref': 'session:' + request['session_key'],",
                 "    'job_ref': 'job:' + request['work_unit_id'] + ':closeout-delegate',",
                 "    'message_ref': 'message:' + request['work_unit_id'] + ':closeout-delegate-accepted',",
                 "    'accepted_at': request['transition_at'],",
                 "    'readback': {",
                 "        'work_unit_id': required['work_unit_id'],",
-                "        'closeout_review_payload_hash': required['closeout_review_payload_hash'],",
+                "        'closeout_delegate_payload_hash': required['closeout_delegate_payload_hash'],",
                 "        'guarded_closeout_contract': required['guarded_closeout_contract'],",
                 "        'authority_boundary': required['authority_boundary'],",
                 "    },",
@@ -3517,12 +3559,12 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         + "\n",
         encoding="utf-8",
     )
-    review_command_wake = run_command(
+    delegate_command_wake = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
             "work-unit",
-            "review-wake",
+            "delegate-wake",
             "--work-unit-id",
             "WU-260607-118",
             "--artifact-root",
@@ -3530,29 +3572,29 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--team",
             "ops",
             "--source-ref",
-            str(review_command_dir / "evidence.md"),
-            "--closeout-reviewer-runtime",
+            str(delegate_command_dir / "evidence.md"),
+            "--closeout-delegate-runtime",
             "openclaw-agent",
-            "--closeout-reviewer-adapter",
+            "--closeout-delegate-adapter",
             "command",
-            "--closeout-reviewer-adapter-command",
-            f"{sys.executable} {review_accept_adapter}",
+            "--closeout-delegate-adapter-command",
+            f"{sys.executable} {delegate_accept_adapter}",
             "--publish",
             "--format",
             "json",
         ]
     )
-    require_success(review_command_wake, "closeout review wake command adapter publish")
-    review_command_record = json.loads((review_command_dir / "closeout-review-wake.json").read_text(encoding="utf-8"))
-    if review_command_record.get("accepted_proof", {}).get("adapter") != "smoke-closeout-review-command":
-        raise RuntimeError("closeout review command adapter proof was not persisted")
+    require_success(delegate_command_wake, "closeout delegate wake command adapter publish")
+    delegate_command_record = json.loads((delegate_command_dir / "closeout-delegate-wake.json").read_text(encoding="utf-8"))
+    if delegate_command_record.get("accepted_proof", {}).get("adapter") != "smoke-closeout-delegate-command":
+        raise RuntimeError("closeout delegate command adapter proof was not persisted")
 
-    review_capacity_full = run_command(
+    delegate_capacity_full = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
             "work-unit",
-            "review-wake",
+            "delegate-wake",
             "--work-unit-id",
             "WU-260607-120",
             "--artifact-root",
@@ -3560,22 +3602,22 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--team",
             "ops",
             "--source-ref",
-            str(review_capacity_dir / "evidence.md"),
-            "--closeout-reviewer-runtime",
+            str(delegate_capacity_dir / "evidence.md"),
+            "--closeout-delegate-runtime",
             "openclaw-agent",
-            "--closeout-reviewer-adapter",
+            "--closeout-delegate-adapter",
             "fake",
             "--publish",
             "--format",
             "json",
         ]
     )
-    if review_capacity_full.returncode == 0:
+    if delegate_capacity_full.returncode == 0:
         raise RuntimeError("closeout delegate wake ignored active delegate capacity cap")
-    review_capacity_payload = json.loads(review_capacity_full.stdout)
-    if review_capacity_payload.get("status") != "review-wake capacity-full":
+    delegate_capacity_payload = json.loads(delegate_capacity_full.stdout)
+    if delegate_capacity_payload.get("status") != "delegate-wake capacity-full":
         raise RuntimeError("closeout delegate capacity failure did not report capacity-full")
-    if (review_capacity_dir / "closeout-review-wake.json").exists():
+    if (delegate_capacity_dir / "closeout-delegate-wake.json").exists():
         raise RuntimeError("capacity-full closeout delegate wake wrote a wake record")
 
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -3636,9 +3678,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "Capacity-full delegate wake remains recoverable from the result-ready inbox.",
                 "--target",
                 "local-smoke",
-                "--closeout-reviewer-runtime",
+                "--closeout-delegate-runtime",
                 "openclaw-agent",
-                "--closeout-reviewer-adapter",
+                "--closeout-delegate-adapter",
                 "fake",
                 "--publish",
                 "--format",
@@ -3654,22 +3696,22 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if result_ready_capacity_code == 0:
         raise RuntimeError("result-ready publish ignored closeout delegate capacity cap")
     result_ready_capacity_payload = json.loads(result_ready_stdout.getvalue())
-    if result_ready_capacity_payload.get("status") != "review-wake capacity-full":
+    if result_ready_capacity_payload.get("status") != "delegate-wake capacity-full":
         raise RuntimeError("result-ready publish did not preserve delegate capacity-full status")
-    if result_ready_capacity_payload.get("review_wake", {}).get("status") != "review-wake capacity-full":
+    if result_ready_capacity_payload.get("delegate_wake", {}).get("status") != "delegate-wake capacity-full":
         raise RuntimeError("result-ready publish did not include nested capacity-full wake payload")
-    if (result_ready_capacity_dir / "closeout-review-wake.json").exists():
+    if (result_ready_capacity_dir / "closeout-delegate-wake.json").exists():
         raise RuntimeError("capacity-full result-ready publish wrote a wake record")
 
-    review_hanging_adapter = work_dir / "hanging_closeout_review_adapter.py"
-    review_hanging_adapter.write_text("import time\ntime.sleep(2)\n", encoding="utf-8")
-    setup_progress_before = (review_setup_dir / "progress.jsonl").read_text(encoding="utf-8")
-    review_setup_needed = run_command(
+    delegate_hanging_adapter = work_dir / "hanging_closeout_delegate_adapter.py"
+    delegate_hanging_adapter.write_text("import time\ntime.sleep(2)\n", encoding="utf-8")
+    setup_progress_before = (delegate_setup_dir / "progress.jsonl").read_text(encoding="utf-8")
+    delegate_setup_needed = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
             "work-unit",
-            "review-wake",
+            "delegate-wake",
             "--work-unit-id",
             "WU-260607-119",
             "--artifact-root",
@@ -3677,14 +3719,14 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--team",
             "ops",
             "--source-ref",
-            str(review_setup_dir / "evidence.md"),
-            "--closeout-reviewer-runtime",
+            str(delegate_setup_dir / "evidence.md"),
+            "--closeout-delegate-runtime",
             "openclaw-agent",
-            "--closeout-reviewer-adapter",
+            "--closeout-delegate-adapter",
             "command",
-            "--closeout-reviewer-adapter-command",
-            f"{sys.executable} {review_hanging_adapter}",
-            "--closeout-reviewer-adapter-timeout-seconds",
+            "--closeout-delegate-adapter-command",
+            f"{sys.executable} {delegate_hanging_adapter}",
+            "--closeout-delegate-adapter-timeout-seconds",
             "1",
             "--closeout-delegate-active-cap",
             "3",
@@ -3693,15 +3735,15 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "json",
         ]
     )
-    if review_setup_needed.returncode == 0:
-        raise RuntimeError("closeout review wake accepted a timed-out adapter")
-    review_setup_payload = json.loads(review_setup_needed.stdout)
-    if review_setup_payload.get("status") != "review-wake setup-needed":
-        raise RuntimeError("timed-out closeout review adapter did not fail as setup-needed")
-    if (review_setup_dir / "closeout-review-wake.json").exists():
-        raise RuntimeError("setup-needed closeout review wake wrote a wake record")
-    if (review_setup_dir / "progress.jsonl").read_text(encoding="utf-8") != setup_progress_before:
-        raise RuntimeError("setup-needed closeout review wake mutated progress.jsonl")
+    if delegate_setup_needed.returncode == 0:
+        raise RuntimeError("closeout delegate wake accepted a timed-out adapter")
+    delegate_setup_payload = json.loads(delegate_setup_needed.stdout)
+    if delegate_setup_payload.get("status") != "delegate-wake setup-needed":
+        raise RuntimeError("timed-out closeout delegate adapter did not fail as setup-needed")
+    if (delegate_setup_dir / "closeout-delegate-wake.json").exists():
+        raise RuntimeError("setup-needed closeout delegate wake wrote a wake record")
+    if (delegate_setup_dir / "progress.jsonl").read_text(encoding="utf-8") != setup_progress_before:
+        raise RuntimeError("setup-needed closeout delegate wake mutated progress.jsonl")
     missed_wake_inbox = run_command(
         [
             sys.executable,
@@ -3717,9 +3759,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "json",
         ]
     )
-    require_success(missed_wake_inbox, "source inbox recovery after missed closeout review wake")
+    require_success(missed_wake_inbox, "source inbox recovery after missed closeout delegate wake")
     if json.loads(missed_wake_inbox.stdout)["items"][0].get("work_unit_id") != "WU-260607-119":
-        raise RuntimeError("missed closeout review wake was not recoverable from result-ready inbox")
+        raise RuntimeError("missed closeout delegate wake was not recoverable from result-ready inbox")
 
     invalid_result = run_command(
         [
@@ -4173,10 +4215,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     missing_hash_request["artifact_hashes"].pop("claim.md", None)
     negative_commit_requests.append(("missing artifact hash", missing_hash_request, "artifact_hashes missing claim.md"))
     missing_ref_request = json.loads(json.dumps(commit_request))
-    missing_ref_request.pop("reviewer_session_ref", None)
-    missing_ref_request.pop("reviewer_job_ref", None)
-    missing_ref_request.pop("reviewer_message_ref", None)
-    negative_commit_requests.append(("missing delegate refs", missing_ref_request, "requires a reviewer session"))
+    missing_ref_request.pop("delegate_session_ref", None)
+    missing_ref_request.pop("delegate_job_ref", None)
+    missing_ref_request.pop("delegate_message_ref", None)
+    negative_commit_requests.append(("missing delegate refs", missing_ref_request, "requires a delegate session"))
     missing_depth_request = json.loads(json.dumps(commit_request))
     missing_depth_request["review_depth"] = ""
     negative_commit_requests.append(("missing review depth", missing_depth_request, "review_depth is required"))
@@ -4732,6 +4774,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_pulse_ok(args, ledger, snapshot)
         run_hook_guard_smoke()
         run_async_work_unit_policy_smoke()
+        assert_no_legacy_closeout_delegate_names()
         run_discord_card_smoke()
         mark_artifact_started(build_artifacts)
         mark_artifact_result_ready(build_artifacts)
@@ -4763,7 +4806,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
         "dispatch source contract/setup-needed guard, fresh session key guard, fake and command adapter accepted-proof guards, "
-        "closeout review wrapper and wake accepted-proof guards, source inbox recovery after missed review wake, "
+        "closeout delegate wrapper and wake accepted-proof guards, source inbox recovery after missed delegate wake, "
         "guarded closeout commit-request proof/hash/manual-required guards, partial closeout publish resume, "
         "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"

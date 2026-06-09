@@ -5,11 +5,11 @@ are implemented and live-verified. The current code includes canonical
 start/result-ready guards, closeout lifecycle convergence, source-backed
 detached dispatch, fail-closed OpenClaw runtime adapter delivery, fresh
 Work Unit-specific Team Lead sessions, conservative capacity policy,
-result-ready closeout reviewer wake, guarded closeout `--commit-request`, and
+result-ready closeout delegate wake, guarded closeout `--commit-request`, and
 resumable closeout publish staging. Phase 5.8.5 live testing also added
-duplicate RESULT_READY suppression and closeout reviewer replay-safe
+duplicate RESULT_READY suppression and closeout delegate replay-safe
 idempotency. Live OpenClaw delivery still requires configured adapter commands
-for dispatch and closeout reviewer wake; if a required adapter is missing or
+for dispatch and closeout delegate wake; if a required adapter is missing or
 cannot return current proof, the command returns `setup-needed` or
 `repair-needed` and writes no false source success.
 
@@ -41,7 +41,7 @@ Observed mismatch:
   claims, visibility cards, result-ready records, and closeout decisions.
 - The workflow must prove that the Operations Lead can assign the Work Unit,
   record the handoff/start/dispatch, return idle while a fresh Team Lead
-  session owns execution, then rely on result-ready reviewer wake and guarded
+  session owns execution, then rely on result-ready delegate wake and guarded
   closeout for final convergence.
 
 Before this gate, Phase 6 packaging would have risked shipping a protocol that
@@ -515,15 +515,15 @@ Current status:
 
 - `5.8.4c-1` wake foundation is implemented: foreground
   `result-ready --publish` can request a fresh Work Unit-scoped closeout
-  reviewer wake after successful RESULT_READY publish/readback, and
-  `work-unit review-wake` provides a source-backed foreground recovery path.
+  delegate wake after successful RESULT_READY publish/readback, and
+  `work-unit delegate-wake` provides a source-backed foreground recovery path.
 - `5.8.4c-2` guarded closeout commit request is implemented: existing
-  `work-unit closeout` accepts structured reviewer `--commit-request` JSON,
+  `work-unit closeout` accepts structured delegate `--commit-request` JSON,
   revalidates current RESULT_READY proof/source hashes/manual-required policy,
   records a narrow closeout stage file during publish, and can foreground-resume
   the same guarded closeout after partial visibility publish failure without
   writing final `decision.md` early.
-- The B-prime design baseline remains: the fresh closeout reviewer may judge
+- The B-prime design baseline remains: the fresh closeout delegate may judge
   the Work Unit, but final decisions are applied only through the guarded
   closeout path.
 - This phase is needed because detached dispatch solves Operations Lead
@@ -586,16 +586,16 @@ B-prime implementation baseline:
   and the assigned Team Lead agent are setup-needed, not fallback routes.
 - Delivery guarantee: one-shot delegate enqueue proof with recoverable session,
   message, or run refs. No background daemon, durable queue, retry worker, DB,
-  hidden workflow runner, or multi-reviewer consensus.
+  hidden workflow runner, or multi-agent consensus.
 - Capacity guard: closeout delegate wake has a small foreground active cap
   (default 2). Capacity-full leaves the WU recoverable in the result-ready
   inbox; it does not queue, retry, or fake closeout.
 - Failure behavior: if RESULT_READY publish succeeds but delegate wake/enqueue
   fails, do not roll back RESULT_READY and do not fake closeout. Report
-  `review-wake setup-needed` and leave the WU recoverable through
+  `delegate-wake setup-needed` and leave the WU recoverable through
   `work-unit inbox --result-ready`.
 - Suppression: already-decided, stale, duplicate, hash-mismatched, or
-  conflicting Work Units must not produce a normal reviewer wake. Surface them
+  conflicting Work Units must not produce a normal delegate wake. Surface them
   only as explicit repair-needed or exception states.
 - Visibility mirror: Discord/GitHub Project may show `Result Ready` or
   `Review Needed` from source artifacts, but must not become source truth.
@@ -626,7 +626,7 @@ Delegate autonomy classes:
 - `manual_required`: operating-server actions, deployment, DB migration,
   credential/auth/security boundaries, cost-bearing actions, destructive
   changes, external public release/customer impact, unclear owner intent,
-  unresolved dependency, critical reviewer/subagent disagreement, missing evidence, stale
+  unresolved dependency, critical delegate/subagent disagreement, missing evidence, stale
   source, or hash/proof mismatch.
 
 Guarded closeout commit request:
@@ -654,13 +654,13 @@ Guarded closeout commit request:
 Implementation slices:
 
 - `5.8.4c-1` (implemented): result-ready wake foundation: self-contained wake
-  payload, closeout-review-specific session-send adapter, enqueue proof,
-  foreground `review-wake` recovery path, stale/duplicate suppression, and
+  payload, closeout-delegate-specific session-send adapter, enqueue proof,
+  foreground `delegate-wake` recovery path, stale/duplicate suppression, and
   source-inbox recovery after wake failure. This slice deliberately does not
   add a daemon, queue, DB, retry worker, reverse-import path, or final
   auto-closeout.
 - `5.8.4c-2` (implemented): B-prime guarded closeout: `--commit-request`,
-  artifact hash and result-ready proof revalidation, reviewer autonomy classes,
+  artifact hash and result-ready proof revalidation, delegate autonomy classes,
   manual-required/red-line fail-closed checks, closeout staging/resume guard,
   and final visibility/status convergence regression coverage.
 - `5.8.6` (implemented in this slice): delegated closeout authority: fresh
@@ -712,21 +712,20 @@ Regression coverage to add:
 
 Status: passed in live gate. `WU-260609-907` completed the clean acceptance
 path without manual lifecycle/proof repair: handoff, STARTED, detached dispatch,
-Team Lead RESULT_READY, fresh reviewer wake, reviewer-generated guarded
-commit-request, Operations Lead dry-run, Operations Lead publish, Discord
-readback, and Project sync all converged. The same live run also produced
-negative coverage:
+Team Lead RESULT_READY, fresh closeout-audit wake, guarded commit-request,
+Operations Lead dry-run, Operations Lead publish, Discord readback, and Project
+sync all converged. The same live run also produced negative coverage:
 
-- `WU-260609-901`/`902` exposed missing reviewer-agent setup and reviewer
-  overreach, leading to explicit configured reviewer agents and reviewer-only
+- `WU-260609-901`/`902` exposed missing closeout-audit agent setup and closeout
+  role overreach, leading to explicit configured audit agents and audit-only
   commit-request authority. Phase 5.8.6 supersedes that conservative boundary
   with role-checked fresh `main` closeout delegation.
 - `WU-260609-903`/`904` exposed duplicate RESULT_READY risk, leading to
   fail-closed duplicate suppression before publish.
 - `WU-260609-905`/`906` exposed timestamp/hash ambiguity and proved
   `manual_required` fail-closed behavior.
-- `WU-260609-907` exposed reviewer replay idempotency, leading to
-  payload/prompt-versioned closeout review execution keys before the final
+- `WU-260609-907` exposed closeout-audit replay idempotency, leading to
+  payload/prompt-versioned closeout delegate execution keys before the final
   accepted closeout.
 
 Depends on:
@@ -749,9 +748,9 @@ Scope:
   proof, not after Team Lead result completion. Shared/custom session dispatch
   must be either rejected or explicitly marked `operator-specified`.
 - Publish Team Lead `RESULT_READY` through the canonical command and request
-  closeout reviewer wake with the configured command adapter. If wake fails,
-  record the `review-wake setup-needed` outcome and recover only through
-  foreground `work-unit review-wake`; do not fake closeout.
+  closeout delegate wake with the configured command adapter. If wake fails,
+  record the `delegate-wake setup-needed` outcome and recover only through
+  foreground `work-unit delegate-wake`; do not fake closeout.
 - Close final decisions through guarded `work-unit closeout --commit-request`
   only. Cover Accepted, Revise, and Blocked or record an explicit rationale for
   any decision not exercised live.
@@ -764,7 +763,7 @@ Scope:
 - Include negative cases for guarded closeout: WU mismatch, stale/existing
   decision, duplicate final proof, missing source ref, RESULT_READY proof id
   mismatch, artifact hash mismatch, `manual_required`, unclear red-line check,
-  and missing reviewer refs must fail closed.
+  and missing delegate refs must fail closed.
 - Include dispatch/wake negative cases: missing adapter command, adapter
   timeout/failure, missing accepted/readback proof, missing execution enqueue
   reference, busy/shared session timeout, and late acceptance after timeout

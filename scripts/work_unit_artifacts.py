@@ -33,11 +33,11 @@ DEFAULT_PROJECT_AUDIT_LOG = Path("~/.openclaw/state/openclaw-company-ops/project
 DISPATCH_RUNTIME_CHOICES = ("record-ref", "openclaw-agent")
 DISPATCH_ADAPTER_CHOICES = ("auto", "fake", "command")
 DISPATCH_ADAPTER_COMMAND_ENV = "COMPANY_OPS_DISPATCH_ADAPTER_COMMAND"
-CLOSEOUT_REVIEW_RUNTIME_CHOICES = ("none", "openclaw-agent")
-CLOSEOUT_REVIEW_ADAPTER_CHOICES = ("auto", "fake", "command")
-CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV = "COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND"
-CLOSEOUT_REVIEW_WAKE_FILENAME = "closeout-review-wake.json"
-CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY = "closeout_delegate_guarded_closeout_only"
+CLOSEOUT_DELEGATE_RUNTIME_CHOICES = ("none", "openclaw-agent")
+CLOSEOUT_DELEGATE_ADAPTER_CHOICES = ("auto", "fake", "command")
+CLOSEOUT_DELEGATE_ADAPTER_COMMAND_ENV = "COMPANY_OPS_CLOSEOUT_DELEGATE_ADAPTER_COMMAND"
+CLOSEOUT_DELEGATE_WAKE_FILENAME = "closeout-delegate-wake.json"
+CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY = "closeout_delegate_guarded_closeout_only"
 CLOSEOUT_DELEGATE_ALLOWED_AGENTS = ("main",)
 CLOSEOUT_PUBLISH_AUTHORITY_ROLES = ("operations-lead", "operations-lead-delegate")
 CLOSEOUT_DELEGATE_ACTIVE_CAP_DEFAULT = 2
@@ -548,11 +548,11 @@ def result_ready_proof_rows(proof_path: Path, work_unit: str) -> list[dict[str, 
     ]
 
 
-def closeout_review_session_key(work_unit_id: str) -> str:
+def closeout_delegate_session_key(work_unit_id: str) -> str:
     return f"company-ops-closeout-delegate-{work_unit_id.lower()}"
 
 
-def artifact_hashes_for_closeout_review(artifact_dir: Path, work_unit_id: str) -> dict[str, Any]:
+def artifact_hashes_for_closeout_delegate(artifact_dir: Path, work_unit_id: str) -> dict[str, Any]:
     proof_path = artifact_dir / DEFAULT_PROOF_LOG_NAME
     proof_rows = result_ready_proof_rows(proof_path, work_unit_id)
     return {
@@ -588,11 +588,11 @@ def closeout_commit_request_template(packet: dict[str, Any]) -> dict[str, Any]:
         "source_ref": packet.get("refs", {}).get("source_ref"),
         "result_ready_proof_id": packet.get("result_ready", {}).get("proof_id"),
         "artifact_hashes": packet.get("artifact_hashes"),
-        "reviewer_session_ref": packet.get("delegate", packet.get("reviewer", {})).get("session_key")
-        if isinstance(packet.get("delegate", packet.get("reviewer", {})), dict)
+        "delegate_session_ref": packet.get("delegate", {}).get("session_key")
+        if isinstance(packet.get("delegate"), dict)
         else "",
-        "reviewer_job_ref": f"{packet.get('work_unit_id')}:closeout-delegate",
-        "reviewer_message_ref": "<delegate-message-or-run-ref>",
+        "delegate_job_ref": f"{packet.get('work_unit_id')}:closeout-delegate",
+        "delegate_message_ref": "<delegate-message-or-run-ref>",
         "autonomy_class": "auto_eligible|deep_review_auto_eligible|manual_required",
         "review_depth": "<source/proof/hash/criteria review depth>",
         "red_line_check": closeout_red_line_template(),
@@ -629,15 +629,15 @@ def proof_has_event(proof_path: Path, work_unit: str, kind: str) -> bool:
     )
 
 
-def build_closeout_review_payload(
+def build_closeout_delegate_payload(
     args: argparse.Namespace,
     item: dict[str, Any],
     artifact_dir: Path,
     *,
     transition_at: str,
 ) -> dict[str, Any]:
-    session_key = args.closeout_reviewer_session_key or closeout_review_session_key(args.work_unit_id)
-    args.closeout_reviewer_session_key = session_key
+    session_key = args.closeout_delegate_session_key or closeout_delegate_session_key(args.work_unit_id)
+    args.closeout_delegate_session_key = session_key
     source_ref = args.source_ref or item["evidence_path"]
     payload = {
         "protocol": "company_ops_closeout_delegate_wake_v1",
@@ -662,21 +662,16 @@ def build_closeout_review_payload(
             "published_at": item["result_ready_at"],
             "source_ref": source_ref,
         },
-        "artifact_hashes": artifact_hashes_for_closeout_review(artifact_dir, args.work_unit_id),
+        "artifact_hashes": artifact_hashes_for_closeout_delegate(artifact_dir, args.work_unit_id),
         "delegate": {
-            "agent": args.closeout_reviewer_agent,
+            "agent": args.closeout_delegate_agent,
             "session_key": session_key,
-            "runtime": args.closeout_reviewer_runtime,
+            "runtime": args.closeout_delegate_runtime,
             "authority_role": "operations-lead-delegate",
             "allowed_agents": list(CLOSEOUT_DELEGATE_ALLOWED_AGENTS),
         },
-        "reviewer": {
-            "agent": args.closeout_reviewer_agent,
-            "session_key": session_key,
-            "runtime": args.closeout_reviewer_runtime,
-        },
         "guarded_closeout_contract": guarded_closeout_contract(args.work_unit_id),
-        "authority_boundary": CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY,
+        "authority_boundary": CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY,
         "autonomy_classes": ["auto_eligible", "deep_review_auto_eligible", "manual_required"],
         "red_line_categories": list(CLOSEOUT_RED_LINE_CATEGORIES),
         "commit_request_template": {},
@@ -692,146 +687,146 @@ def build_closeout_review_payload(
     return payload
 
 
-def closeout_review_payload_hash(payload: dict[str, Any]) -> str:
+def closeout_delegate_payload_hash(payload: dict[str, Any]) -> str:
     return canonical_json_hash(payload)
 
 
-def closeout_review_adapter_command(args: argparse.Namespace) -> str:
-    return args.closeout_reviewer_adapter_command.strip() or os.environ.get(
-        CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV,
+def closeout_delegate_adapter_command(args: argparse.Namespace) -> str:
+    return args.closeout_delegate_adapter_command.strip() or os.environ.get(
+        CLOSEOUT_DELEGATE_ADAPTER_COMMAND_ENV,
         "",
     ).strip()
 
 
-def fake_closeout_review_acceptance(args: argparse.Namespace, payload: dict[str, Any], accepted_at: str) -> dict[str, Any]:
-    payload_hash = closeout_review_payload_hash(payload)
+def fake_closeout_delegate_acceptance(args: argparse.Namespace, payload: dict[str, Any], accepted_at: str) -> dict[str, Any]:
+    payload_hash = closeout_delegate_payload_hash(payload)
     return {
         "status": "accepted",
         "adapter": "fake-closeout-delegate",
         "adapter_version": 1,
-        "agent": args.closeout_reviewer_agent,
-        "session_key": args.closeout_reviewer_session_key,
-        "session_ref": f"session:{args.closeout_reviewer_session_key}",
+        "agent": args.closeout_delegate_agent,
+        "session_key": args.closeout_delegate_session_key,
+        "session_ref": f"session:{args.closeout_delegate_session_key}",
         "job_ref": f"job:{args.work_unit_id}:closeout-delegate",
         "message_ref": f"message:{args.work_unit_id}:closeout-delegate-accepted",
         "accepted_at": accepted_at,
         "readback": {
             "work_unit_id": args.work_unit_id,
-            "closeout_review_payload_hash": payload_hash,
+            "closeout_delegate_payload_hash": payload_hash,
             "guarded_closeout_contract": payload["guarded_closeout_contract"]["command"],
-            "authority_boundary": CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY,
+            "authority_boundary": CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY,
         },
     }
 
 
-def validate_closeout_review_acceptance(args: argparse.Namespace, payload: dict[str, Any], proof: dict[str, Any]) -> str:
+def validate_closeout_delegate_acceptance(args: argparse.Namespace, payload: dict[str, Any], proof: dict[str, Any]) -> str:
     if not proof:
-        return "closeout reviewer adapter did not return JSON acceptance proof"
+        return "closeout delegate adapter did not return JSON acceptance proof"
     candidate = proof.get("result") if isinstance(proof.get("result"), dict) else proof
     if not isinstance(candidate, dict):
-        return "closeout reviewer acceptance proof must be a JSON object"
+        return "closeout delegate acceptance proof must be a JSON object"
     if str(candidate.get("status", "")).strip().lower() != "accepted":
-        return "closeout reviewer adapter did not return status=accepted"
+        return "closeout delegate adapter did not return status=accepted"
     readback = candidate.get("readback") if isinstance(candidate.get("readback"), dict) else {}
     if (readback.get("work_unit_id") or candidate.get("work_unit_id")) != args.work_unit_id:
-        return "closeout reviewer accepted proof has mismatched work_unit_id"
-    expected_hash = closeout_review_payload_hash(payload)
-    if (readback.get("closeout_review_payload_hash") or candidate.get("closeout_review_payload_hash")) != expected_hash:
-        return "closeout reviewer accepted proof has mismatched payload hash"
+        return "closeout delegate accepted proof has mismatched work_unit_id"
+    expected_hash = closeout_delegate_payload_hash(payload)
+    if (readback.get("closeout_delegate_payload_hash") or candidate.get("closeout_delegate_payload_hash")) != expected_hash:
+        return "closeout delegate accepted proof has mismatched payload hash"
     expected_contract = payload["guarded_closeout_contract"]["command"]
     if (readback.get("guarded_closeout_contract") or candidate.get("guarded_closeout_contract")) != expected_contract:
-        return "closeout reviewer accepted proof did not confirm guarded closeout contract"
-    if (readback.get("authority_boundary") or candidate.get("authority_boundary")) != CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY:
-        return "closeout reviewer accepted proof did not confirm authority boundary"
+        return "closeout delegate accepted proof did not confirm guarded closeout contract"
+    if (readback.get("authority_boundary") or candidate.get("authority_boundary")) != CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY:
+        return "closeout delegate accepted proof did not confirm authority boundary"
     if not candidate.get("job_ref"):
-        return "closeout reviewer accepted proof did not return an execution enqueue reference"
+        return "closeout delegate accepted proof did not return an execution enqueue reference"
     if not (candidate.get("session_ref") or candidate.get("message_ref")):
-        return "closeout reviewer accepted proof did not return a recoverable acceptance reference"
+        return "closeout delegate accepted proof did not return a recoverable acceptance reference"
     return ""
 
 
-def apply_closeout_review_acceptance(args: argparse.Namespace, proof: dict[str, Any]) -> dict[str, Any]:
+def apply_closeout_delegate_acceptance(args: argparse.Namespace, proof: dict[str, Any]) -> dict[str, Any]:
     candidate = proof.get("result") if isinstance(proof.get("result"), dict) else proof
     assert isinstance(candidate, dict)
     for field in ("session_ref", "job_ref", "message_ref"):
-        target_attr = f"closeout_reviewer_{field}"
+        target_attr = f"closeout_delegate_{field}"
         if not getattr(args, target_attr, "") and isinstance(candidate.get(field), str):
             setattr(args, target_attr, candidate[field].strip())
     return compact_acceptance(candidate)
 
 
-def run_closeout_review_adapter(
+def run_closeout_delegate_adapter(
     args: argparse.Namespace,
     *,
     payload: dict[str, Any],
     artifact_dir: Path,
     transition_at: str,
 ) -> tuple[dict[str, Any] | None, str]:
-    adapter = args.closeout_reviewer_adapter
-    command_text = closeout_review_adapter_command(args)
+    adapter = args.closeout_delegate_adapter
+    command_text = closeout_delegate_adapter_command(args)
     if adapter == "auto":
         adapter = "command" if command_text else ""
     if not adapter:
         return None, (
-            "automatic closeout reviewer adapter is not configured; configure "
-            f"{CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV} or pass --closeout-reviewer-adapter-command"
+            "automatic closeout delegate adapter is not configured; configure "
+            f"{CLOSEOUT_DELEGATE_ADAPTER_COMMAND_ENV} or pass --closeout-delegate-adapter-command"
         )
     if adapter == "fake":
-        proof = fake_closeout_review_acceptance(args, payload, transition_at)
-        reason = validate_closeout_review_acceptance(args, payload, proof)
+        proof = fake_closeout_delegate_acceptance(args, payload, transition_at)
+        reason = validate_closeout_delegate_acceptance(args, payload, proof)
         return (proof, "" if not reason else reason)
     if adapter == "command":
         if not command_text:
-            return None, f"--closeout-reviewer-adapter command requires --closeout-reviewer-adapter-command or {CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV}"
+            return None, f"--closeout-delegate-adapter command requires --closeout-delegate-adapter-command or {CLOSEOUT_DELEGATE_ADAPTER_COMMAND_ENV}"
         command = shlex.split(command_text)
         if not command:
-            return None, "closeout reviewer adapter command is empty"
+            return None, "closeout delegate adapter command is empty"
         request = {
-            "adapter_protocol": "company_ops_closeout_review_adapter_v1",
+            "adapter_protocol": "company_ops_closeout_delegate_adapter_v1",
             "work_unit_id": args.work_unit_id,
-            "agent": args.closeout_reviewer_agent,
-            "runtime": args.closeout_reviewer_runtime,
-            "session_key": args.closeout_reviewer_session_key,
+            "agent": args.closeout_delegate_agent,
+            "runtime": args.closeout_delegate_runtime,
+            "session_key": args.closeout_delegate_session_key,
             "artifact_dir": str(artifact_dir),
             "transition_at": transition_at,
             "packet": payload,
             "required_acceptance": {
                 "work_unit_id": args.work_unit_id,
-                "closeout_review_payload_hash": closeout_review_payload_hash(payload),
+                "closeout_delegate_payload_hash": closeout_delegate_payload_hash(payload),
                 "guarded_closeout_contract": payload["guarded_closeout_contract"]["command"],
-                "authority_boundary": CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY,
+                "authority_boundary": CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY,
             },
         }
         returncode, proof, output = run_json_stdin_command(
             command,
             request,
-            args.closeout_reviewer_adapter_timeout_seconds,
+            args.closeout_delegate_adapter_timeout_seconds,
         )
         if returncode != 0:
-            return None, f"closeout reviewer adapter command failed ({returncode}): {output}"
-        reason = validate_closeout_review_acceptance(args, payload, proof)
+            return None, f"closeout delegate adapter command failed ({returncode}): {output}"
+        reason = validate_closeout_delegate_acceptance(args, payload, proof)
         return (proof, "" if not reason else reason)
-    return None, f"unsupported closeout reviewer adapter: {adapter}"
+    return None, f"unsupported closeout delegate adapter: {adapter}"
 
 
-def closeout_review_ref(args: argparse.Namespace) -> str:
-    return args.closeout_reviewer_job_ref or args.closeout_reviewer_session_ref or args.closeout_reviewer_message_ref
+def closeout_delegate_ref(args: argparse.Namespace) -> str:
+    return args.closeout_delegate_job_ref or args.closeout_delegate_session_ref or args.closeout_delegate_message_ref
 
 
-def closeout_review_setup_needed_payload(args: argparse.Namespace, reason: str, payload: dict[str, Any]) -> dict[str, Any]:
+def closeout_delegate_setup_needed_payload(args: argparse.Namespace, reason: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "dry_run": bool(args.dry_run),
-        "status": "review-wake setup-needed",
+        "status": "delegate-wake setup-needed",
         "work_unit_id": args.work_unit_id,
-        "runtime": args.closeout_reviewer_runtime,
-        "adapter": args.closeout_reviewer_adapter,
+        "runtime": args.closeout_delegate_runtime,
+        "adapter": args.closeout_delegate_adapter,
         "reason": reason,
-        "review_payload": payload,
-        "review_payload_hash": closeout_review_payload_hash(payload),
-        "would_write_review_wake": False,
+        "delegate_payload": payload,
+        "delegate_payload_hash": closeout_delegate_payload_hash(payload),
+        "would_write_delegate_wake": False,
         "would_mutate_decision": False,
         "would_mutate_project_final": False,
-        "next_action": "Recover through work-unit inbox --result-ready, then rerun the foreground review-wake path.",
+        "next_action": "Recover through work-unit inbox --result-ready, then rerun the foreground delegate-wake path.",
     }
 
 
@@ -846,14 +841,14 @@ def closeout_delegate_capacity(artifact_root: Path, current_work_unit_id: str = 
                 item = {}
             if item.get("decision_final"):
                 continue
-        wake_path = artifact_dir / CLOSEOUT_REVIEW_WAKE_FILENAME
+        wake_path = artifact_dir / CLOSEOUT_DELEGATE_WAKE_FILENAME
         if not wake_path.exists():
             continue
         try:
             wake = json.loads(wake_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if isinstance(wake, dict) and str(wake.get("status") or "") == "review-wake-enqueued":
+        if isinstance(wake, dict) and str(wake.get("status") or "") == "delegate-wake-enqueued":
             active.append(work_unit)
     return {
         "active_count": len(active),
@@ -868,14 +863,14 @@ def closeout_delegate_capacity_failure(args: argparse.Namespace, artifact_root: 
     if cap < 1:
         return {
             "enabled": True,
-            "status": "review-wake setup-needed",
+            "status": "delegate-wake setup-needed",
             "reason": "--closeout-delegate-active-cap must be >= 1",
         }
     capacity = closeout_delegate_capacity(artifact_root, args.work_unit_id)
     if capacity["other_active_count"] >= cap and not capacity["current_active"]:
         return {
             "enabled": True,
-            "status": "review-wake capacity-full",
+            "status": "delegate-wake capacity-full",
             "work_unit_id": args.work_unit_id,
             "capacity": {
                 **capacity,
@@ -885,15 +880,15 @@ def closeout_delegate_capacity_failure(args: argparse.Namespace, artifact_root: 
                 "closeout delegate active cap reached "
                 f"({capacity['other_active_count']} active other delegate wakes, cap {cap})"
             ),
-            "would_write_review_wake": False,
+            "would_write_delegate_wake": False,
             "would_mutate_decision": False,
             "would_mutate_project_final": False,
-            "next_action": "Leave the WU in result-ready inbox and retry foreground review-wake after a delegate closes or escalates.",
+            "next_action": "Leave the WU in result-ready inbox and retry foreground delegate-wake after a delegate closes or escalates.",
         }
     return None
 
 
-def closeout_review_wake_record(
+def closeout_delegate_wake_record(
     args: argparse.Namespace,
     payload: dict[str, Any],
     accepted_proof: dict[str, Any],
@@ -901,18 +896,16 @@ def closeout_review_wake_record(
 ) -> dict[str, Any]:
     return {
         "version": 1,
-        "status": "review-wake-enqueued",
+        "status": "delegate-wake-enqueued",
         "work_unit_id": args.work_unit_id,
-        "review_payload_hash": closeout_review_payload_hash(payload),
-        "reviewer_agent": args.closeout_reviewer_agent,
-        "reviewer_runtime": args.closeout_reviewer_runtime,
-        "reviewer_session_key": args.closeout_reviewer_session_key,
-        "delegate_agent": args.closeout_reviewer_agent,
-        "delegate_session_key": args.closeout_reviewer_session_key,
+        "delegate_payload_hash": closeout_delegate_payload_hash(payload),
+        "delegate_agent": args.closeout_delegate_agent,
+        "delegate_runtime": args.closeout_delegate_runtime,
+        "delegate_session_key": args.closeout_delegate_session_key,
         "delegate_authority_role": "operations-lead-delegate",
-        "session_ref": args.closeout_reviewer_session_ref,
-        "job_ref": args.closeout_reviewer_job_ref,
-        "message_ref": args.closeout_reviewer_message_ref,
+        "session_ref": args.closeout_delegate_session_ref,
+        "job_ref": args.closeout_delegate_job_ref,
+        "message_ref": args.closeout_delegate_message_ref,
         "accepted_proof": accepted_proof,
         "payload": payload,
         "enqueued_at": transition_at,
@@ -2735,10 +2728,10 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
         f"--project-sync-ledger {DEFAULT_PROJECT_LEDGER} "
         f"--project-sync-audit-log {DEFAULT_PROJECT_AUDIT_LOG} "
-        "--closeout-reviewer-runtime openclaw-agent "
-        f"--closeout-reviewer-agent {args.closeout_reviewer_agent} "
-        "--closeout-reviewer-adapter command "
-        "--closeout-reviewer-adapter-command 'python3 scripts/openclaw_closeout_review_sessions_send.py' "
+        "--closeout-delegate-runtime openclaw-agent "
+        f"--closeout-delegate-agent {args.closeout_delegate_agent} "
+        "--closeout-delegate-adapter command "
+        "--closeout-delegate-adapter-command 'python3 scripts/openclaw_closeout_delegate_sessions_send.py' "
         "--publish --format json"
     )
     return {
@@ -2763,8 +2756,8 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         "result_ready_contract": {
             "command": result_ready_command,
             "rule": "Team Lead submits source-backed evidence and enqueues a fresh OL closeout delegate; the delegate may publish only through guarded closeout.",
-            "required_closeout_reviewer_wake": True,
-            "closeout_reviewer_agent": args.closeout_reviewer_agent,
+            "required_closeout_delegate_wake": True,
+            "closeout_delegate_agent": args.closeout_delegate_agent,
             "team_detail_target": team_detail_target,
             "channel": "discord",
             "account": "default",
@@ -3293,51 +3286,51 @@ def result_ready_card(args: argparse.Namespace, item: dict[str, Any]) -> tuple[d
     return card_from_command(command, "result-ready")
 
 
-def perform_closeout_review_wake(
+def perform_closeout_delegate_wake(
     args: argparse.Namespace,
     *,
     artifact_root: Path,
     artifact_dir: Path,
     transition_at: str,
 ) -> tuple[int, dict[str, Any]]:
-    if args.closeout_reviewer_runtime == "none":
+    if args.closeout_delegate_runtime == "none":
         return 0, {
             "enabled": False,
             "status": "skipped",
-            "reason": "closeout reviewer wake was not requested",
+            "reason": "closeout delegate wake was not requested",
         }
-    if args.closeout_reviewer_runtime != "openclaw-agent":
+    if args.closeout_delegate_runtime != "openclaw-agent":
         return 1, {
             "enabled": True,
-            "status": "review-wake setup-needed",
-            "reason": f"unsupported closeout reviewer runtime: {args.closeout_reviewer_runtime}",
+            "status": "delegate-wake setup-needed",
+            "reason": f"unsupported closeout delegate runtime: {args.closeout_delegate_runtime}",
         }
-    if args.closeout_reviewer_adapter_timeout_seconds < 1:
+    if args.closeout_delegate_adapter_timeout_seconds < 1:
         return 1, {
             "enabled": True,
-            "status": "review-wake setup-needed",
-            "reason": "closeout reviewer wake requires --closeout-reviewer-adapter-timeout-seconds >= 1",
+            "status": "delegate-wake setup-needed",
+            "reason": "closeout delegate wake requires --closeout-delegate-adapter-timeout-seconds >= 1",
         }
-    if not args.closeout_reviewer_agent:
-        args.closeout_reviewer_agent = "main"
-    if args.closeout_reviewer_agent not in CLOSEOUT_DELEGATE_ALLOWED_AGENTS:
+    if not args.closeout_delegate_agent:
+        args.closeout_delegate_agent = "main"
+    if args.closeout_delegate_agent not in CLOSEOUT_DELEGATE_ALLOWED_AGENTS:
         return 1, {
             "enabled": True,
-            "status": "review-wake setup-needed",
+            "status": "delegate-wake setup-needed",
             "reason": (
                 "closeout delegate agent must be one of "
                 + ", ".join(CLOSEOUT_DELEGATE_ALLOWED_AGENTS)
             ),
-            "would_write_review_wake": False,
+            "would_write_delegate_wake": False,
         }
     item = build_work_unit_readiness(artifact_root, args.work_unit_id)
     assigned_team = str(args.team or item.get("team") or "").strip()
-    if assigned_team and args.closeout_reviewer_agent == assigned_team:
+    if assigned_team and args.closeout_delegate_agent == assigned_team:
         return 1, {
             "enabled": True,
-            "status": "review-wake setup-needed",
+            "status": "delegate-wake setup-needed",
             "reason": "closeout delegate agent must be independent from the assigned Team Lead",
-            "would_write_review_wake": False,
+            "would_write_delegate_wake": False,
         }
     capacity_failure = closeout_delegate_capacity_failure(args, artifact_root)
     if capacity_failure:
@@ -3346,7 +3339,7 @@ def perform_closeout_review_wake(
         return 1, {
             "enabled": True,
             "status": "repair-needed",
-            "reason": "closeout reviewer wake requires a source-backed result_ready Work Unit",
+            "reason": "closeout delegate wake requires a source-backed result_ready Work Unit",
             "item": item,
         }
     if item["stale_reason"] or item["conflict_reason"] or item["result_ready_blockers"]:
@@ -3355,28 +3348,26 @@ def perform_closeout_review_wake(
             "status": "repair-needed",
             "reason": item["stale_reason"] or item["conflict_reason"] or "result_ready gate blockers remain",
             "item": item,
-            "would_write_review_wake": False,
+            "would_write_delegate_wake": False,
         }
-    if not args.closeout_reviewer_session_key:
-        args.closeout_reviewer_session_key = closeout_review_session_key(args.work_unit_id)
-    payload = build_closeout_review_payload(args, item, artifact_dir, transition_at=transition_at)
-    wake_path = artifact_dir / CLOSEOUT_REVIEW_WAKE_FILENAME
+    if not args.closeout_delegate_session_key:
+        args.closeout_delegate_session_key = closeout_delegate_session_key(args.work_unit_id)
+    payload = build_closeout_delegate_payload(args, item, artifact_dir, transition_at=transition_at)
+    wake_path = artifact_dir / CLOSEOUT_DELEGATE_WAKE_FILENAME
     base_payload = {
         "enabled": True,
         "dry_run": bool(args.dry_run),
-        "status": "ready-to-review-wake" if args.dry_run else "review-wake-enqueued",
+        "status": "ready-to-delegate-wake" if args.dry_run else "delegate-wake-enqueued",
         "work_unit_id": args.work_unit_id,
-        "reviewer_agent": args.closeout_reviewer_agent,
-        "reviewer_runtime": args.closeout_reviewer_runtime,
-        "reviewer_session_key": args.closeout_reviewer_session_key,
-        "delegate_agent": args.closeout_reviewer_agent,
-        "delegate_session_key": args.closeout_reviewer_session_key,
+        "delegate_agent": args.closeout_delegate_agent,
+        "delegate_runtime": args.closeout_delegate_runtime,
+        "delegate_session_key": args.closeout_delegate_session_key,
         "closeout_delegate_active_cap": args.closeout_delegate_active_cap,
-        "adapter": args.closeout_reviewer_adapter,
-        "review_payload": payload,
-        "review_payload_hash": closeout_review_payload_hash(payload),
+        "adapter": args.closeout_delegate_adapter,
+        "delegate_payload": payload,
+        "delegate_payload_hash": closeout_delegate_payload_hash(payload),
         "wake_path": str(wake_path),
-        "would_write_review_wake": bool(args.publish),
+        "would_write_delegate_wake": bool(args.publish),
         "would_mutate_decision": False,
         "would_mutate_project_final": False,
     }
@@ -3385,42 +3376,42 @@ def perform_closeout_review_wake(
     if wake_path.exists() and not args.force:
         return 1, {
             **base_payload,
-            "status": "review-wake setup-needed",
-            "reason": f"{CLOSEOUT_REVIEW_WAKE_FILENAME} already exists; use --force to rerun intentionally",
-            "would_write_review_wake": False,
+            "status": "delegate-wake setup-needed",
+            "reason": f"{CLOSEOUT_DELEGATE_WAKE_FILENAME} already exists; use --force to rerun intentionally",
+            "would_write_delegate_wake": False,
         }
-    raw_proof, adapter_reason = run_closeout_review_adapter(
+    raw_proof, adapter_reason = run_closeout_delegate_adapter(
         args,
         payload=payload,
         artifact_dir=artifact_dir,
         transition_at=transition_at,
     )
     if adapter_reason:
-        return 1, closeout_review_setup_needed_payload(args, adapter_reason, payload)
+        return 1, closeout_delegate_setup_needed_payload(args, adapter_reason, payload)
     assert raw_proof is not None
-    accepted_proof = apply_closeout_review_acceptance(args, raw_proof)
-    if not closeout_review_ref(args):
-        return 1, closeout_review_setup_needed_payload(
+    accepted_proof = apply_closeout_delegate_acceptance(args, raw_proof)
+    if not closeout_delegate_ref(args):
+        return 1, closeout_delegate_setup_needed_payload(
             args,
-            "closeout reviewer accepted proof did not produce a review enqueue reference",
+            "closeout delegate accepted proof did not produce a delegate enqueue reference",
             payload,
         )
-    record = closeout_review_wake_record(args, payload, accepted_proof, transition_at)
+    record = closeout_delegate_wake_record(args, payload, accepted_proof, transition_at)
     wake_path.write_text(json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     return 0, {
         **base_payload,
-        "status": "review-wake-enqueued",
+        "status": "delegate-wake-enqueued",
         "accepted_proof": accepted_proof,
         "record": record,
-        "session_ref": args.closeout_reviewer_session_ref,
-        "job_ref": args.closeout_reviewer_job_ref,
-        "message_ref": args.closeout_reviewer_message_ref,
-        "review_ref": closeout_review_ref(args),
-        "would_write_review_wake": True,
+        "session_ref": args.closeout_delegate_session_ref,
+        "job_ref": args.closeout_delegate_job_ref,
+        "message_ref": args.closeout_delegate_message_ref,
+        "delegate_ref": closeout_delegate_ref(args),
+        "would_write_delegate_wake": True,
     }
 
 
-def closeout_review_wake_work_unit(args: argparse.Namespace) -> int:
+def closeout_delegate_wake_work_unit(args: argparse.Namespace) -> int:
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
     if not artifact_dir.is_dir():
@@ -3428,7 +3419,7 @@ def closeout_review_wake_work_unit(args: argparse.Namespace) -> int:
         return 1
     transition_at = args.transition_at or utc_now_iso()
     args.transition_at = transition_at
-    code, payload = perform_closeout_review_wake(
+    code, payload = perform_closeout_delegate_wake(
         args,
         artifact_root=artifact_root,
         artifact_dir=artifact_dir,
@@ -3437,7 +3428,7 @@ def closeout_review_wake_work_unit(args: argparse.Namespace) -> int:
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     elif code == 0:
-        print(f"{payload['status']} {args.work_unit_id}: {payload.get('review_ref') or payload.get('wake_path')}")
+        print(f"{payload['status']} {args.work_unit_id}: {payload.get('delegate_ref') or payload.get('wake_path')}")
     else:
         print(f"error: {payload.get('status')}: {payload.get('reason')}", file=sys.stderr)
     return code
@@ -3520,31 +3511,31 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
     project_sync = run_project_sync(args)
     if project_sync.get("enabled") and not project_sync.get("ok"):
         print(f"warning: Project result-ready sync failed: {project_sync.get('error')}", file=sys.stderr)
-    review_wake_code, review_wake = perform_closeout_review_wake(
+    delegate_wake_code, delegate_wake = perform_closeout_delegate_wake(
         args,
         artifact_root=artifact_root,
         artifact_dir=artifact_dir,
         transition_at=args.transition_at or utc_now_iso(),
     )
-    review_wake_status = commit_request_text(review_wake.get("status")) if isinstance(review_wake, dict) else ""
+    delegate_wake_status = commit_request_text(delegate_wake.get("status")) if isinstance(delegate_wake, dict) else ""
 
     payload = {
         "dry_run": False,
-        "status": "published" if review_wake_code == 0 else review_wake_status or "review-wake setup-needed",
+        "status": "published" if delegate_wake_code == 0 else delegate_wake_status or "delegate-wake setup-needed",
         "work_unit_id": args.work_unit_id,
         "pre_publish_gate": pre_gate,
         "publish": publish_payload.get("publish", {}),
         "post_publish_gate": post_gate,
         "project_sync": project_sync,
-        "review_wake": review_wake,
+        "delegate_wake": delegate_wake,
     }
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(f"published result-ready {args.work_unit_id}: {payload['publish'].get('proof_id', '')}")
-        if review_wake_code != 0:
-            print(f"warning: closeout reviewer wake failed: {review_wake.get('reason')}", file=sys.stderr)
-    return review_wake_code
+        if delegate_wake_code != 0:
+            print(f"warning: closeout delegate wake failed: {delegate_wake.get('reason')}", file=sys.stderr)
+    return delegate_wake_code
 
 
 class CloseoutLock:
@@ -3670,12 +3661,6 @@ def commit_request_ref(value: dict[str, Any], *keys: str) -> str:
         candidate = commit_request_text(value.get(key))
         if candidate:
             return candidate
-    reviewer = value.get("reviewer")
-    if isinstance(reviewer, dict):
-        for key in keys:
-            candidate = commit_request_text(reviewer.get(key))
-            if candidate:
-                return candidate
     delegate = value.get("delegate")
     if isinstance(delegate, dict):
         for key in keys:
@@ -3724,7 +3709,7 @@ def validate_closeout_authority(args: argparse.Namespace, item: dict[str, Any], 
         if assigned_team and agent == assigned_team:
             failures.append("closeout delegate agent must be independent from the assigned Team Lead")
         boundary = commit_request_text(request.get("authority_boundary"))
-        if boundary and boundary != CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY:
+        if boundary and boundary != CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY:
             failures.append("commit-request authority_boundary does not match delegated closeout boundary")
     return failures
 
@@ -3809,7 +3794,7 @@ def validate_closeout_commit_request(
         if proof_id not in proof_ids and not result_ready_source.endswith(f"#{proof_id}"):
             failures.append("commit-request result_ready_proof_id does not match current RESULT_READY proof")
 
-    expected_hashes = artifact_hashes_for_closeout_review(artifact_dir, args.work_unit_id)
+    expected_hashes = artifact_hashes_for_closeout_delegate(artifact_dir, args.work_unit_id)
     supplied_hashes = commit_request_hashes(request)
     for key in CLOSEOUT_COMMIT_REQUEST_REQUIRED_HASHES:
         if key not in supplied_hashes:
@@ -3829,11 +3814,11 @@ def validate_closeout_commit_request(
         failures.append("commit-request review_depth is required")
     failures.extend(red_line_check_failures(request.get("red_line_check")))
     if not (
-        commit_request_ref(request, "reviewer_session_ref", "session_ref")
-        or commit_request_ref(request, "reviewer_job_ref", "job_ref", "run_ref")
-        or commit_request_ref(request, "reviewer_message_ref", "message_ref")
+        commit_request_ref(request, "delegate_session_ref", "session_ref")
+        or commit_request_ref(request, "delegate_job_ref", "job_ref", "run_ref")
+        or commit_request_ref(request, "delegate_message_ref", "message_ref")
     ):
-        failures.append("commit-request requires a reviewer session, job, run, or message ref")
+        failures.append("commit-request requires a delegate session, job, run, or message ref")
     return failures
 
 
@@ -4015,12 +4000,12 @@ def render_closeout_decision(args: argparse.Namespace, item: dict[str, Any], dec
     commit_request = getattr(args, "commit_request_payload", {}) if isinstance(getattr(args, "commit_request_payload", {}), dict) else {}
     commit_request_section = ""
     if commit_request:
-        reviewer_refs = [
+        delegate_refs = [
             value
             for value in (
-                commit_request_ref(commit_request, "reviewer_session_ref", "session_ref"),
-                commit_request_ref(commit_request, "reviewer_job_ref", "job_ref", "run_ref"),
-                commit_request_ref(commit_request, "reviewer_message_ref", "message_ref"),
+                commit_request_ref(commit_request, "delegate_session_ref", "session_ref"),
+                commit_request_ref(commit_request, "delegate_job_ref", "job_ref", "run_ref"),
+                commit_request_ref(commit_request, "delegate_message_ref", "message_ref"),
             )
             if value
         ]
@@ -4030,7 +4015,7 @@ def render_closeout_decision(args: argparse.Namespace, item: dict[str, Any], dec
 - Result-ready proof id: `{commit_request_result_ready_proof_id(commit_request)}`
 - Autonomy class: `{commit_request_text(commit_request.get("autonomy_class"))}`
 - Review depth: `{commit_request_text(commit_request.get("review_depth"))}`
-- Reviewer refs: {", ".join(f"`{ref}`" for ref in reviewer_refs) if reviewer_refs else "`missing`"}
+- Delegate refs: {", ".join(f"`{ref}`" for ref in delegate_refs) if delegate_refs else "`missing`"}
 - Artifact snapshot hash: `{canonical_json_hash(commit_request_hashes(commit_request)) if commit_request_hashes(commit_request) else ""}`
 """
     return f"""# Operations Lead Decision
@@ -5064,7 +5049,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allow openclaw-agent dispatch to use a non-derived session key intentionally",
     )
     dispatch.add_argument(
-        "--closeout-reviewer-agent",
+        "--closeout-delegate-agent",
         default="main",
         help="Closeout delegate agent id to name in the result-ready contract",
     )
@@ -5207,28 +5192,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Audit log for successful Project mirror sync",
     )
     result_ready.add_argument(
-        "--closeout-reviewer-runtime",
-        choices=CLOSEOUT_REVIEW_RUNTIME_CHOICES,
+        "--closeout-delegate-runtime",
+        choices=CLOSEOUT_DELEGATE_RUNTIME_CHOICES,
         default="none",
-        help="Optional fresh closeout reviewer wake after successful RESULT_READY publish",
+        help="Optional fresh closeout delegate wake after successful RESULT_READY publish",
     )
-    result_ready.add_argument("--closeout-reviewer-agent", default="main")
-    result_ready.add_argument("--closeout-reviewer-session-key", default="")
-    result_ready.add_argument("--closeout-reviewer-session-ref", default="", help=argparse.SUPPRESS)
-    result_ready.add_argument("--closeout-reviewer-job-ref", default="", help=argparse.SUPPRESS)
-    result_ready.add_argument("--closeout-reviewer-message-ref", default="", help=argparse.SUPPRESS)
+    result_ready.add_argument("--closeout-delegate-agent", default="main")
+    result_ready.add_argument("--closeout-delegate-session-key", default="")
+    result_ready.add_argument("--closeout-delegate-session-ref", default="", help=argparse.SUPPRESS)
+    result_ready.add_argument("--closeout-delegate-job-ref", default="", help=argparse.SUPPRESS)
+    result_ready.add_argument("--closeout-delegate-message-ref", default="", help=argparse.SUPPRESS)
     result_ready.add_argument(
-        "--closeout-reviewer-adapter",
-        choices=CLOSEOUT_REVIEW_ADAPTER_CHOICES,
+        "--closeout-delegate-adapter",
+        choices=CLOSEOUT_DELEGATE_ADAPTER_CHOICES,
         default="auto",
-        help="Reviewer wake adapter. auto uses a configured command; fake is smoke-only.",
+        help="Delegate wake adapter. auto uses a configured command; fake is smoke-only.",
     )
     result_ready.add_argument(
-        "--closeout-reviewer-adapter-command",
+        "--closeout-delegate-adapter-command",
         default="",
-        help=f"Command that reads reviewer wake JSON on stdin and returns accepted proof JSON. Defaults from {CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV}.",
+        help=f"Command that reads delegate wake JSON on stdin and returns accepted proof JSON. Defaults from {CLOSEOUT_DELEGATE_ADAPTER_COMMAND_ENV}.",
     )
-    result_ready.add_argument("--closeout-reviewer-adapter-timeout-seconds", type=int, default=30)
+    result_ready.add_argument("--closeout-delegate-adapter-timeout-seconds", type=int, default=30)
     result_ready.add_argument("--closeout-delegate-active-cap", type=int, default=CLOSEOUT_DELEGATE_ACTIVE_CAP_DEFAULT)
     result_ready.add_argument("--force", action="store_true", help="Allow duplicate publish proof when intentionally rerunning")
     result_ready.add_argument("--format", choices=("text", "json"), default="text")
@@ -5237,46 +5222,46 @@ def build_parser() -> argparse.ArgumentParser:
     result_ready_mode.add_argument("--publish", action="store_true", help="Publish/read back RESULT_READY, then run post-proof gate")
     result_ready.set_defaults(func=result_ready_work_unit)
 
-    review_wake = work_unit_subparsers.add_parser(
-        "review-wake",
-        help="Foreground wake of a fresh closeout reviewer for a source-backed RESULT_READY Work Unit",
+    delegate_wake = work_unit_subparsers.add_parser(
+        "delegate-wake",
+        help="Foreground wake of a fresh closeout delegate for a source-backed RESULT_READY Work Unit",
     )
-    review_wake.add_argument("--work-unit-id", required=True, type=work_unit_id)
-    review_wake.add_argument(
+    delegate_wake.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    delegate_wake.add_argument(
         "--artifact-root",
         type=Path,
         default=DEFAULT_ARTIFACT_ROOT,
         help="Root directory containing <work-unit-id> source artifacts",
     )
-    review_wake.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
-    review_wake.add_argument("--source-ref", default="", help="Source reference for reviewer payload; defaults to evidence.md")
-    review_wake.add_argument("--closeout-reviewer-runtime", choices=CLOSEOUT_REVIEW_RUNTIME_CHOICES, default="openclaw-agent")
-    review_wake.add_argument("--closeout-reviewer-agent", default="main")
-    review_wake.add_argument("--closeout-reviewer-session-key", default="")
-    review_wake.add_argument("--closeout-reviewer-session-ref", default="", help=argparse.SUPPRESS)
-    review_wake.add_argument("--closeout-reviewer-job-ref", default="", help=argparse.SUPPRESS)
-    review_wake.add_argument("--closeout-reviewer-message-ref", default="", help=argparse.SUPPRESS)
-    review_wake.add_argument(
-        "--closeout-reviewer-adapter",
-        choices=CLOSEOUT_REVIEW_ADAPTER_CHOICES,
+    delegate_wake.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
+    delegate_wake.add_argument("--source-ref", default="", help="Source reference for delegate payload; defaults to evidence.md")
+    delegate_wake.add_argument("--closeout-delegate-runtime", choices=CLOSEOUT_DELEGATE_RUNTIME_CHOICES, default="openclaw-agent")
+    delegate_wake.add_argument("--closeout-delegate-agent", default="main")
+    delegate_wake.add_argument("--closeout-delegate-session-key", default="")
+    delegate_wake.add_argument("--closeout-delegate-session-ref", default="", help=argparse.SUPPRESS)
+    delegate_wake.add_argument("--closeout-delegate-job-ref", default="", help=argparse.SUPPRESS)
+    delegate_wake.add_argument("--closeout-delegate-message-ref", default="", help=argparse.SUPPRESS)
+    delegate_wake.add_argument(
+        "--closeout-delegate-adapter",
+        choices=CLOSEOUT_DELEGATE_ADAPTER_CHOICES,
         default="auto",
-        help="Reviewer wake adapter. auto uses a configured command; fake is smoke-only.",
+        help="Delegate wake adapter. auto uses a configured command; fake is smoke-only.",
     )
-    review_wake.add_argument(
-        "--closeout-reviewer-adapter-command",
+    delegate_wake.add_argument(
+        "--closeout-delegate-adapter-command",
         default="",
-        help=f"Command that reads reviewer wake JSON on stdin and returns accepted proof JSON. Defaults from {CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV}.",
+        help=f"Command that reads delegate wake JSON on stdin and returns accepted proof JSON. Defaults from {CLOSEOUT_DELEGATE_ADAPTER_COMMAND_ENV}.",
     )
-    review_wake.add_argument("--closeout-reviewer-adapter-timeout-seconds", type=int, default=30)
-    review_wake.add_argument("--closeout-delegate-active-cap", type=int, default=CLOSEOUT_DELEGATE_ACTIVE_CAP_DEFAULT)
-    review_wake.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
-    review_wake.add_argument("--recorded-by", default="operations-lead")
-    review_wake.add_argument("--force", action="store_true", help="Replace an existing closeout-review-wake record intentionally")
-    review_wake.add_argument("--format", choices=("text", "json"), default="text")
-    review_wake_mode = review_wake.add_mutually_exclusive_group(required=True)
-    review_wake_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without reviewer wake record or runtime call")
-    review_wake_mode.add_argument("--publish", action="store_true", help="Enqueue reviewer through the configured adapter and record proof")
-    review_wake.set_defaults(func=closeout_review_wake_work_unit)
+    delegate_wake.add_argument("--closeout-delegate-adapter-timeout-seconds", type=int, default=30)
+    delegate_wake.add_argument("--closeout-delegate-active-cap", type=int, default=CLOSEOUT_DELEGATE_ACTIVE_CAP_DEFAULT)
+    delegate_wake.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    delegate_wake.add_argument("--recorded-by", default="operations-lead")
+    delegate_wake.add_argument("--force", action="store_true", help="Replace an existing closeout-delegate-wake record intentionally")
+    delegate_wake.add_argument("--format", choices=("text", "json"), default="text")
+    delegate_wake_mode = delegate_wake.add_mutually_exclusive_group(required=True)
+    delegate_wake_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without delegate wake record or runtime call")
+    delegate_wake_mode.add_argument("--publish", action="store_true", help="Enqueue delegate through the configured adapter and record proof")
+    delegate_wake.set_defaults(func=closeout_delegate_wake_work_unit)
 
     inbox = work_unit_subparsers.add_parser(
         "inbox",
@@ -5324,7 +5309,7 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument(
         "--commit-request",
         default="",
-        help="Structured reviewer commit-request JSON or @path; binds closeout to source hashes and RESULT_READY proof",
+        help="Structured delegate commit-request JSON or @path; binds closeout to source hashes and RESULT_READY proof",
     )
     closeout.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
     closeout.add_argument("--reason", default="", help="Operations Lead rationale for an explicit decision")

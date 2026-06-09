@@ -264,13 +264,13 @@ python3 scripts/openclaw_company_ops.py work-unit result-ready \
   --evidence <source-ref> \
   --verification "..." \
   --publish \
-  --closeout-reviewer-runtime openclaw-agent \
-  --closeout-reviewer-agent main \
-  --closeout-reviewer-adapter command \
-  --closeout-reviewer-adapter-command "python3 scripts/openclaw_closeout_review_sessions_send.py"
+  --closeout-delegate-runtime openclaw-agent \
+  --closeout-delegate-agent main \
+  --closeout-delegate-adapter command \
+  --closeout-delegate-adapter-command "python3 scripts/openclaw_closeout_delegate_sessions_send.py"
 ```
 
-The default closeout reviewer runtime is `none`, so existing result-ready
+The default closeout delegate runtime is `none`, so existing result-ready
 publication remains unchanged unless the operator requests the wake path. The
 v1 delegate agent is the allowlisted `main` agent in a fresh Work Unit-scoped
 session, with an injected closeout-delegate prompt. Unknown agents and the
@@ -282,17 +282,17 @@ guarded closeout only. The delegate execution turn prepares
 only through the guarded closeout command when all red-line categories are
 clear. It must not write `decision.md` directly, mutate Project final status
 directly, publish final Discord cards directly, archive, cleanup, or reassign.
-`--closeout-reviewer-adapter fake` is a smoke/local contract fixture, not a
+`--closeout-delegate-adapter fake` is a smoke/local contract fixture, not a
 production path. Production wake should use the configured command adapter,
-usually through `COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND`.
+usually through `COMPANY_OPS_CLOSEOUT_DELEGATE_ADAPTER_COMMAND`.
 Delegate execution enqueue keys include the payload hash and prompt version, so
-an intentional foreground `review-wake --force` can replay after a corrected
+an intentional foreground `delegate-wake --force` can replay after a corrected
 payload or delegate prompt without reusing a stale execution result.
 
 If RESULT_READY publish succeeds but delegate wake fails, do not roll back
 RESULT_READY and do not fake closeout. Treat the result as still visible in
 `work-unit inbox --result-ready`, then recover with the foreground
-`work-unit review-wake --dry-run/--publish` path after adapter setup is fixed.
+`work-unit delegate-wake --dry-run/--publish` path after adapter setup is fixed.
 The Team Lead waits only for RESULT_READY readback and delegate enqueue proof;
 it must not wait for delegate judgment or final closeout completion.
 If a readback-ok RESULT_READY proof already exists, `result-ready --publish`
@@ -506,7 +506,7 @@ The default flow is:
    Lead-owned result submission through `work-unit result-ready`. For detached
    work, request a fresh closeout delegate wake when configured; if wake fails,
    leave the WU in the result-ready inbox and recover through `work-unit
-   review-wake`.
+   delegate-wake`.
 9. A closeout delegate or Operations Lead performs source-backed verification
    and prepares a guarded `--commit-request`.
 10. The fresh `main` closeout delegate may publish final closeout through

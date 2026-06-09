@@ -13,8 +13,8 @@ import sys
 from typing import Any
 
 
-PROTOCOL = "company_ops_closeout_review_adapter_v1"
-ADAPTER = "openclaw-closeout-review-sessions-send"
+PROTOCOL = "company_ops_closeout_delegate_adapter_v1"
+ADAPTER = "openclaw-closeout-delegate-sessions-send"
 AUTHORITY_BOUNDARY = "closeout_delegate_guarded_closeout_only"
 DEFAULT_ACCEPT_TIMEOUT_MS = 30_000
 EXECUTION_PROMPT_VERSION = 3
@@ -199,7 +199,7 @@ def acceptance_prompt(request: dict[str, Any]) -> str:
                 {
                     "status": "accepted",
                     "work_unit_id": required["work_unit_id"],
-                    "closeout_review_payload_hash": required["closeout_review_payload_hash"],
+                    "closeout_delegate_payload_hash": required["closeout_delegate_payload_hash"],
                     "guarded_closeout_contract": required["guarded_closeout_contract"],
                     "authority_boundary": required["authority_boundary"],
                 },
@@ -221,9 +221,9 @@ def execution_prompt(request: dict[str, Any]) -> str:
         "source_ref": packet.get("refs", {}).get("source_ref"),
         "result_ready_proof_id": packet.get("result_ready", {}).get("proof_id"),
         "artifact_hashes": packet.get("artifact_hashes"),
-        "reviewer_session_ref": packet.get("delegate", {}).get("session_key"),
-        "reviewer_job_ref": f"{packet.get('work_unit_id')}:closeout-delegate",
-        "reviewer_message_ref": "<delegate-message-or-run-ref>",
+        "delegate_session_ref": packet.get("delegate", {}).get("session_key"),
+        "delegate_job_ref": f"{packet.get('work_unit_id')}:closeout-delegate",
+        "delegate_message_ref": "<delegate-message-or-run-ref>",
         "autonomy_class": "auto_eligible|deep_review_auto_eligible|manual_required",
         "review_depth": "<source/proof/hash/criteria review depth>",
         "red_line_check": {"status": "clear", **{category: "clear" for category in CLOSEOUT_RED_LINE_CATEGORIES}},
@@ -232,7 +232,7 @@ def execution_prompt(request: dict[str, Any]) -> str:
         [
             "[Company Ops Closeout Delegate Execution]",
             "You already accepted this closeout-delegate wake. Start the fresh OL delegate audit now.",
-            "Use only the source artifacts and refs in the review payload.",
+            "Use only the source artifacts and refs in the delegate payload.",
             "Inspect files, summarize evidence sufficiency, and prepare exactly one guarded commit-request JSON file.",
             f"Write the commit request to: {commit_request_path}",
             "Then run the guarded closeout contract from the payload with --dry-run.",
@@ -248,7 +248,7 @@ def execution_prompt(request: dict[str, Any]) -> str:
             "Commit-request JSON shape:",
             json.dumps(commit_request_template, indent=2, sort_keys=True, ensure_ascii=False),
             "",
-            "Closeout review payload:",
+            "Closeout delegate payload:",
             json.dumps(packet, indent=2, sort_keys=True, ensure_ascii=False),
         ]
     )
@@ -288,8 +288,8 @@ def build_acceptance_proof(
         "accepted_at": accepted_at,
         "readback": {
             "work_unit_id": acceptance.get("work_unit_id") or required["work_unit_id"],
-            "closeout_review_payload_hash": (
-                acceptance.get("closeout_review_payload_hash") or required["closeout_review_payload_hash"]
+            "closeout_delegate_payload_hash": (
+                acceptance.get("closeout_delegate_payload_hash") or required["closeout_delegate_payload_hash"]
             ),
             "guarded_closeout_contract": (
                 acceptance.get("guarded_closeout_contract") or required["guarded_closeout_contract"]
@@ -300,7 +300,7 @@ def build_acceptance_proof(
             "acceptance_transport": "openclaw-agent-gateway",
             "execution_enqueued": True,
             "idempotency_key": idempotency_key,
-            "closeout_review_payload_hash": payload_hash,
+            "closeout_delegate_payload_hash": payload_hash,
         },
     }
 
@@ -350,8 +350,8 @@ def main() -> int:
     required = request["required_acceptance"]
     if acceptance.get("authority_boundary") != AUTHORITY_BOUNDARY:
         return fail("target did not confirm closeout delegate authority boundary")
-    if acceptance.get("closeout_review_payload_hash") != required["closeout_review_payload_hash"]:
-        return fail("target did not confirm closeout review payload hash")
+    if acceptance.get("closeout_delegate_payload_hash") != required["closeout_delegate_payload_hash"]:
+        return fail("target did not confirm closeout delegate payload hash")
     accept_response_payload = gateway_payload(accept_payload)
     if not (
         explicit_ref(accept_response_payload, "messageId", "id", "runId", "taskId")

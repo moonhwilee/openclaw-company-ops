@@ -1264,7 +1264,7 @@ Scope:
 - Preserve or rehydrate Work Card links in Operations Lead decisions.
 - Define and implement the minimum detached dispatch behavior required for
   Operations Lead handoff without blocking on Team Lead execution.
-- Add result-ready closeout reviewer wake, guarded commit-request closeout, and
+- Add result-ready closeout delegate wake, guarded commit-request closeout, and
   explicit partial-publish resume behavior.
 - Add a no-bypass regression gate for live workflow tests.
 
@@ -1278,7 +1278,7 @@ Acceptance gate:
   them.
 - The tested detached path does not require the Operations Lead to hold the
   Team Lead foreground execution.
-- Result-ready reviewer wake and guarded closeout commit request are exercised,
+- Result-ready delegate wake and guarded closeout commit request are exercised,
   including fail-closed and partial-resume edge cases introduced by 5.8.4c.
 - Any remaining P1/P2 items have explicit owner-approved defer rationale.
 

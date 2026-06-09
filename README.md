@@ -60,9 +60,9 @@ surfaces, deferred surfaces, and no-go surfaces are locked. Phase 5.8
 Stabilization Gate is complete. Phases 5.8.1 through 5.8.5 are implemented in
 the repo-local and live-verified model: canonical start/result-ready guards,
 final closeout lifecycle convergence, fresh-session detached dispatch, capacity
-policy, result-ready closeout reviewer wake, guarded `--commit-request`
+policy, result-ready closeout delegate wake, guarded `--commit-request`
 closeout, resumable closeout visibility publish, duplicate RESULT_READY
-suppression, and closeout reviewer replay-safe idempotency are all present.
+suppression, and closeout delegate replay-safe idempotency are all present.
 Phase 6 Packaging / Public v1 is now the next planned phase.
 
 Company Ops capacity sizing is a general operating policy, not a phase-local
