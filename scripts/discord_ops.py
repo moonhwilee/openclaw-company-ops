@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from progress_display import CLAMP_VERSION, progress_icon
+
 UTC = timezone.utc
 
 
@@ -575,7 +577,16 @@ def card_from_args(args: argparse.Namespace) -> dict[str, str]:
         "reason": args.reason,
         "status": args.status,
         "current_slice": args.current_slice,
-        "progress_summary": args.progress_summary,
+        "mode": args.mode,
+        "round": args.round,
+        "show_round": args.show_round,
+        "phase": args.phase,
+        "phase_index": args.phase_index,
+        "phase_total": args.phase_total,
+        "risk_state": args.risk_state,
+        "retry_state": args.retry_state,
+        "rendered_progress_summary": args.rendered_progress_summary,
+        "clamp_version": args.clamp_version,
         "elapsed": args.elapsed,
         "next_checkpoint": args.next_checkpoint,
         "source": args.source,
@@ -612,7 +623,11 @@ def validate_card(card: dict[str, str]) -> None:
     elif card["kind"] == "STARTED":
         require_fields(card, ("status",), "team started card")
     elif card["kind"] == "CHECKPOINT":
-        require_fields(card, ("status", "current_slice"), "team checkpoint card")
+        require_fields(
+            card,
+            ("status", "current_slice", "rendered_progress_summary", "clamp_version"),
+            "team checkpoint card",
+        )
     elif card["kind"] == "RESULT_READY":
         require_fields(card, ("result", "evidence", "verification"), "team result ready card")
     elif card["kind"] in {"ACCEPTED", "REVISE"}:
@@ -663,7 +678,7 @@ def format_ops_feed_card(card: dict[str, str]) -> str:
 
 
 def format_team_detail_card(card: dict[str, str]) -> str:
-    status_icon = TEAM_DETAIL_STATUS_ICONS[card["kind"]]
+    status_icon = progress_icon(card) if card["kind"] == "CHECKPOINT" else TEAM_DETAIL_STATUS_ICONS[card["kind"]]
     display_kind = "PROGRESS" if card["kind"] == "CHECKPOINT" else card["kind"]
     lines = [f"{status_icon} [{display_kind}] {card['work_unit_id']} · {team_display(card['team'])}"]
 
@@ -680,10 +695,9 @@ def format_team_detail_card(card: dict[str, str]) -> str:
     elif card["kind"] == "STARTED":
         lines.append(f"Status: {card['status']}")
     elif card["kind"] == "CHECKPOINT":
-        progress_summary = card.get("progress_summary") or card["current_slice"]
         lines.extend(
             [
-                f"진행: {progress_summary}",
+                f"진행: {card['rendered_progress_summary']}",
                 f"Status: {card['status']}",
             ]
         )
@@ -935,7 +949,7 @@ def proof_row_from_card(
     error: str = "",
 ) -> dict[str, Any]:
     card_id = stable_card_id(card, text)
-    return {
+    row = {
         "proof_version": 1,
         "proof_id": f"{card['work_unit_id']}:{card['surface']}:{card['kind']}:{card_id}",
         "card_id": card_id,
@@ -961,6 +975,25 @@ def proof_row_from_card(
             "matched_message_id": readback_message_id,
         },
     }
+    if card.get("kind") == "CHECKPOINT":
+        row.update(
+            {
+                "mode": card.get("mode", ""),
+                "round": card.get("round", ""),
+                "show_round": card.get("show_round") is True
+                or str(card.get("show_round") or "").strip().lower() in {"1", "true", "yes"},
+                "phase": card.get("phase", ""),
+                "phase_index": card.get("phase_index", ""),
+                "phase_total": card.get("phase_total", ""),
+                "current_slice": card.get("current_slice", ""),
+                "risk_state": card.get("risk_state", ""),
+                "retry_state": card.get("retry_state", ""),
+                "rendered_title": text.splitlines()[0] if text.splitlines() else "",
+                "rendered_progress_summary": card["rendered_progress_summary"],
+                "clamp_version": card["clamp_version"],
+            }
+        )
+    return row
 
 
 def perform_publish_card(args: argparse.Namespace) -> tuple[int, dict[str, Any], str]:
@@ -1363,7 +1396,16 @@ def build_parser() -> argparse.ArgumentParser:
     card.add_argument("--reason", default="", help="Operations Lead review reason")
     card.add_argument("--status", default="", help="Team execution status")
     card.add_argument("--current-slice", default="", help="Current long-running slice for CHECKPOINT")
-    card.add_argument("--progress-summary", default="", help="Rendered dashboard Progress text for user-facing CHECKPOINT display")
+    card.add_argument("--mode", default="", help="Source progress mode for CHECKPOINT")
+    card.add_argument("--round", default="", help="Source progress round for CHECKPOINT")
+    card.add_argument("--show-round", default="", help="Source progress show_round flag for CHECKPOINT")
+    card.add_argument("--phase", default="", help="Source progress phase for CHECKPOINT")
+    card.add_argument("--phase-index", default="", help="Source progress phase index for CHECKPOINT")
+    card.add_argument("--phase-total", default="", help="Source progress phase total for CHECKPOINT")
+    card.add_argument("--risk-state", default="", help="Source progress risk state for CHECKPOINT")
+    card.add_argument("--retry-state", default="", help="Source progress retry state for CHECKPOINT")
+    card.add_argument("--rendered-progress-summary", default="", help="Rendered dashboard Progress text for user-facing CHECKPOINT display")
+    card.add_argument("--clamp-version", default=CLAMP_VERSION, help="Progress display clamp version")
     card.add_argument("--elapsed", default="", help="Elapsed time or progress age for CHECKPOINT")
     card.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
     card.add_argument("--source", default="", help="Source artifact or local proof reference")

@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from progress_display import render_progress_display, should_show_round
 from result_ready_gate import result_ready_gate
 
 
@@ -23,7 +24,6 @@ ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
 STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
-ROUND_VISIBLE_MODES = {"goal", "convergence"}
 HANDOFF_MODE_CHOICES = {"goal", "verify"}
 MUTATION_SURFACE_CHOICES = {"source", "project", "discord", "git", "external"}
 PROJECT_SYNC_MODE_CHOICES = ("disabled", "required")
@@ -197,28 +197,6 @@ def utc_now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def should_show_round(mode: str, explicit_show_round: bool) -> bool:
-    return explicit_show_round or mode.strip().lower() in ROUND_VISIBLE_MODES
-
-
-def render_progress_summary(row: dict[str, Any]) -> str:
-    phase = str(row.get("phase") or "").strip()
-    current_slice = str(row.get("current_slice") or "").strip()
-    round_value = str(row.get("round") or "").strip()
-    mode = str(row.get("mode") or "").strip().lower()
-    show_round = row.get("show_round") is True or str(row.get("show_round") or "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    } or mode in ROUND_VISIBLE_MODES
-    index = str(row.get("phase_index") or "").strip()
-    total = str(row.get("phase_total") or "").strip()
-    prefix = f"{index}/{total}" if index and total else index
-    round_part = f"R{round_value}" if round_value and show_round else ""
-    label = phase or current_slice
-    return " · ".join(part for part in (round_part, prefix, label) if part)
-
-
 def progress_row_from_args(
     args: argparse.Namespace,
     *,
@@ -236,6 +214,8 @@ def progress_row_from_args(
         "round": args.round,
         "show_round": should_show_round(mode, bool(args.show_round)),
         "current_slice": args.current_slice,
+        "risk_state": getattr(args, "risk_state", ""),
+        "retry_state": getattr(args, "retry_state", ""),
         "next_checkpoint": args.next_checkpoint,
         "source_ref": args.source_ref,
         "proof_ref": proof_ref if proof_ref is not None else args.proof_ref,
@@ -656,6 +636,35 @@ def github_work_card_parts(work_card: str) -> dict[str, str]:
     if not match:
         return {}
     return match.groupdict()
+
+
+def safe_source_artifact_ref(value: str | Path, *, work_unit_id: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if re.match(r"^[a-z][a-z0-9+.-]*://", raw, flags=re.IGNORECASE):
+        return raw
+    path = Path(raw).expanduser()
+    repo_root = Path.cwd().resolve()
+    candidates = [path]
+    if not path.is_absolute():
+        candidates.append(repo_root / path)
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=False)
+            return resolved.relative_to(repo_root).as_posix()
+        except ValueError:
+            continue
+    if path.name in ARTIFACTS or path.name in {DEFAULT_PROOF_LOG_NAME, "progress.jsonl"}:
+        return (DEFAULT_ARTIFACT_ROOT / work_unit_id / path.name).as_posix()
+    parts = path.parts
+    if "docs" in parts:
+        docs_index = parts.index("docs")
+        return Path(*parts[docs_index:]).as_posix()
+    for index, part in enumerate(parts):
+        if WORK_UNIT_RE.match(part):
+            return (DEFAULT_ARTIFACT_ROOT / Path(*parts[index:])).as_posix()
+    return path.name or raw
 
 
 def source_field_value(
@@ -2706,9 +2715,12 @@ def append_progress(args: argparse.Namespace) -> int:
 
 
 def checkpoint_card_args(args: argparse.Namespace) -> list[str]:
-    progress_summary = render_progress_summary(
-        progress_row_from_args(args, transition_at=args.transition_at or utc_now_iso(), proof_ref=args.proof_ref)
+    progress_row = progress_row_from_args(
+        args,
+        transition_at=args.transition_at or utc_now_iso(),
+        proof_ref=args.proof_ref,
     )
+    rendered = render_progress_display(progress_row)
     command = [
         sys.executable,
         str(SCRIPT_DIR / "discord_ops.py"),
@@ -2723,8 +2735,26 @@ def checkpoint_card_args(args: argparse.Namespace) -> list[str]:
         args.team,
         "--current-slice",
         args.current_slice,
-        "--progress-summary",
-        progress_summary,
+        "--mode",
+        progress_row["mode"],
+        "--phase",
+        progress_row["phase"],
+        "--phase-index",
+        progress_row["phase_index"],
+        "--phase-total",
+        progress_row["phase_total"],
+        "--round",
+        progress_row["round"],
+        "--show-round",
+        str(progress_row["show_round"]).lower(),
+        "--risk-state",
+        progress_row["risk_state"],
+        "--retry-state",
+        progress_row["retry_state"],
+        "--rendered-progress-summary",
+        rendered["rendered_progress_summary"],
+        "--clamp-version",
+        rendered["clamp_version"],
         "--status",
         args.status,
         "--next",
@@ -4299,7 +4329,8 @@ def render_work_card_summary_comment(
         return {"ok": False, "error": "; ".join(failures), "body": ""}
     status = DECISION_STATUS_BY_DECISION[args.decision]
     marker = WORK_CARD_SUMMARY_MARKER_TEMPLATE.format(work_unit_id=args.work_unit_id)
-    evidence_ref = args.source_ref or item["evidence_path"]
+    evidence_ref = safe_source_artifact_ref(args.source_ref or item["evidence_path"], work_unit_id=args.work_unit_id)
+    decision_ref = safe_source_artifact_ref(decision_path, work_unit_id=args.work_unit_id)
     next_action = args.next or args.next_owner or ("Owner may inspect the accepted Work Unit." if args.decision == "accept" else "See source decision for next action.")
     body = f"""{marker}
 ## Company Ops Result Summary
@@ -4322,7 +4353,7 @@ Source of truth: source artifacts, not this GitHub comment.
 
 ### Source Artifacts
 - Evidence: `{evidence_ref}`
-- Decision: `{decision_path}`
+- Decision: `{decision_ref}`
 - Work Card: {item.get("work_card") or "missing"}
 
 Published by guarded Company Ops closeout at `{decided_at}`.
@@ -4363,6 +4394,24 @@ def run_gh_api(endpoint: str, *, method: str = "GET", payload: dict[str, Any] | 
         return 1, None, f"gh api returned invalid JSON: {exc}"
 
 
+def fetch_github_issue_comments(parts: dict[str, str], *, per_page: int = 100) -> tuple[int, list[dict[str, Any]], str]:
+    comments: list[dict[str, Any]] = []
+    for page in range(1, 101):
+        endpoint = (
+            f"repos/{parts['owner']}/{parts['repo']}/issues/{parts['number']}/comments"
+            f"?per_page={per_page}&page={page}"
+        )
+        code, page_comments, error = run_gh_api(endpoint)
+        if code != 0:
+            return code, comments, error
+        if not isinstance(page_comments, list):
+            return 1, comments, "gh api returned non-list issue comments"
+        comments.extend(comment for comment in page_comments if isinstance(comment, dict))
+        if len(page_comments) < per_page:
+            return 0, comments, ""
+    return 1, comments, "issue comments pagination exceeded 100 pages"
+
+
 def publish_work_card_summary_comment(
     args: argparse.Namespace,
     item: dict[str, Any],
@@ -4383,16 +4432,15 @@ def publish_work_card_summary_comment(
     body = rendered["body"]
     parts = state["github_issue"]
     issue_comments_endpoint = f"repos/{parts['owner']}/{parts['repo']}/issues/{parts['number']}/comments"
-    code, comments, error = run_gh_api(issue_comments_endpoint)
+    code, comments, error = fetch_github_issue_comments(parts)
     if code != 0:
         state.update({"ok": False, "sync_state": "readback_failed", "error": error})
         return state
     existing = None
-    if isinstance(comments, list):
-        for comment in comments:
-            if isinstance(comment, dict) and rendered["marker"] in str(comment.get("body") or ""):
-                existing = comment
-                break
+    for comment in comments:
+        if rendered["marker"] in str(comment.get("body") or ""):
+            existing = comment
+            break
     if existing:
         comment_id = existing.get("id")
         code, response, error = run_gh_api(
@@ -5557,6 +5605,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Display round in dashboard Progress; use for convergence/goal rounds or explicit owner request",
     )
     progress.add_argument("--current-slice", default="", help="Current execution slice")
+    progress.add_argument("--risk-state", default="", help="Progress risk state for display, e.g. at-risk or blocked")
+    progress.add_argument("--retry-state", default="", help="Progress retry state for display, e.g. retry or re-run")
     progress.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
     progress.add_argument("--source-ref", default="", help="Source artifact reference for this progress update")
     progress.add_argument("--proof-ref", default="", help="Optional proof log or Discord proof reference")
@@ -5743,6 +5793,8 @@ def build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument("--team", required=True, type=required)
     checkpoint.add_argument("--status", required=True, type=required)
     checkpoint.add_argument("--current-slice", required=True, type=required)
+    checkpoint.add_argument("--risk-state", default="", help="Progress risk state for display, e.g. at-risk or blocked")
+    checkpoint.add_argument("--retry-state", default="", help="Progress retry state for display, e.g. retry or re-run")
     checkpoint.add_argument("--next", required=True, type=required, help="Discord next action")
     checkpoint.add_argument("--elapsed", default="", help="Elapsed time or progress age")
     checkpoint.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ops_claim_ledger import DEFAULT_LEDGER
+from progress_display import render_progress_summary
 from result_ready_gate import result_ready_gate
 from work_unit_status import DEFAULT_ARTIFACT_ROOT, build_summary
 
@@ -308,28 +309,7 @@ def derive_blocker(summary: dict[str, Any], status: str, reason: str) -> str:
 
 
 def format_progress(progress: dict[str, Any]) -> str:
-    phase = str(progress.get("phase") or "").strip()
-    current_slice = str(progress.get("current_slice") or "").strip()
-    round_value = str(progress.get("round") or "").strip()
-    mode = str(progress.get("mode") or "").strip().lower()
-    show_round = progress.get("show_round") is True or str(
-        progress.get("show_round") or ""
-    ).strip().lower() in {"1", "true", "yes"} or mode in {"goal", "convergence"}
-    index = str(progress.get("phase_index") or "").strip()
-    total = str(progress.get("phase_total") or "").strip()
-
-    label = phase or current_slice
-    if not label and not (round_value and show_round):
-        return ""
-
-    prefix = ""
-    if index and total:
-        prefix = f"{index}/{total}"
-    elif index:
-        prefix = index
-    round_part = f"R{round_value}" if round_value and show_round else ""
-    parts = [part for part in (round_part, prefix, label) if part]
-    return " · ".join(parts)
+    return render_progress_summary(progress)
 
 
 def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:

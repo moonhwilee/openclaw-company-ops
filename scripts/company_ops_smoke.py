@@ -575,6 +575,8 @@ def run_discord_card_smoke() -> None:
             "build-pq",
             "--current-slice",
             "Phase 1 data inspection",
+            "--rendered-progress-summary",
+            "Phase 1 data inspection",
             "--status",
             "Inspecting source artifacts before implementation.",
             "--elapsed",
@@ -590,9 +592,71 @@ def run_discord_card_smoke() -> None:
     require_success(checkpoint, "discord team checkpoint card")
     if "🧭 [PROGRESS] WU-260605-903 · 🧱 build-pq" not in checkpoint.stdout:
         raise RuntimeError("checkpoint card did not include expected header")
+    if "진행: Phase 1 data inspection" not in checkpoint.stdout:
+        raise RuntimeError("checkpoint card did not render the Project Progress summary in the first body line")
     for expected in ("진행:", "Status:", "Next checkpoint:", "Next:"):
         if expected not in checkpoint.stdout:
             raise RuntimeError(f"checkpoint card missing {expected}")
+
+    risk_checkpoint = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "CHECKPOINT",
+            "--work-unit-id",
+            "WU-260605-903",
+            "--team",
+            "build-pq",
+            "--current-slice",
+            "risk smoke execution",
+            "--rendered-progress-summary",
+            "risk smoke execution",
+            "--risk-state",
+            "at-risk",
+            "--retry-state",
+            "retry",
+            "--status",
+            "Risk takes precedence over retry.",
+            "--next",
+            "Continue current slice.",
+        ]
+    )
+    require_success(risk_checkpoint, "discord at-risk checkpoint card")
+    if "⚠️ [PROGRESS] WU-260605-903 · 🧱 build-pq" not in risk_checkpoint.stdout:
+        raise RuntimeError("at-risk checkpoint did not use the risk icon with priority over retry")
+
+    retry_checkpoint = run_command(
+        [
+            sys.executable,
+            str(DISCORD),
+            "card",
+            "--surface",
+            "team-detail",
+            "--kind",
+            "CHECKPOINT",
+            "--work-unit-id",
+            "WU-260605-903",
+            "--team",
+            "build-pq",
+            "--current-slice",
+            "retry smoke execution",
+            "--rendered-progress-summary",
+            "retry smoke execution",
+            "--retry-state",
+            "re-run",
+            "--status",
+            "Retry progress remains distinct from revise.",
+            "--next",
+            "Continue current slice.",
+        ]
+    )
+    require_success(retry_checkpoint, "discord retry checkpoint card")
+    if "🔄 [PROGRESS] WU-260605-903 · 🧱 build-pq" not in retry_checkpoint.stdout:
+        raise RuntimeError("retry checkpoint did not use the retry icon")
 
     market_blocked = run_command(
         [
@@ -976,6 +1040,8 @@ def run_discord_card_smoke() -> None:
                 "build-lab",
                 "--current-slice",
                 "formatter smoke execution",
+                "--rendered-progress-summary",
+                "formatter smoke execution",
                 "--status",
                 "Card sequence fixture is still in progress.",
                 "--next-checkpoint",
@@ -987,6 +1053,32 @@ def run_discord_card_smoke() -> None:
             ]
         )
         require_success(checkpoint_json, "discord team checkpoint card JSON")
+        checkpoint_card = json.loads(checkpoint_json.stdout).get("card") or {}
+        if checkpoint_card.get("rendered_progress_summary") != "formatter smoke execution":
+            raise RuntimeError("checkpoint card JSON did not preserve rendered_progress_summary")
+        missing_rendered_checkpoint = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "card",
+                "--surface",
+                "team-detail",
+                "--kind",
+                "CHECKPOINT",
+                "--work-unit-id",
+                "WU-260605-901",
+                "--team",
+                "build-lab",
+                "--current-slice",
+                "missing rendered smoke",
+                "--status",
+                "This must fail without rendered Progress.",
+                "--next",
+                "Return RESULT_READY.",
+            ]
+        )
+        if missing_rendered_checkpoint.returncode == 0:
+            raise RuntimeError("checkpoint card accepted missing rendered_progress_summary fallback")
         result_json = run_command(
             [
                 sys.executable,
@@ -1103,6 +1195,54 @@ def run_discord_card_smoke() -> None:
             "ASSIGNED_DETAIL",
         ]:
             raise RuntimeError("publish-sequence did not preserve card order")
+
+        checkpoint_proof_log = pair_dir / "checkpoint-proof.jsonl"
+        checkpoint_publish_result = run_command(
+            [
+                sys.executable,
+                str(DISCORD),
+                "publish-card",
+                "--card-json",
+                str(checkpoint_card_json),
+                "--target",
+                "channel:team-build-lab-smoke",
+                "--expect-target",
+                "channel:team-build-lab-smoke",
+                "--expect-surface",
+                "team-detail",
+                "--proof-log",
+                str(checkpoint_proof_log),
+                "--dry-run",
+                "--format",
+                "json",
+            ]
+        )
+        require_success(checkpoint_publish_result, "discord checkpoint publish proof dry-run")
+        checkpoint_publish = json.loads(checkpoint_publish_result.stdout)
+        checkpoint_proof = checkpoint_publish.get("publish") or {}
+        required_checkpoint_proof_fields = {
+            "mode",
+            "round",
+            "show_round",
+            "phase",
+            "phase_index",
+            "phase_total",
+            "current_slice",
+            "risk_state",
+            "retry_state",
+            "rendered_title",
+            "rendered_progress_summary",
+            "clamp_version",
+        }
+        missing_checkpoint_proof_fields = sorted(
+            field for field in required_checkpoint_proof_fields if field not in checkpoint_proof
+        )
+        if missing_checkpoint_proof_fields:
+            raise RuntimeError(f"checkpoint proof row missing fields: {missing_checkpoint_proof_fields}")
+        if checkpoint_proof.get("rendered_progress_summary") != "formatter smoke execution":
+            raise RuntimeError("checkpoint proof did not preserve rendered_progress_summary")
+        if not str(checkpoint_proof.get("rendered_title", "")).startswith("🧭 [PROGRESS]"):
+            raise RuntimeError("checkpoint proof did not preserve the rendered PROGRESS title")
 
         duplicate_guard_proof = pair_dir / "duplicate-guard-proof.jsonl"
         duplicate_publish_args = [
@@ -2193,9 +2333,65 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("checkpoint dry-run did not auto-enable goal round display")
     if checkpoint_payload.get("card", {}).get("kind") != "CHECKPOINT":
         raise RuntimeError("checkpoint dry-run did not create a CHECKPOINT card")
+    if checkpoint_payload.get("card", {}).get("rendered_progress_summary") != goal_round_fields.get("Progress"):
+        raise RuntimeError("checkpoint dry-run rendered Progress does not match Project Progress")
+    if "진행: R2 · 1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
+        raise RuntimeError("checkpoint dry-run did not render Project Progress in the first body line")
+    if checkpoint_payload.get("card", {}).get("clamp_version") != "progress-display-v1":
+        raise RuntimeError("checkpoint dry-run did not preserve the progress display clamp version")
     after_checkpoint = checkpoint_progress.read_text(encoding="utf-8") if checkpoint_progress.exists() else ""
     if after_checkpoint != before_checkpoint:
         raise RuntimeError("checkpoint dry-run mutated progress.jsonl")
+
+    long_phase = "this is a deliberately long progress label that should be clamped for mobile visibility"
+    clamped_checkpoint = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(checkpoint_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "Long label checkpoint is ready.",
+            "--current-slice",
+            "long label smoke",
+            "--next",
+            "Continue the next goal slice.",
+            "--mode",
+            "goal",
+            "--round",
+            "3",
+            "--phase-index",
+            "2",
+            "--phase-total",
+            "4",
+            "--phase",
+            long_phase,
+            "--risk-state",
+            "blocked",
+            "--retry-state",
+            "retry",
+            "--source-ref",
+            "local-smoke://checkpoint-clamp",
+            "--transition-at",
+            "2026-06-06T13:00:00Z",
+            "--format",
+            "json",
+            "--dry-run",
+        ]
+    )
+    require_success(clamped_checkpoint, "work-unit checkpoint clamp dry-run")
+    clamped_payload = json.loads(clamped_checkpoint.stdout)
+    clamped_summary = clamped_payload.get("card", {}).get("rendered_progress_summary", "")
+    if "…" not in clamped_summary or long_phase in clamped_summary:
+        raise RuntimeError("checkpoint dry-run did not clamp an overlong progress summary")
+    if not clamped_payload.get("text", "").startswith("⚠️ [PROGRESS]"):
+        raise RuntimeError("checkpoint dry-run did not apply risk icon priority")
 
     handoff_root = artifact_root.parent / "handoff-artifacts"
     handoff_spec = artifact_root.parent / "handoff-spec.json"
@@ -4368,6 +4564,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("GitHub Work Card summary comment did not declare source-truth boundary")
     if "The Team Lead verified the bounded Company Ops visibility flow" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not use evidence Result Summary")
+    if str(github_summary_dir) in planned_body or str(work_dir) in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment leaked a local absolute artifact path")
+    if "docs/work-units/WU-260607-150/evidence.md" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not render a repo-relative evidence path")
 
     nongithub_summary_dir = create_artifacts(args, inbox_work_dir, "WU-260607-151", "build-lab")
     mark_artifact_started(nongithub_summary_dir)
@@ -4599,7 +4799,17 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             [("team-detail", "RESULT_READY", "summary-004", "2026-06-07T01:43:00Z")],
         ),
     )
-    summary_comments: list[dict[str, Any]] = []
+    summary_comments: list[dict[str, Any]] = [
+        {"id": index + 1, "html_url": f"https://github.com/acme/company-ops/issues/37#issuecomment-{index + 1}", "body": f"filler comment {index + 1}"}
+        for index in range(100)
+    ]
+    summary_comments.append(
+        {
+            "id": 137,
+            "html_url": "https://github.com/acme/company-ops/issues/37#issuecomment-137",
+            "body": "<!-- company-ops-work-card-summary:WU-260607-150:v1 -->\nold managed summary",
+        }
+    )
 
     def fake_summary_publish_card(args: argparse.Namespace, card: dict[str, Any], proof_log: Path, *, target: str | None = None, expect_surface: str = "team-detail") -> tuple[int, dict[str, Any], str]:
         row = {
@@ -4625,8 +4835,12 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         return 0, {"publish": row}, ""
 
     def fake_summary_gh_api(endpoint: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
-        if endpoint == "repos/acme/company-ops/issues/37/comments" and method == "GET":
-            return 0, list(summary_comments), ""
+        if endpoint.startswith("repos/acme/company-ops/issues/37/comments") and method == "GET":
+            if "&page=1" in endpoint:
+                return 0, list(summary_comments[:100]), ""
+            if "&page=2" in endpoint:
+                return 0, list(summary_comments[100:]), ""
+            raise RuntimeError(f"unexpected unpaginated fake gh api call: {method} {endpoint}")
         if endpoint == "repos/acme/company-ops/issues/37/comments" and method == "POST":
             comment = {
                 "id": 37,
@@ -4635,10 +4849,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             }
             summary_comments.append(comment)
             return 0, comment, ""
-        if endpoint == "repos/acme/company-ops/issues/comments/37" and method == "PATCH":
-            summary_comments[0]["body"] = (payload or {}).get("body", "")
-            return 0, dict(summary_comments[0]), ""
-        if endpoint == "repos/acme/company-ops/issues/39/comments" and method == "GET":
+        if endpoint == "repos/acme/company-ops/issues/comments/137" and method == "PATCH":
+            summary_comments[-1]["body"] = (payload or {}).get("body", "")
+            return 0, dict(summary_comments[-1]), ""
+        if endpoint.startswith("repos/acme/company-ops/issues/39/comments") and method == "GET":
             return 0, [], ""
         if endpoint == "repos/acme/company-ops/issues/39/comments" and method == "POST":
             return 0, {
@@ -4692,10 +4906,17 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         summary_result = summary_payload.get("work_card_summary") or {}
         if summary_payload.get("status") != "published" or summary_result.get("sync_state") != "attempted_ok":
             raise RuntimeError("GitHub Work Card summary publish did not report attempted_ok")
-        if len(summary_comments) != 1:
-            raise RuntimeError("GitHub Work Card summary publish did not create exactly one comment")
-        if "company-ops-work-card-summary:WU-260607-150:v1" not in summary_comments[0].get("body", ""):
-            raise RuntimeError("GitHub Work Card summary publish comment missing stable marker")
+        marker_count = sum(
+            1
+            for comment in summary_comments
+            if "company-ops-work-card-summary:WU-260607-150:v1" in comment.get("body", "")
+        )
+        if len(summary_comments) != 101 or marker_count != 1:
+            raise RuntimeError("GitHub Work Card summary publish did not update exactly one paginated managed comment")
+        if "The Team Lead verified the bounded Company Ops visibility flow" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish did not patch the paginated managed comment")
+        if str(summary_publish_wu) in summary_comments[-1].get("body", "") or str(work_dir) in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish leaked a local absolute artifact path")
 
         mismatch_args = partial_parser.parse_args(
             [

@@ -1156,10 +1156,8 @@ Slice A, two-line progress card layout:
   - `진행: positioning note`;
   - `진행: 1/3 · positioning note`;
   - `진행: R1 · 1/3 · positioning note`.
-- If a compact one-line display is needed, keep only round and phase count in
-  the header, for example
-  `🧭 [PROGRESS · R1 · 1/3] WU-260609-901 · 🧪 build-lab`, and keep
-  the rendered progress summary in the body.
+- Do not move round or phase count into the header for this phase. Keep the
+  header stable and put the dashboard-style Progress text in the body.
 - Treat `phase`, `current_slice`, round, and phase count as display inputs, not
   parser inputs. Round and phase count are optional; do not fabricate them when
   a Work Unit only has a current slice.
@@ -1211,8 +1209,9 @@ Acceptance:
   `card.kind == CHECKPOINT` and `progress_row.transition_kind == checkpoint`.
 - Lifecycle/proof sequence validation still accepts
   `STARTED -> CHECKPOINT -> RESULT_READY`.
-- Project `Progress` derivation continues to use source `progress.jsonl` and
-  structured proof fields, not Discord title parsing.
+- Project `Progress` derivation continues to use source `progress.jsonl`; proof
+  rows preserve the rendered fields as readback receipts, not as a new source of
+  truth.
 - Smoke expectations are updated for the rendered Progress header.
 - Active-path scans prove this phase introduced no aliases, fallback readers,
   hard-renamed checkpoint commands, or historical artifact rewrites.
