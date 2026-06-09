@@ -3526,10 +3526,11 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         artifact_dir=artifact_dir,
         transition_at=args.transition_at or utc_now_iso(),
     )
+    review_wake_status = commit_request_text(review_wake.get("status")) if isinstance(review_wake, dict) else ""
 
     payload = {
         "dry_run": False,
-        "status": "published" if review_wake_code == 0 else "review-wake setup-needed",
+        "status": "published" if review_wake_code == 0 else review_wake_status or "review-wake setup-needed",
         "work_unit_id": args.work_unit_id,
         "pre_publish_gate": pre_gate,
         "publish": publish_payload.get("publish", {}),

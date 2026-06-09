@@ -3363,7 +3363,14 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     review_command_dir = create_artifacts(args, inbox_work_dir, "WU-260607-118", "ops")
     review_setup_dir = create_artifacts(args, inbox_work_dir, "WU-260607-119", "ops")
     review_capacity_dir = create_artifacts(args, inbox_work_dir, "WU-260607-120", "ops")
-    for artifact_dir in (review_wake_dir, review_command_dir, review_setup_dir, review_capacity_dir):
+    result_ready_capacity_dir = create_artifacts(args, inbox_work_dir, "WU-260607-122", "ops")
+    for artifact_dir in (
+        review_wake_dir,
+        review_command_dir,
+        review_setup_dir,
+        review_capacity_dir,
+        result_ready_capacity_dir,
+    ):
         mark_artifact_started(artifact_dir)
         mark_artifact_result_ready(artifact_dir, recommendation="accept")
     for work_unit_id, artifact_dir, proof_id in (
@@ -3379,6 +3386,13 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 [("team-detail", "RESULT_READY", proof_id, "2026-06-07T01:35:00Z")],
             ),
         )
+    write_jsonl(
+        result_ready_capacity_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-122",
+            [("team-detail", "STARTED", "review-wake-started-005", "2026-06-07T01:34:00Z")],
+        ),
+    )
     review_wake_progress_before = (review_wake_dir / "progress.jsonl").read_text(encoding="utf-8")
     review_wake_dry_run = run_command(
         [
@@ -3563,6 +3577,89 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout delegate capacity failure did not report capacity-full")
     if (review_capacity_dir / "closeout-review-wake.json").exists():
         raise RuntimeError("capacity-full closeout delegate wake wrote a wake record")
+
+    sys.path.insert(0, str(SCRIPT_DIR))
+    import work_unit_artifacts as work_unit_module  # type: ignore
+
+    result_ready_parser = work_unit_module.build_parser()
+    original_result_ready_publish_card = work_unit_module.publish_card
+    original_result_ready_project_sync = work_unit_module.run_project_sync
+
+    def fake_result_ready_publish_card(
+        args: argparse.Namespace,
+        card: dict[str, Any],
+        proof_log: Path,
+        *,
+        target: str | None = None,
+        expect_surface: str = "team-detail",
+    ) -> tuple[int, dict[str, Any], str]:
+        row = {
+            "work_unit_id": args.work_unit_id,
+            "surface": expect_surface,
+            "kind": card["kind"],
+            "target": target or "",
+            "transition_at": "2026-06-07T01:36:00Z",
+            "sent_at": "2026-06-07T01:36:00Z",
+            "readback_at": "2026-06-07T01:36:00Z",
+            "discord_timestamp": "2026-06-07T01:36:00Z",
+            "discord_message_id": "result-ready-capacity-full",
+            "proof_id": f"{args.work_unit_id}:{expect_surface}:{card['kind']}:capacity-full",
+            "readback_ok": True,
+            "dry_run": False,
+            "error": "",
+            "send_result": {},
+            "readback_result": {},
+        }
+        proof_log.parent.mkdir(parents=True, exist_ok=True)
+        with proof_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        return 0, {"publish": row}, ""
+
+    try:
+        work_unit_module.publish_card = fake_result_ready_publish_card
+        work_unit_module.run_project_sync = lambda args: {"enabled": False}
+        result_ready_capacity_args = result_ready_parser.parse_args(
+            [
+                "work-unit",
+                "result-ready",
+                "--work-unit-id",
+                "WU-260607-122",
+                "--artifact-root",
+                str(artifact_root),
+                "--team",
+                "ops",
+                "--result",
+                "RESULT_READY publish should preserve delegate capacity-full status.",
+                "--evidence",
+                str(result_ready_capacity_dir / "evidence.md"),
+                "--verification",
+                "Capacity-full delegate wake remains recoverable from the result-ready inbox.",
+                "--target",
+                "local-smoke",
+                "--closeout-reviewer-runtime",
+                "openclaw-agent",
+                "--closeout-reviewer-adapter",
+                "fake",
+                "--publish",
+                "--format",
+                "json",
+            ]
+        )
+        result_ready_stdout = io.StringIO()
+        with contextlib.redirect_stdout(result_ready_stdout), contextlib.redirect_stderr(io.StringIO()):
+            result_ready_capacity_code = work_unit_module.result_ready_work_unit(result_ready_capacity_args)
+    finally:
+        work_unit_module.publish_card = original_result_ready_publish_card
+        work_unit_module.run_project_sync = original_result_ready_project_sync
+    if result_ready_capacity_code == 0:
+        raise RuntimeError("result-ready publish ignored closeout delegate capacity cap")
+    result_ready_capacity_payload = json.loads(result_ready_stdout.getvalue())
+    if result_ready_capacity_payload.get("status") != "review-wake capacity-full":
+        raise RuntimeError("result-ready publish did not preserve delegate capacity-full status")
+    if result_ready_capacity_payload.get("review_wake", {}).get("status") != "review-wake capacity-full":
+        raise RuntimeError("result-ready publish did not include nested capacity-full wake payload")
+    if (result_ready_capacity_dir / "closeout-review-wake.json").exists():
+        raise RuntimeError("capacity-full result-ready publish wrote a wake record")
 
     review_hanging_adapter = work_dir / "hanging_closeout_review_adapter.py"
     review_hanging_adapter.write_text("import time\ntime.sleep(2)\n", encoding="utf-8")
