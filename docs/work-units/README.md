@@ -3,8 +3,9 @@
 Status: canonical repo-local artifact root
 
 This directory is the canonical repo-local Work Unit artifact root for Company
-Ops. It contains the current active Work Unit evidence under one
-`<artifact-root>/<work-unit-id>/` layout.
+Ops. Current active Work Unit evidence lives under one
+`<artifact-root>/<work-unit-id>/` layout when active Work Units exist. The root
+may be empty between active Work Units.
 
 These artifacts are source truth and audit evidence for individual Work Units.
 External surfaces such as Discord, GitHub Project dashboards, and GitHub Work
@@ -16,10 +17,10 @@ recovery system, hidden retry queue, or Project source of truth.
 
 ## Current Scope
 
-Only Work Units that remain active in the GitHub Project mirror are kept in the
-active source tree. Older Day-0, dry-run, and dogfood artifacts were removed
-from the active tree after the current `docs/work-units/` structure stabilized;
-they remain recoverable from Git history when needed.
+Only Work Units that remain active work should be kept in the active source
+tree. Completed, removed, failed-test, Day-0, dry-run, and dogfood artifacts
+should be pruned from this tree after owner-approved cleanup; they remain
+recoverable from Git history when needed.
 
 `scripts/company_ops_smoke.py multi-team` is the bounded repo-local smoke that
 validates the current multi-team lifecycle without mutating external systems.
@@ -50,8 +51,8 @@ Project sync audit is intentionally separate from repo-local Work Unit artifacts
 ## Distribution Boundary
 
 Release/package exports include this guide and the empty artifact root, but
-exclude concrete `WU-*` evidence files. Source clones keep only current active
-Work Unit artifacts; removed historical records are not active protocol
+exclude concrete `WU-*` evidence files. Source clones should keep only current
+active Work Unit artifacts; removed historical records are not active protocol
 contracts.
 
 ## Rules
