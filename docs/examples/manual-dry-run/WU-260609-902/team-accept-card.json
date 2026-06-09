@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "ACCEPTED",
+    "elapsed": "",
+    "evidence": "docs/examples/manual-dry-run/WU-260609-902/evidence.md",
+    "goal": "",
+    "kind": "ACCEPTED",
+    "needed": "",
+    "next": "Keep the Work Card visible for owner inspection with links to the evidence and final decision.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "Fresh closeout review accepts the source-backed result: evidence.md contains the requested Phase 5.8.5 one-round no-bypass checklist, maps it to the assignment done criteria, and the RESULT_READY proof plus artifact hashes match the review payload.",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "team-detail",
+    "team": "revenue",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260609-902"
+  }
+}

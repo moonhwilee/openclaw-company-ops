@@ -264,17 +264,29 @@ python3 scripts/openclaw_company_ops.py work-unit result-ready \
   --evidence <source-ref> \
   --verification "..." \
   --publish \
-  --closeout-reviewer-runtime openclaw-agent
+  --closeout-reviewer-runtime openclaw-agent \
+  --closeout-reviewer-agent <configured-reviewer-agent> \
+  --closeout-reviewer-adapter command \
+  --closeout-reviewer-adapter-command "python3 scripts/openclaw_closeout_review_sessions_send.py"
 ```
 
 The default closeout reviewer runtime is `none`, so existing result-ready
 publication remains unchanged unless the operator requests the wake path. The
-reviewer adapter must return current accepted/enqueued proof, including a
-recoverable session/job/message reference and confirmation that the reviewer is
-bound to guarded closeout only. `--closeout-reviewer-adapter fake` is a
-smoke/local contract fixture, not a production path. Production wake should use
-the configured command adapter, usually through
-`COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND`.
+reviewer agent must be an actual configured OpenClaw agent id. If no dedicated
+`closeout-reviewer` agent exists, pass a different configured independent
+reviewer agent explicitly; an unknown reviewer agent is setup-needed, not a
+fallback to Operations Lead closeout. The reviewer adapter must return current
+accepted/enqueued proof, including a recoverable session/job/message reference
+and confirmation that the reviewer is bound to guarded closeout only. The
+reviewer execution turn may prepare `closeout-commit-request.json`, but must
+not run `work-unit closeout`, publish final Discord cards, write `decision.md`,
+or mutate Project final status.
+`--closeout-reviewer-adapter fake` is a smoke/local contract fixture, not a
+production path. Production wake should use the configured command adapter,
+usually through `COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND`.
+Reviewer execution enqueue keys include the payload hash and prompt version, so
+an intentional foreground `review-wake --force` can replay after a corrected
+payload or reviewer prompt without reusing a stale execution result.
 
 If RESULT_READY publish succeeds but reviewer wake fails, do not roll back
 RESULT_READY and do not fake closeout. Treat the result as still visible in
@@ -282,6 +294,9 @@ RESULT_READY and do not fake closeout. Treat the result as still visible in
 `work-unit review-wake --dry-run/--publish` path after adapter setup is fixed.
 The Team Lead waits only for RESULT_READY readback and reviewer enqueue proof;
 it must not wait for reviewer judgment or final closeout completion.
+If a readback-ok RESULT_READY proof already exists, `result-ready --publish`
+fails closed unless the operator passes `--force` for an intentional duplicate
+publication. Do not use `--force` to paper over a confused Team Lead rerun.
 
 Process pending Team Lead results one at a time in a deterministic order:
 

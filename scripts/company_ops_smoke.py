@@ -3146,7 +3146,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if closeout_wrapper_payload.get("job_ref") != "run-closeout-execute":
         raise RuntimeError("closeout review wrapper did not preserve execution run reference")
     closeout_gateway = closeout_wrapper_payload.get("gateway", {})
-    if closeout_gateway.get("idempotency_key") != "WU-260607-121:closeout-review":
+    idempotency_key = closeout_gateway.get("idempotency_key", "")
+    if not idempotency_key.startswith("WU-260607-121:closeout-review:"):
         raise RuntimeError("closeout review wrapper did not persist the review idempotency key")
     if closeout_wrapper_payload.get("readback", {}).get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
         raise RuntimeError("closeout review wrapper did not preserve authority boundary readback")
@@ -3881,6 +3882,35 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("result-ready dry-run reported proof mutation")
     if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
         raise RuntimeError("result-ready dry-run mutated visibility proof")
+    duplicate_result_ready = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--result",
+            "Duplicate RESULT_READY should fail before publish.",
+            "--evidence",
+            str(ready_late / "evidence.md"),
+            "--verification",
+            "Existing RESULT_READY proof already exists.",
+            "--target",
+            "local-smoke",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if duplicate_result_ready.returncode == 0:
+        raise RuntimeError("result-ready publish accepted duplicate RESULT_READY without --force")
+    if "RESULT_READY proof already exists" not in duplicate_result_ready.stderr:
+        raise RuntimeError("duplicate RESULT_READY failure did not explain the existing proof guard")
+    if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
+        raise RuntimeError("duplicate RESULT_READY guard mutated visibility proof")
 
     decision_before = (ready_late / "decision.md").read_text(encoding="utf-8")
     closeout_accept = run_command(

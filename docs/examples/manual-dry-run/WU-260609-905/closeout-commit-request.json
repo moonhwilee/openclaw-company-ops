@@ -1,0 +1,23 @@
+{
+  "artifact_hashes": {
+    "assignment.md": "9d0a3150d35663a601a48508f95148b9eba4d27604fd9f3fa1da456176b69b4f",
+    "claim.md": "1ad478d716de3b5388d56a5736ed55ec529f78a4cac96fbbff720b3d7b46d9fb",
+    "evidence.md": "cb16e2629a26db181e7e88ea630a3e04af5205bd23aa86a4309bcc851cbd8a92",
+    "progress.jsonl": "e6be02f841df41c15a465b9a034ae5a97104025720f5fa34356fef6c28622605",
+    "result_ready_proof_rows": [
+      "0a2591261eaa2670eefd63269a98964f20c6d3363f4037e53fb1fa33afc50afe"
+    ],
+    "visibility-proof.jsonl": "cbd7447b1369d1fa1f15aaf892a16421977a1aa4d647070c1a6cf9f3145bedef"
+  },
+  "autonomy_class": "manual_required",
+  "decision": "revise",
+  "reason": "Fail-closed closeout review: top-level artifact hashes match the review payload and the referenced RESULT_READY proof id exists with readback_ok=true, but the computed SHA-256 for the RESULT_READY proof row is 6e7bdf422866c987eaa8c4825e956227ccaa523a824b890d6d8e37bdfeba464b, which does not match the payload's expected result_ready_proof_rows hash 0a2591261eaa2670eefd63269a98964f20c6d3363f4037e53fb1fa33afc50afe. The artifact trail also contains temporal inconsistencies: assignment/decision metadata show 2026-06-09T03:16:00Z while the result-ready proof and closeout review payload are at 2026-06-09T03:13Z. Because the review contract requires failing closed on missing, stale, or conflicting evidence, this request does not authorize auto closeout.",
+  "red_line_check": "manual_required",
+  "result_ready_proof_id": "WU-260609-905:team-detail:RESULT_READY:2566ebe60ffb9e39",
+  "review_depth": "Verified payload artifact hashes for assignment.md, claim.md, evidence.md, progress.jsonl, and visibility-proof.jsonl; inspected assignment, claim, evidence, progress, visibility proof, and pending decision refs from the payload; checked the RESULT_READY proof id/readback/source trail; recomputed the RESULT_READY proof-row hash; failed closed on proof-row hash mismatch and temporal conflicts.",
+  "reviewer_job_ref": "WU-260609-905:closeout-review",
+  "reviewer_message_ref": "openclaw-agent:company-ops-closeout-reviewer-wu-260609-905:2026-06-09T03:13Z",
+  "reviewer_session_ref": "company-ops-closeout-reviewer-wu-260609-905",
+  "source_ref": "docs/examples/manual-dry-run/WU-260609-905/evidence.md",
+  "work_unit_id": "WU-260609-905"
+}

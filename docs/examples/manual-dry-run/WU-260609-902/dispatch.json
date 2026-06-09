@@ -1,0 +1,75 @@
+{
+  "accepted_proof": {
+    "accepted_at": "2026-06-09T02:38:56Z",
+    "adapter": "openclaw-agent-sessions-send",
+    "adapter_version": 1,
+    "agent": "revenue",
+    "gateway": {
+      "acceptance_transport": "openclaw-agent-gateway",
+      "assignment_packet": "docs/examples/manual-dry-run/WU-260609-902/assignment.md",
+      "dispatch_packet_hash": "87ad4eb532523931ef93ba977e5c9d2a3d518838f346e2fbd0db955e47408b99",
+      "execution_enqueued": true,
+      "idempotency_key": "WU-260609-902:dispatch-execute"
+    },
+    "job_ref": "WU-260609-902:dispatch-execute",
+    "message_ref": "66e6d566-b0de-48e6-be34-9b79e449eeae",
+    "readback": {
+      "assignment_packet": "docs/examples/manual-dry-run/WU-260609-902/assignment.md",
+      "authority_boundary": "team_lead_result_ready_only",
+      "result_ready_contract": "python3 scripts/openclaw_company_ops.py work-unit result-ready --work-unit-id WU-260609-902 --artifact-root <artifact-root> --source-ref docs/examples/manual-dry-run/WU-260609-902/evidence.md",
+      "work_unit_id": "WU-260609-902"
+    },
+    "session_key": "company-ops-revenue-wu-260609-902",
+    "session_ref": "agent:revenue:company-ops-revenue-wu-260609-902",
+    "status": "accepted"
+  },
+  "agent": "revenue",
+  "assignment_packet": "docs/examples/manual-dry-run/WU-260609-902/assignment.md",
+  "default_session_key": "company-ops-revenue-wu-260609-902",
+  "dispatch_ref": "WU-260609-902:dispatch-execute",
+  "dispatched_at": "2026-06-09T02:38:44Z",
+  "job_ref": "WU-260609-902:dispatch-execute",
+  "message_ref": "66e6d566-b0de-48e6-be34-9b79e449eeae",
+  "packet": {
+    "agent": "revenue",
+    "assignment_packet": "docs/examples/manual-dry-run/WU-260609-902/assignment.md",
+    "default_session_key": "company-ops-revenue-wu-260609-902",
+    "evidence_ref": "docs/examples/manual-dry-run/WU-260609-902/evidence.md",
+    "instructions": [
+      "Read assignment.md before executing.",
+      "Do not mutate outside the assigned Work Unit scope.",
+      "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
+      "Return result evidence through the result-ready path.",
+      "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch."
+    ],
+    "protocol": "company_ops_detached_dispatch_v1",
+    "result_ready_contract": {
+      "command": "python3 scripts/openclaw_company_ops.py work-unit result-ready --work-unit-id WU-260609-902 --artifact-root <artifact-root> --source-ref docs/examples/manual-dry-run/WU-260609-902/evidence.md",
+      "rule": "Team Lead submits source-backed evidence; Operations Lead performs closeout separately."
+    },
+    "runtime": "openclaw-agent",
+    "session_key": "company-ops-revenue-wu-260609-902",
+    "session_key_provided": false,
+    "session_key_strategy": "work-unit-specific",
+    "subagent_budget": {
+      "budget": "3",
+      "enforcement": "prompt_and_packet_contract_only",
+      "reason": "normal"
+    },
+    "team": "revenue",
+    "title": "Phase 5.8.5 one-round goal no-bypass gate",
+    "work_card": "https://github.com/moonhwilee/openclaw-company-ops/issues/31",
+    "work_unit_id": "WU-260609-902"
+  },
+  "recorded_by": "operations-lead",
+  "runtime": "openclaw-agent",
+  "session_key": "company-ops-revenue-wu-260609-902",
+  "session_key_provided": false,
+  "session_key_strategy": "work-unit-specific",
+  "session_ref": "agent:revenue:company-ops-revenue-wu-260609-902",
+  "source_ref": "docs/examples/manual-dry-run/WU-260609-902/assignment.md",
+  "status": "dispatched",
+  "team": "revenue",
+  "version": 1,
+  "work_unit_id": "WU-260609-902"
+}

@@ -1,20 +1,21 @@
 # Phase 5.8 Stabilization Gate
 
-Status: active stabilization gate before Phase 6. Phases 5.8.1 through 5.8.4
-are implemented in the repo-local model. The current code includes canonical
+Status: complete stabilization gate before Phase 6. Phases 5.8.1 through 5.8.5
+are implemented and live-verified. The current code includes canonical
 start/result-ready guards, closeout lifecycle convergence, source-backed
 detached dispatch, fail-closed OpenClaw runtime adapter delivery, fresh
 Work Unit-specific Team Lead sessions, conservative capacity policy,
 result-ready closeout reviewer wake, guarded closeout `--commit-request`, and
-resumable closeout publish staging. Live OpenClaw delivery still requires
-configured adapter commands for dispatch and closeout reviewer wake; if a
-required adapter is missing or cannot return current proof, the command returns
-`setup-needed` or `repair-needed` and writes no false source success.
+resumable closeout publish staging. Phase 5.8.5 live testing also added
+duplicate RESULT_READY suppression and closeout reviewer replay-safe
+idempotency. Live OpenClaw delivery still requires configured adapter commands
+for dispatch and closeout reviewer wake; if a required adapter is missing or
+cannot return current proof, the command returns `setup-needed` or
+`repair-needed` and writes no false source success.
 
 Phase 5.8 captures the live workflow issues found during the
-`WU-260608-001` through `WU-260608-004` test batch. Phase 6 Packaging /
-Public v1 must not begin until the P0 items in this document are resolved and
-the regression gate passes.
+`WU-260608-001` through `WU-260608-004` test batch and the follow-up 5.8.5
+live gate. Phase 6 Packaging / Public v1 may begin after this completed gate.
 
 This gate is not a feature expansion. It stabilizes the Work Unit runtime
 contract that Phase 6 packaging depends on.
@@ -26,11 +27,11 @@ than a Phase 5.8-only decision.
 
 ## Why This Gate Exists
 
-The live test batch showed that the repository had strong source artifact,
+The initial live test batch showed that the repository had strong source artifact,
 visibility, result-ready, and closeout tooling, but lacked a complete runtime
 path for detached Team Lead execution and post-result-ready closeout wake. The
-5.8.1-5.8.4 implementation now covers those repo-local gaps. What remains is
-to prove the full path with a no-bypass live regression gate before packaging.
+5.8.1-5.8.4 implementation covered those repo-local gaps, and 5.8.5 proved the
+full path with a no-bypass live regression gate before packaging.
 
 Observed mismatch:
 
@@ -43,8 +44,8 @@ Observed mismatch:
   session owns execution, then rely on result-ready reviewer wake and guarded
   closeout for final convergence.
 
-Until the no-bypass live gate passes, Phase 6 packaging would risk shipping a
-protocol that only passed local smoke and expert-assisted repair paths.
+Before this gate, Phase 6 packaging would have risked shipping a protocol that
+only passed local smoke and expert-assisted repair paths.
 
 ## Evidence From Live Tests
 
@@ -93,7 +94,7 @@ protocol that only passed local smoke and expert-assisted repair paths.
 
 ### P0: Detached Work Unit Dispatch Is Missing
 
-Status: resolved in code; pending Phase 5.8.5 live no-bypass proof.
+Status: resolved and live-verified in Phase 5.8.5.
 
 Original problem:
 
@@ -121,7 +122,7 @@ The repo now implements a minimal detached dispatch surface that:
 
 ### P0: `STARTED` Is Required But Not Standardized
 
-Status: resolved in code; pending Phase 5.8.5 live no-bypass proof.
+Status: resolved and live-verified in Phase 5.8.5.
 
 Original problem:
 
@@ -148,7 +149,7 @@ Work Unit has not started.
 
 ### P0: Closeout Does Not Finalize Lifecycle State
 
-Status: resolved in code; pending Phase 5.8.5 live no-bypass proof.
+Status: resolved and live-verified in Phase 5.8.5.
 
 Original problem:
 
@@ -227,7 +228,7 @@ state must override claim state in user-facing status.
 
 ### P2: Live Test Mode Allowed Manual Bypass
 
-Status: unresolved until Phase 5.8.5 passes; this is now the remaining gate.
+Status: resolved by Phase 5.8.5 live no-bypass gate.
 
 Problem:
 
@@ -563,8 +564,10 @@ Required boundary:
 - Team Lead waits only for `RESULT_READY` proof/readback and closeout reviewer
   enqueue proof. It must not wait for reviewer judgment or closeout completion.
 - The fresh reviewer may judge `accept`, `revise`, or `blocked`, but it must
-  not write `decision.md`, Project final status, Discord final review, or
-  owner-facing completion directly.
+  not run guarded closeout itself and must not write `decision.md`, Project
+  final status, Discord final review, or owner-facing completion directly. It
+  may only prepare the structured `closeout-commit-request.json` for Operations
+  Lead foreground closeout.
 - The guarded closeout path must reread source artifacts under a WU-scoped
   closeout lock, reject existing final decisions, and fail closed on stale,
   duplicate, conflicting, or hash-mismatched input.
@@ -577,6 +580,9 @@ B-prime implementation baseline:
   Operations Lead foreground session.
 - Reviewer session key: deterministic and Work Unit-scoped, for example
   `company-ops-closeout-reviewer-<work-unit-id>`.
+- Reviewer agent: must be a configured independent OpenClaw agent id. If a
+  dedicated `closeout-reviewer` agent is not configured, the operator must pass
+  an explicit configured reviewer agent; unknown agent ids are setup-needed.
 - Delivery guarantee: one-shot reviewer enqueue proof with recoverable session,
   message, or run refs. No background daemon, durable queue, retry worker, DB,
   hidden workflow runner, or multi-reviewer consensus.
@@ -689,6 +695,24 @@ Regression coverage to add:
 
 ### Phase 5.8.5: No-Bypass Regression Gate
 
+Status: passed in live gate. `WU-260609-907` completed the clean acceptance
+path without manual lifecycle/proof repair: handoff, STARTED, detached dispatch,
+Team Lead RESULT_READY, fresh reviewer wake, reviewer-generated guarded
+commit-request, Operations Lead dry-run, Operations Lead publish, Discord
+readback, and Project sync all converged. The same live run also produced
+negative coverage:
+
+- `WU-260609-901`/`902` exposed missing reviewer-agent setup and reviewer
+  overreach, leading to explicit configured reviewer agents and reviewer-only
+  commit-request authority.
+- `WU-260609-903`/`904` exposed duplicate RESULT_READY risk, leading to
+  fail-closed duplicate suppression before publish.
+- `WU-260609-905`/`906` exposed timestamp/hash ambiguity and proved
+  `manual_required` fail-closed behavior.
+- `WU-260609-907` exposed reviewer replay idempotency, leading to
+  payload/prompt-versioned closeout review execution keys before the final
+  accepted closeout.
+
 Depends on:
 
 - Phase 5.8.2.
@@ -752,7 +776,10 @@ Acceptance:
 
 ## Phase 6 Blocker Rule
 
-Do not begin Phase 6 Packaging / Public v1 implementation until:
+Satisfied as of the Phase 5.8.5 live gate. If future changes reopen any P0
+workflow issue, reapply this blocker before Phase 6 packaging continues.
+
+Historical rule:
 
 - Phase 5.8 P0 items are resolved;
 - Phase 5.8.5 passes without manual bypass; and

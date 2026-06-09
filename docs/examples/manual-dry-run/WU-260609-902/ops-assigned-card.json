@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "Evidence includes a concise one-round checklist for Phase 5.8.5 live execution; Checklist covers start, fresh dispatch, result-ready reviewer wake, guarded closeout commit-request, partial resume, and negative fail-closed checks; Team Lead submits result-ready through the source-backed command",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "ASSIGNED",
+    "needed": "",
+    "next": "Team Lead starts through canonical STARTED, then detached dispatch.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "Phase 5.8.5 one-round goal no-bypass gate",
+    "reason": "",
+    "report": "",
+    "request": "Create a small one-round operator-facing checklist for executing Phase 5.8.5 without bypasses.",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/31",
+    "status": "",
+    "surface": "ops-feed",
+    "team": "revenue",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260609-902"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "artifact_hashes": {
+    "assignment.md": "c85501808f6ed8ffe379a70dff717b2e1ca257f5fee3f8dca1f08f76134a4d00",
+    "claim.md": "9b8e8302931904c9bf8d6a00201610a8f7d0a18edf63632d9d5cbe9c4e7a3584",
+    "evidence.md": "332d9f3cc968c8c17f160afc4b6e23b67c9406150854fea239117d8c0dfd57e5",
+    "progress.jsonl": "c0784ea534276511b31ebc38eaefec19282da7ff36334ac128a6aec9acddc01d",
+    "result_ready_proof_rows": [
+      "a25fbe28b1f4ba0478755d1f218b75eb2956d61666981dc2bc4874014aa2146d"
+    ],
+    "visibility-proof.jsonl": "cf027da1048d47d151c26284023cc46e42e96e9921ebdbdbc7e7ce4ea9120bf3"
+  },
+  "autonomy_class": "deep_review_auto_eligible",
+  "decision": "accept",
+  "reason": "Reviewed only the payload source artifacts and refs. Assignment requires verification that Phase 5.8.5 gate criteria match the latest duplicate-guarded 5.8.4 path, no repository files be edited beyond evidence reporting, and result-ready be submitted through the source-backed path. The evidence record is Result Ready, states the docs/runtime boundary is consistent with the 5.8.4/5.8.4c/5.8.4d implementation surfaces, explicitly confirms no source code or project documentation was modified by the Team Lead, maps each done criterion as met, records git status was checked before result-ready, and cites the required source docs/runtime checks. The referenced RESULT_READY proof id exists in visibility-proof.jsonl with readback_ok true. Payload artifact hashes were used exactly as canonical. No red-line or manual-required condition was found in the reviewed refs.",
+  "red_line_check": "clear",
+  "result_ready_proof_id": "WU-260609-907:team-detail:RESULT_READY:c703c737deed7b9e",
+  "review_depth": "Fresh closeout review of payload refs: read assignment, claim, pending decision, evidence, progress, and visibility-proof artifacts; verified payload file hashes against source artifacts; confirmed RESULT_READY proof id exists with readback_ok true; mapped evidence to assignment done and verification criteria; did not run closeout or mutate final decision/status/publish/archive state.",
+  "reviewer_job_ref": "WU-260609-907:closeout-review",
+  "reviewer_message_ref": "company-ops-closeout-review-execution-2026-06-09T03:29Z",
+  "reviewer_session_ref": "company-ops-closeout-reviewer-wu-260609-907",
+  "source_ref": "docs/examples/manual-dry-run/WU-260609-907/evidence.md",
+  "work_unit_id": "WU-260609-907"
+}

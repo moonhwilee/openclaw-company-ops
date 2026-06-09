@@ -27,6 +27,9 @@ ROUND_VISIBLE_MODES = {"goal", "convergence"}
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
+DEFAULT_PROJECT_FIELD_MAP = Path("~/.openclaw/state/openclaw-company-ops/project-field-map.json")
+DEFAULT_PROJECT_LEDGER = Path("~/.openclaw/state/openclaw-company-ops/claims/ledger.json")
+DEFAULT_PROJECT_AUDIT_LOG = Path("~/.openclaw/state/openclaw-company-ops/project-sync-audit.jsonl")
 DISPATCH_RUNTIME_CHOICES = ("record-ref", "openclaw-agent")
 DISPATCH_ADAPTER_CHOICES = ("auto", "fake", "command")
 DISPATCH_ADAPTER_COMMAND_ENV = "COMPANY_OPS_DISPATCH_ADAPTER_COMMAND"
@@ -2593,12 +2596,41 @@ def dispatch_progress_row(
     }
 
 
+def latest_team_detail_target(artifact_dir: Path, work_unit: str) -> str:
+    proof_log = artifact_dir / DEFAULT_PROOF_LOG_NAME
+    proof_rows, _warnings = proof_rows_for_work_unit(proof_log, work_unit)
+    for row in reversed(proof_rows):
+        if (
+            row.get("surface") == "team-detail"
+            and row.get("target")
+            and row.get("readback_ok") is not False
+        ):
+            return str(row["target"])
+    return "<team-detail-target>"
+
+
 def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifact_dir: Path) -> dict[str, Any]:
     evidence_path = artifact_dir / "evidence.md"
     fields = assignment.get("fields", {})
     subagent_budget = clean_markdown_value(str(fields.get("subagent_budget") or fields.get("subagent budget") or "3"))
     subagent_budget_reason = clean_markdown_value(
         str(fields.get("subagent_budget_reason") or fields.get("subagent budget reason") or "normal")
+    )
+    team_detail_target = latest_team_detail_target(artifact_dir, args.work_unit_id)
+    result_ready_command = (
+        "python3 scripts/openclaw_company_ops.py work-unit result-ready "
+        f"--work-unit-id {args.work_unit_id} --artifact-root {args.artifact_root} "
+        f"--team {args.team} --result <result-summary> --evidence {evidence_path} "
+        f"--verification <verification-summary> --source-ref {evidence_path} "
+        f"--target {team_detail_target} --channel discord --account default "
+        f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
+        f"--project-sync-ledger {DEFAULT_PROJECT_LEDGER} "
+        f"--project-sync-audit-log {DEFAULT_PROJECT_AUDIT_LOG} "
+        "--closeout-reviewer-runtime openclaw-agent "
+        f"--closeout-reviewer-agent {args.closeout_reviewer_agent} "
+        "--closeout-reviewer-adapter command "
+        "--closeout-reviewer-adapter-command 'python3 scripts/openclaw_closeout_review_sessions_send.py' "
+        "--publish --format json"
     )
     return {
         "protocol": "company_ops_detached_dispatch_v1",
@@ -2620,18 +2652,25 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
             "enforcement": "prompt_and_packet_contract_only",
         },
         "result_ready_contract": {
-            "command": (
-                "python3 scripts/openclaw_company_ops.py work-unit result-ready "
-                f"--work-unit-id {args.work_unit_id} --artifact-root <artifact-root> "
-                f"--source-ref {evidence_path}"
-            ),
-            "rule": "Team Lead submits source-backed evidence; Operations Lead performs closeout separately.",
+            "command": result_ready_command,
+            "rule": "Team Lead submits source-backed evidence and enqueues a fresh closeout reviewer; Operations Lead performs guarded closeout separately.",
+            "required_closeout_reviewer_wake": True,
+            "closeout_reviewer_agent": args.closeout_reviewer_agent,
+            "team_detail_target": team_detail_target,
+            "channel": "discord",
+            "account": "default",
+            "project_sync": {
+                "field_map": str(DEFAULT_PROJECT_FIELD_MAP),
+                "ledger": str(DEFAULT_PROJECT_LEDGER),
+                "audit_log": str(DEFAULT_PROJECT_AUDIT_LOG),
+            },
         },
         "instructions": [
             "Read assignment.md before executing.",
             "Do not mutate outside the assigned Work Unit scope.",
             "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
-            "Return result evidence through the result-ready path.",
+            "Return result evidence through the result-ready path with a fresh closeout reviewer wake.",
+            "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
             "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch.",
         ],
     }
@@ -3300,6 +3339,17 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         return 1
 
     proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
+    existing_proofs, proof_warnings = proof_rows_for_work_unit(proof_log, args.work_unit_id)
+    existing_result_ready = [
+        row
+        for row in existing_proofs
+        if row.get("surface") == "team-detail"
+        and row.get("kind") == "RESULT_READY"
+        and row.get("readback_ok") is not False
+    ]
+    if args.publish and existing_result_ready and not args.force:
+        print("error: RESULT_READY proof already exists; use --force only for intentional duplicate publish", file=sys.stderr)
+        return 1
     if args.dry_run:
         payload = {
             "dry_run": True,
@@ -3311,6 +3361,8 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
             "would_publish_result_ready": True,
             "would_append_proof": False,
             "would_mutate_project": False,
+            "existing_result_ready_count": len(existing_result_ready),
+            "proof_warnings": proof_warnings,
             "post_publish_gate": {
                 "mode": "skipped",
                 "reason": "dry-run does not publish/read back RESULT_READY proof",
@@ -4813,6 +4865,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-custom-session-key",
         action="store_true",
         help="Allow openclaw-agent dispatch to use a non-derived session key intentionally",
+    )
+    dispatch.add_argument(
+        "--closeout-reviewer-agent",
+        default="closeout-reviewer",
+        help="Reviewer agent id to name in the result-ready contract",
     )
     dispatch.add_argument("--format", choices=("text", "json"), default="text")
     dispatch_mode = dispatch.add_mutually_exclusive_group(required=True)

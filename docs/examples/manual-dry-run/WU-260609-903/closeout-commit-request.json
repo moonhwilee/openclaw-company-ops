@@ -1,0 +1,23 @@
+{
+  "artifact_hashes": {
+    "assignment.md": "818a03dc6c23f970984b4f2d6726c44e9608cb1a4cd8b0c6f73a1a8260ec0ef8",
+    "claim.md": "d0bded7cfd3e91ee85985e774448e541cca5a4021c06fff9f15020d621aba5df",
+    "evidence.md": "a6a6060be68ae12420cf067ba2e18f4380698640585896b922b97949ee52f759",
+    "progress.jsonl": "faa02f33f9184a11c7ec248fb11e9d7418f0dcfe07ada01ac1528ed23bb1d618",
+    "result_ready_proof_rows": [
+      "e89d779e5c17dc288f83bc80d58ae31724c2b2443f1bddf672dba5a22fa854cf"
+    ],
+    "visibility-proof.jsonl": "066ecb263e87931208d3a036e2dff177a0abc4a15903dcdd19fe94523194c2eb"
+  },
+  "autonomy_class": "auto_eligible",
+  "decision": "accept",
+  "reason": "Fresh source-backed closeout review found the artifact hashes match the payload, the canonical RESULT_READY proof row hash matches the current visibility proof, and the evidence satisfies the assignment done and verification criteria. The evidence records that the required source docs were read, maps Phase 5.8.5 gate coverage to the implemented 5.8.4 boundary, confirms no Team Lead code or source-doc edits during verification beyond the assigned evidence artifact, and reports no blocker, stale proof, conflict, red-line, or manual-required condition.",
+  "red_line_check": "clear",
+  "result_ready_proof_id": "WU-260609-903:team-detail:RESULT_READY:1b3f5f5c6efd17fa",
+  "review_depth": "Verified assignment, claim, evidence, progress, pending decision template, closeout-review wake, visibility proof, payload artifact hashes, canonical RESULT_READY proof-row hash, dispatch/reviewer wake refs, and spot-checked required source documentation claims against README.md, docs/operations-manual.md, docs/phase-5.8-stabilization-gate.md, and docs/implementation-setup-guide.md.",
+  "reviewer_job_ref": "WU-260609-903:closeout-review",
+  "reviewer_message_ref": "e2e18ae8-0af4-4dba-b0e3-19b5633b2608",
+  "reviewer_session_ref": "company-ops-closeout-reviewer-wu-260609-903",
+  "source_ref": "docs/examples/manual-dry-run/WU-260609-903/evidence.md",
+  "work_unit_id": "WU-260609-903"
+}

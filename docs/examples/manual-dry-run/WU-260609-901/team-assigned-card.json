@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "Scope is limited to the Assignment Packet and source artifacts.",
+    "criteria": "Evidence states whether docs and gate criteria are consistent with the implemented 5.8.4 path; Evidence explicitly confirms no code or docs were modified by the Team Lead; Team Lead submits result-ready only through the source-backed command",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "Verify that Phase 5.8.5 gate criteria match the latest 5.8.4 implementation and report evidence through the canonical result-ready path.",
+    "kind": "ASSIGNED_DETAIL",
+    "needed": "",
+    "next": "Team Lead starts through canonical STARTED, then detached dispatch.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "Return a concise evidence summary, verification summary, changed artifact list, blocker if any, and next action.",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "Read README.md, docs/operations-manual.md, docs/phase-5.8-stabilization-gate.md, and docs/implementation-setup-guide.md; Check that 5.8.5 covers fresh dispatch, result-ready reviewer wake, guarded commit-request closeout, partial closeout resume, and fail-closed negative cases; Do not edit repository files",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/30",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260609-901"
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "accepted_proof": {
+    "accepted_at": "2026-06-09T03:29:49Z",
+    "adapter": "openclaw-closeout-review-sessions-send",
+    "adapter_version": 1,
+    "agent": "market",
+    "gateway": {
+      "acceptance_transport": "openclaw-agent-gateway",
+      "closeout_review_payload_hash": "e8dad15ba13d190f8e407c7a0006d80c51eb8dd1f03a7ceabb3e30e75266ae70",
+      "execution_enqueued": true,
+      "idempotency_key": "WU-260609-907:closeout-review:v2:e8dad15ba13d"
+    },
+    "job_ref": "WU-260609-907:closeout-review:v2:e8dad15ba13d",
+    "message_ref": "b514e27d-979f-43d1-89ae-5b7a641ea513",
+    "readback": {
+      "authority_boundary": "closeout_reviewer_guarded_commit_only",
+      "closeout_review_payload_hash": "e8dad15ba13d190f8e407c7a0006d80c51eb8dd1f03a7ceabb3e30e75266ae70",
+      "guarded_closeout_contract": "python3 scripts/openclaw_company_ops.py work-unit closeout --work-unit-id WU-260609-907 --artifact-root <artifact-root> --commit-request <json> --publish",
+      "work_unit_id": "WU-260609-907"
+    },
+    "session_key": "company-ops-closeout-reviewer-wu-260609-907",
+    "session_ref": "agent:market:company-ops-closeout-reviewer-wu-260609-907",
+    "status": "accepted"
+  },
+  "enqueued_at": "2026-06-09T03:29:36Z",
+  "job_ref": "WU-260609-907:closeout-review:v2:e8dad15ba13d",
+  "message_ref": "b514e27d-979f-43d1-89ae-5b7a641ea513",
+  "payload": {
+    "artifact_dir": "docs/examples/manual-dry-run/WU-260609-907",
+    "artifact_hashes": {
+      "assignment.md": "c85501808f6ed8ffe379a70dff717b2e1ca257f5fee3f8dca1f08f76134a4d00",
+      "claim.md": "9b8e8302931904c9bf8d6a00201610a8f7d0a18edf63632d9d5cbe9c4e7a3584",
+      "evidence.md": "332d9f3cc968c8c17f160afc4b6e23b67c9406150854fea239117d8c0dfd57e5",
+      "progress.jsonl": "c0784ea534276511b31ebc38eaefec19282da7ff36334ac128a6aec9acddc01d",
+      "result_ready_proof_rows": [
+        "a25fbe28b1f4ba0478755d1f218b75eb2956d61666981dc2bc4874014aa2146d"
+      ],
+      "visibility-proof.jsonl": "cf027da1048d47d151c26284023cc46e42e96e9921ebdbdbc7e7ce4ea9120bf3"
+    },
+    "artifact_root": "docs/examples/manual-dry-run",
+    "authority_boundary": "closeout_reviewer_guarded_commit_only",
+    "autonomy_classes": [
+      "auto_eligible",
+      "deep_review_auto_eligible",
+      "manual_required"
+    ],
+    "created_at": "2026-06-09T03:29:36Z",
+    "guarded_closeout_contract": {
+      "command": "python3 scripts/openclaw_company_ops.py work-unit closeout --work-unit-id WU-260609-907 --artifact-root <artifact-root> --commit-request <json> --publish",
+      "rule": "Fresh reviewer may judge, but final writes only through guarded closeout."
+    },
+    "no_go_actions": [
+      "Do not write decision.md directly.",
+      "Do not mutate Project final status directly.",
+      "Do not publish Discord final review or owner completion directly.",
+      "Do not archive, reassign, or reverse-import external mirror state.",
+      "Use guarded closeout commit request for any final decision."
+    ],
+    "protocol": "company_ops_closeout_review_wake_v1",
+    "refs": {
+      "assignment": "docs/examples/manual-dry-run/WU-260609-907/assignment.md",
+      "claim": "docs/examples/manual-dry-run/WU-260609-907/claim.md",
+      "decision": "docs/examples/manual-dry-run/WU-260609-907/decision.md",
+      "evidence": "docs/examples/manual-dry-run/WU-260609-907/evidence.md",
+      "progress": "docs/examples/manual-dry-run/WU-260609-907/progress.jsonl",
+      "source_ref": "docs/examples/manual-dry-run/WU-260609-907/evidence.md",
+      "visibility_proof": "docs/examples/manual-dry-run/WU-260609-907/visibility-proof.jsonl"
+    },
+    "result_ready": {
+      "proof_id": "WU-260609-907:team-detail:RESULT_READY:c703c737deed7b9e",
+      "proof_ref": "docs/examples/manual-dry-run/WU-260609-907/visibility-proof.jsonl#WU-260609-907:team-detail:RESULT_READY:c703c737deed7b9e",
+      "published_at": "2026-06-09T03:20:39.413000+00:00",
+      "source_ref": "docs/examples/manual-dry-run/WU-260609-907/evidence.md"
+    },
+    "reviewer": {
+      "agent": "market",
+      "runtime": "openclaw-agent",
+      "session_key": "company-ops-closeout-reviewer-wu-260609-907"
+    },
+    "team": "build-lab",
+    "title": "Phase 5.8.5 clean acceptance no-bypass gate",
+    "work_card": "https://github.com/moonhwilee/openclaw-company-ops/issues/36",
+    "work_unit_id": "WU-260609-907"
+  },
+  "recorded_by": "operations-lead",
+  "review_payload_hash": "e8dad15ba13d190f8e407c7a0006d80c51eb8dd1f03a7ceabb3e30e75266ae70",
+  "reviewer_agent": "market",
+  "reviewer_runtime": "openclaw-agent",
+  "reviewer_session_key": "company-ops-closeout-reviewer-wu-260609-907",
+  "session_ref": "agent:market:company-ops-closeout-reviewer-wu-260609-907",
+  "status": "review-wake-enqueued",
+  "version": 1,
+  "work_unit_id": "WU-260609-907"
+}

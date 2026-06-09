@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "Evidence states whether docs and gate criteria are consistent with the implemented 5.8.4 path; Evidence explicitly confirms no code or docs were modified by the Team Lead; Team Lead submits result-ready only through the source-backed command",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "",
+    "kind": "ASSIGNED",
+    "needed": "",
+    "next": "Team Lead starts through canonical STARTED, then detached dispatch.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "Phase 5.8.5 verify no-bypass gate",
+    "reason": "",
+    "report": "",
+    "request": "Verify the current patched Phase 5.8.5 no-bypass gate documentation and runtime boundary without code changes.",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/32",
+    "status": "",
+    "surface": "ops-feed",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260609-903"
+  }
+}
