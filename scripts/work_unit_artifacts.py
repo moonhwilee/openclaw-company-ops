@@ -582,6 +582,16 @@ def parse_markdown_source(path: Path) -> dict[str, Any]:
     }
 
 
+def markdown_protocol_capsule_value(source: dict[str, Any], key: str) -> str:
+    text = str(source.get("text") or "")
+    for match in re.finditer(rf"^\s*{re.escape(key)}:\s*(.+?)\s*$", text, re.MULTILINE):
+        value = clean_markdown_value(match.group(1))
+        if value.startswith("<") and value.endswith(">"):
+            continue
+        return value
+    return ""
+
+
 def markdown_section(text: str, heading: str) -> str:
     heading_key = heading.strip().lower()
     lines = text.splitlines()
@@ -1941,6 +1951,12 @@ Team Lead OpenClaw Agent for a delegated Work Unit.
 - External mutation allowed: `{bool_yaml(context["mutation_authority"]["external_mutation_allowed"])}`
 - Commit/push allowed: `{bool_yaml(context["mutation_authority"]["commit_push_allowed"])}`
 
+Mode boundary:
+
+- `verify` is read-only. Do not grant source mutation authority in verify mode.
+- If the Team Lead must create or update `evidence.md`, use `goal` mode with
+  allowed paths scoped to that Work Unit artifact.
+
 ## Protocol Capsule
 
 ```yaml
@@ -1972,6 +1988,10 @@ Subagent budget policy:
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.
+
+Before invoking `work-unit result-ready`, update the Evidence & Result Record to
+`Status: Result Ready`. A draft evidence file must remain in repair-needed
+state and should not publish a `RESULT_READY` proof.
 
 ## Expected Outputs
 
@@ -3135,9 +3155,17 @@ def latest_team_detail_target(artifact_dir: Path, work_unit: str) -> str:
 def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifact_dir: Path) -> dict[str, Any]:
     evidence_path = artifact_dir / "evidence.md"
     fields = assignment.get("fields", {})
-    subagent_budget = clean_markdown_value(str(fields.get("subagent_budget") or fields.get("subagent budget") or "3"))
-    subagent_budget_reason = clean_markdown_value(
-        str(fields.get("subagent_budget_reason") or fields.get("subagent budget reason") or "normal")
+    subagent_budget = normalize_subagent_budget(
+        fields.get("subagent_budget")
+        or fields.get("subagent budget")
+        or markdown_protocol_capsule_value(assignment, "subagent_budget"),
+        default="3",
+    )
+    subagent_budget_reason = normalize_subagent_budget_reason(
+        fields.get("subagent_budget_reason")
+        or fields.get("subagent budget reason")
+        or markdown_protocol_capsule_value(assignment, "subagent_budget_reason"),
+        subagent_budget,
     )
     team_detail_target = latest_team_detail_target(artifact_dir, args.work_unit_id)
     result_ready_command = (
@@ -3167,6 +3195,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         "session_key_strategy": args.session_key_strategy,
         "session_key_provided": args.session_key_provided,
         "work_card": clean_markdown_value(str(assignment["fields"].get("work card") or "")),
+        "repo_root": str(SCRIPT_DIR.parent),
         "assignment_packet": str(artifact_dir / "assignment.md"),
         "evidence_ref": str(evidence_path),
         "subagent_budget": {
@@ -3190,8 +3219,10 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         },
         "instructions": [
             "Read assignment.md before executing.",
+            "Use repo_root when resolving relative source paths.",
             "Do not mutate outside the assigned Work Unit scope.",
             "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
+            "Set Evidence & Result Record status to Result Ready before calling the result-ready command.",
             "Return result evidence through the result-ready path with a fresh closeout delegate wake.",
             "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
             "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch.",

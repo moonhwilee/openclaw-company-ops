@@ -6,6 +6,10 @@ Status: Manual Day-0
 satisfy the Assignment Packet.
 
 It may run as a standalone verification Work Unit or inside the `goal` loop.
+Standalone `verify` is read-only: it may inspect existing artifacts and write a
+verification finding only when the Assignment Packet provides that artifact as
+an input. If the Team Lead must create or update a source artifact such as
+`evidence.md`, use `goal` mode with narrowly scoped mutation authority instead.
 
 ## Inputs
 

@@ -100,6 +100,12 @@ handoff validators use it to fail closed when mode and mutation scope conflict.
 - External mutation allowed: `<true|false>`
 - Commit/push allowed: `<true|false>`
 
+Mode boundary:
+
+- `verify` is read-only. Do not grant source mutation authority in verify mode.
+- If the Team Lead must create or update `evidence.md`, use `goal` mode with
+  allowed paths scoped to that Work Unit artifact.
+
 ## Protocol Capsule
 
 Use this compact execution protocol for this Work Unit. Do not replace this
@@ -152,6 +158,10 @@ Subagent budget policy:
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.
+
+Before invoking `work-unit result-ready`, update the Evidence & Result Record to
+`Status: Result Ready`. A draft evidence file must remain in repair-needed
+state and should not publish a `RESULT_READY` proof.
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
 repeat implementation or improvement and verification until a `stop_only_on`

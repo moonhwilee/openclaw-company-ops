@@ -3079,6 +3079,15 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     )
     if duplicate_start.returncode == 0:
         raise RuntimeError("start publish accepted duplicate STARTED without --force")
+    with (start_dir / "assignment.md").open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n## Smoke Protocol Capsule Override\n\n"
+            "```yaml\n"
+            "protocol_capsule:\n"
+            "  subagent_budget: none\n"
+            "  subagent_budget_reason: team_lead_direct\n"
+            "```\n"
+        )
     dispatch_progress_before = (start_dir / "progress.jsonl").read_text(encoding="utf-8")
     dispatch_dry_run = run_command(
         [
@@ -3107,6 +3116,16 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("dispatch dry-run did not use the fresh Work Unit-specific session strategy")
     if dispatch_payload.get("session_key_provided") is not False:
         raise RuntimeError("dispatch dry-run did not report an auto-derived session key")
+    dispatch_packet = dispatch_payload.get("dispatch_packet", {})
+    if dispatch_packet.get("subagent_budget", {}).get("budget") != "none":
+        raise RuntimeError("dispatch dry-run ignored Assignment Packet subagent_budget")
+    if dispatch_packet.get("subagent_budget", {}).get("reason") != "team_lead_direct":
+        raise RuntimeError("dispatch dry-run ignored Assignment Packet subagent_budget_reason")
+    if not dispatch_packet.get("repo_root"):
+        raise RuntimeError("dispatch dry-run did not include repo_root for fresh sessions")
+    instructions = dispatch_packet.get("instructions") or []
+    if not any("Result Ready" in item for item in instructions):
+        raise RuntimeError("dispatch dry-run did not remind Team Lead to set evidence status")
     if dispatch_payload.get("would_write_dispatch") is not False or dispatch_payload.get("would_spawn_runtime") is not False:
         raise RuntimeError("dispatch dry-run reported mutation")
     if (start_dir / "dispatch.json").exists():

@@ -38,6 +38,8 @@ condition is met.
    claim, progress row, Discord `RESULT_READY`, or Project `Result Ready` mirror.
    If the gate fails, treat it as repair-needed unless the failure is a true
    missing input, authority, access, safety, budget, or source-truth blocker.
+   The Evidence & Result Record must say `Status: Result Ready`; a draft
+   evidence file is not enough for the result-ready command.
 
 ## Live Visibility During Long Work
 
