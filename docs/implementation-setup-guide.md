@@ -944,9 +944,11 @@ guards, detached fresh-session dispatch, closeout delegate wake, guarded
 commit-request closeout, foreground-resumable closeout publish staging,
 verify/fix authority boundaries, final Project readback convergence, and
 minimal public-install preflight. Phase 5.8.8 remains open to add final GitHub
-Work Card result summary visibility before Phase 6 packaging. Phase 6 packaging
-may begin after owner acceptance of the Phase 5.8.7 boundary/convergence
-implementation and the 5.8.8 GitHub Work Card visibility boundary.
+Work Card result summary visibility before Phase 6 packaging. Phase 5.8.9 is
+planned after 5.8.8 as a P1 Discord Progress display cleanup that preserves
+internal checkpoint proof semantics. Phase 6 packaging may begin after owner
+acceptance of the Phase 5.8.7 boundary/convergence implementation and the
+5.8.8 GitHub Work Card visibility boundary.
 
 For packaged users, `pulse check` remains a foreground operating command. The
 package should expose it through the installed CLI, read the user's local

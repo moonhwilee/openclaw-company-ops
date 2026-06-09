@@ -1278,6 +1278,10 @@ Scope:
   must publish or update exactly one source-backed Work Card result summary
   comment, read it back, and record the comment reference before claiming fully
   converged completion when GitHub Work Card visibility is required.
+- Add a 5.8.9 Discord Progress display cleanup after the GitHub visibility
+  gate: render long-work checkpoint cards as user-facing two-line `PROGRESS`
+  updates while preserving internal `CHECKPOINT` proof events, the
+  `work-unit checkpoint` command, and `transition_kind=checkpoint`.
 
 Acceptance gate:
 

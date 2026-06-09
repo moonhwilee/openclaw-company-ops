@@ -169,10 +169,12 @@ guess targets, or grant permissions on the user's behalf.
 ## Planned Work
 
 - Accept Phase 5.8.7 and implement/accept Phase 5.8.8 GitHub Work Card final
-  result visibility, then begin Phase 6 Packaging / Public v1 from the
-  stabilized verify-only boundary, goal/fix mutation authority, final GitHub
-  Project live readback, final Work Card summary visibility, and distribution
-  preflight readiness contract.
+  result visibility, then run the Phase 5.8.9 Discord Progress display cleanup
+  as a P1 readability slice without changing internal checkpoint proof
+  semantics. Phase 6 Packaging / Public v1 begins from the stabilized
+  verify-only boundary, goal/fix mutation authority, final GitHub Project live
+  readback, final Work Card summary visibility, and distribution preflight
+  readiness contract.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.

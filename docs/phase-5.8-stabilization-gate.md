@@ -2,7 +2,9 @@
 
 Status: distribution-critical Phase 5.8.7 implemented in repo-local and
 controlled smoke. Phase 5.8.8 is open as a final GitHub Work Card visibility
-blocker before Phase 6 packaging.
+blocker before Phase 6 packaging. Phase 5.8.9 is planned after 5.8.8 as a
+Discord progress display cleanup; it improves long-work readability without
+changing source/proof semantics.
 Phases 5.8.1 through 5.8.6 are implemented and live-verified, but the
 `WU-260609-958` live gate exposed a final packaging blocker: verify/fix
 authority boundaries and live dashboard convergence must be enforced as
@@ -1119,6 +1121,97 @@ Acceptance:
 - Smoke fixtures prove comments are never consumed by status, inbox, Project
   sync, result-ready, or closeout decision derivation.
 - Active-path scans show no legacy or fallback comment formats.
+
+### Phase 5.8.9: Discord Progress Update Display
+
+Status: planned after Phase 5.8.8; P1 visibility/readability cleanup.
+
+Depends on:
+
+- Phase 5.8.8.
+
+Purpose:
+
+Make long-running Work Unit progress easier to inspect in Discord by rendering
+operator-facing progress cards as `PROGRESS` updates, while preserving the
+existing internal checkpoint event contract. This phase is a display-layer
+cleanup, not a new state machine, dashboard truth source, or CLI rename.
+
+Scope:
+
+Slice A, two-line progress card layout:
+
+- Render checkpoint visibility cards with a short, stable header:
+  `🧭 [PROGRESS] WU-<id> · 🧪 <team>`.
+- Put the actual progress detail in the first body line by reusing the same
+  deterministic display string that feeds the dashboard `Progress` field:
+  `진행: <rendered_progress_summary>`.
+- Build `<rendered_progress_summary>` from source progress fields in the
+  existing order: optional visible round, optional phase index/total, then
+  `phase` or `current_slice`. Examples:
+  - `진행: positioning note`;
+  - `진행: 1/3 · positioning note`;
+  - `진행: R1 · 1/3 · positioning note`.
+- If a compact one-line display is needed, keep only round and phase count in
+  the header, for example
+  `🧭 [PROGRESS · R1 · 1/3] WU-260609-901 · 🧪 build-lab`, and keep
+  the rendered progress summary in the body.
+- Treat `phase`, `current_slice`, round, and phase count as display inputs, not
+  parser inputs. Round and phase count are optional; do not fabricate them when
+  a Work Unit only has a current slice.
+
+Slice B, icon and clamping rules:
+
+- Use one leading icon:
+  - `🧭` for normal progress;
+  - `⚠️` for at-risk or blocked progress;
+  - `🔄` for retry or re-run progress.
+- If more than one condition applies, choose the leading icon by priority:
+  `⚠️` > `🔄` > `🧭`.
+- Keep retry/re-run progress visually distinct from closeout revision events
+  such as `🔁 [REVISE]`.
+- Clamp the slice/phase label inside the rendered progress summary to roughly
+  24-32 display characters, keep the full progress detail around 40 characters
+  when possible, and keep the header under roughly 55-60 UTF-16 code units so
+  mobile Discord does not push Work Unit id and team out of view.
+
+Slice C, structured proof and readback:
+
+- Card titles are display-only. Do not parse title text to recover lifecycle
+  state or progress semantics.
+- Preserve structured fields in the card/proof row: `work_unit_id`, `team`,
+  `mode`, `round`, `show_round`, `phase`, `phase_index`, `phase_total`,
+  `current_slice`, `risk_state`, `retry_state`, `rendered_title`,
+  `rendered_progress_summary`, and `clamp_version`.
+- Readback may match the rendered title/header, but status and Project
+  derivation must continue to use source artifacts and structured fields.
+
+Slice D, internal contract boundary:
+
+- Keep internal `card.kind = CHECKPOINT`, proof lifecycle event `CHECKPOINT`,
+  CLI command `work-unit checkpoint`, and progress row
+  `transition_kind = checkpoint` in this phase.
+- Do not hard-rename `work-unit checkpoint` to `work-unit progress`; an existing
+  `work-unit progress` command already has a different metadata-append meaning.
+- Do not rename `transition_kind=checkpoint` to `progress`, do not rewrite
+  historical artifacts, and do not add compatibility aliases or fallback
+  readers.
+- Documentation and help text may describe this as: the internal checkpoint
+  event publishes a user-facing Progress update.
+
+Acceptance:
+
+- `discord_ops.py card --kind CHECKPOINT` or equivalent renderer smoke shows a
+  user-facing `PROGRESS` header using the two-line layout.
+- `work-unit checkpoint --dry-run --format json` still emits internal
+  `card.kind == CHECKPOINT` and `progress_row.transition_kind == checkpoint`.
+- Lifecycle/proof sequence validation still accepts
+  `STARTED -> CHECKPOINT -> RESULT_READY`.
+- Project `Progress` derivation continues to use source `progress.jsonl` and
+  structured proof fields, not Discord title parsing.
+- Smoke expectations are updated for the rendered Progress header.
+- Active-path scans prove this phase introduced no aliases, fallback readers,
+  hard-renamed checkpoint commands, or historical artifact rewrites.
 
 ## Phase 6 Blocker Rule
 
