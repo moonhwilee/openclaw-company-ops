@@ -57,13 +57,16 @@ complete.
 
 Phase 5.7 Packaging Readiness Decision is complete: the Phase 6 included
 surfaces, deferred surfaces, and no-go surfaces are locked. Phase 5.8
-Stabilization Gate is complete. Phases 5.8.1 through 5.8.5 are implemented in
-the repo-local and live-verified model: canonical start/result-ready guards,
-final closeout lifecycle convergence, fresh-session detached dispatch, capacity
-policy, result-ready closeout delegate wake, guarded `--commit-request`
-closeout, resumable closeout visibility publish, duplicate RESULT_READY
-suppression, and closeout delegate replay-safe idempotency are all present.
-Phase 6 Packaging / Public v1 is now the next planned phase.
+Stabilization Gate includes the distribution-critical 5.8.7 follow-up.
+Phases 5.8.1 through 5.8.7 are implemented in the repo-local and controlled
+smoke model: canonical start/result-ready guards, final closeout lifecycle
+convergence, fresh-session detached dispatch, capacity policy, result-ready
+closeout delegate wake, guarded `--commit-request` closeout, resumable closeout
+visibility publish, duplicate RESULT_READY suppression, closeout delegate
+replay-safe idempotency, delegated closeout authority, verify/fix authority
+boundaries, final Project readback convergence, and minimal public-install
+preflight are all present. Phase 6 Packaging / Public v1 can begin after owner
+acceptance of the Phase 5.8.7 boundary/convergence implementation.
 
 Company Ops capacity sizing is a general operating policy, not a phase-local
 patch. See [`docs/capacity-policy.md`](docs/capacity-policy.md) for OpenClaw
@@ -163,8 +166,9 @@ guess targets, or grant permissions on the user's behalf.
 
 ## Planned Work
 
-- Begin Phase 6 Packaging / Public v1 from the accepted Phase 5.7 package
-  boundary and the completed Phase 5.8 live workflow stabilization gate.
+- Accept Phase 5.8.7, then begin Phase 6 Packaging / Public v1 from the
+  stabilized verify-only boundary, goal/fix mutation authority, final GitHub
+  Project live readback, and distribution preflight readiness contract.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.

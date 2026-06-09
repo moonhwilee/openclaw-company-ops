@@ -1,21 +1,31 @@
 # Phase 5.8 Stabilization Gate
 
-Status: complete stabilization gate before Phase 6. Phases 5.8.1 through 5.8.5
-are implemented and live-verified. The current code includes canonical
+Status: distribution-critical Phase 5.8.7 implemented in repo-local and
+controlled smoke. Phase 6 packaging may begin after owner acceptance of this
+boundary/convergence implementation.
+Phases 5.8.1 through 5.8.6 are implemented and live-verified, but the
+`WU-260609-958` live gate exposed a final packaging blocker: verify/fix
+authority boundaries and live dashboard convergence must be enforced as
+protocol invariants, not operator judgment. The current code includes canonical
 start/result-ready guards, closeout lifecycle convergence, source-backed
 detached dispatch, fail-closed OpenClaw runtime adapter delivery, fresh
 Work Unit-specific Team Lead sessions, conservative capacity policy,
 result-ready closeout delegate wake, guarded closeout `--commit-request`, and
 resumable closeout publish staging. Phase 5.8.5 live testing also added
 duplicate RESULT_READY suppression and closeout delegate replay-safe
-idempotency. Live OpenClaw delivery still requires configured adapter commands
-for dispatch and closeout delegate wake; if a required adapter is missing or
-cannot return current proof, the command returns `setup-needed` or
+idempotency. Phase 5.8.6 added delegated closeout authority and expanded
+negative smoke coverage. Phase 5.8.7 closes the verify-only boundary, Project
+readback, and public-install preflight gaps as repo-local command/protocol
+guards before Phase 6 packaging begins. Live OpenClaw delivery still requires configured adapter
+commands for dispatch and closeout delegate wake; if a required adapter is
+missing or cannot return current proof, the command returns `setup-needed` or
 `repair-needed` and writes no false source success.
 
 Phase 5.8 captures the live workflow issues found during the
-`WU-260608-001` through `WU-260608-004` test batch and the follow-up 5.8.5
-live gate. Phase 6 Packaging / Public v1 may begin after this completed gate.
+`WU-260608-001` through `WU-260608-004` test batch, the follow-up 5.8.5 live
+gate, and the 5.8.6 delegated closeout live gate. Phase 6 Packaging /
+Public v1 may begin after the Phase 5.8.7 boundary/convergence implementation
+is accepted.
 
 This gate is not a feature expansion. It stabilizes the Work Unit runtime
 contract that Phase 6 packaging depends on.
@@ -46,6 +56,13 @@ Observed mismatch:
 
 Before this gate, Phase 6 packaging would have risked shipping a protocol that
 only passed local smoke and expert-assisted repair paths.
+
+The 5.8.6 delegated closeout live gate exposed one more public-v1 risk: a
+small verify Work Unit can accidentally become a combined verify/fix/hardening
+run, and local closeout stage flags can report success while a configured
+GitHub Project dashboard remains at `Result Ready`. For distribution, those
+must become command-level and smoke-tested invariants instead of relying on an
+expert Operations Lead to notice and repair them.
 
 ## Evidence From Live Tests
 
@@ -250,6 +267,97 @@ Add a no-bypass rule for live workflow tests:
 - do not patch proof trails to satisfy validators;
 - if the canonical path fails, record the failure and stop or continue only as
   an explicitly labeled manual-override run.
+
+### P0: Verify Mode Can Drift Into Fix/Hardening Work
+
+Status: open; Phase 5.8.7 blocker before Phase 6 packaging.
+
+Problem:
+
+The `WU-260609-958` live gate was described as a small verify run, but the
+overall Operations Lead flow also patched repo code, expanded smoke coverage,
+committed, pushed, and reported completion in the same run. The Team Lead Work
+Unit stayed verify-scoped, but the owner-visible workflow mixed verification,
+repair, hardening, and release synchronization.
+
+Impact:
+
+- Packaged users cannot tell whether a verify-only request is read-only.
+- A defect found during verification can be silently repaired and shipped
+  without a separate goal/hardening boundary.
+- Latency expectations become misleading because post-accept hardening work is
+  counted as verify completion time.
+
+Fix direction:
+
+- Make standalone `verify` read-only except for its own evidence/result
+  artifacts and allowed proof/progress rows.
+- If verify finds a defect, produce `revise`, `blocked`, or explicit finding
+  evidence. Do not edit product/source code, commit, push, mutate final Project
+  state, or run hardening work under the same verify completion claim.
+- Allow fixes only in `goal`, explicit hardening, or owner-approved follow-up
+  scope, and only when the Assignment Packet grants the needed mutation
+  authority.
+- Completion reports must distinguish `verify completed`, `defect found`,
+  `fix started`, `fix accepted`, and `hardening synchronized`.
+
+### P0: Dashboard Final Convergence Can Be Misreported
+
+Status: open; Phase 5.8.7 blocker before Phase 6 packaging.
+
+Problem:
+
+The 5.8.6 live gate produced Discord `ACCEPTED` / `COMPLETED` proof, but the
+GitHub Project dashboard item for Work Card #37 remained at `Result Ready`.
+The closeout stage could report `project_sync_ok=true` when Project sync was
+not actually attempted in the final closeout command.
+
+Impact:
+
+- Owner-facing dashboard visibility can disagree with source/Discord final
+  state.
+- Public installers may trust a false convergence flag and ship a workflow
+  that looks complete in chat while dashboards remain stale.
+- A configured Project mirror is treated as optional at the exact point where
+  final Company Ops completion requires dashboard visibility unless explicitly
+  disabled by owner decision.
+
+Fix direction:
+
+- Split Project sync state into `attempted`, `ok`, `not_configured`,
+  `not_attempted`, and `failed` instead of treating disabled sync as OK.
+- When Project sync is configured and final completion requires dashboard
+  visibility, closeout must fail or leave an explicit `project-sync-needed`
+  stage until live Project readback confirms the desired final fields.
+- The final completion gate must compare source-derived desired Project fields
+  with live GitHub Project readback. Discord/source acceptance alone is not a
+  full public-v1 completion proof when Project visibility is configured.
+
+### P1: Small Live Verify Path Pays Heavy Repeated Setup Cost
+
+Status: open; Phase 5.8.7 should optimize after P0 boundaries are enforced.
+
+Problem:
+
+The 5.8.6 live gate repeated startup reads, CLI help scans, artifact rereads,
+full smoke runs, commit/push synchronization, and final reporting inside one
+owner-visible verify flow.
+
+Impact:
+
+- Small verify runs take minutes before assignment and minutes after accept.
+- Useful safety checks are mixed with low-signal repetition.
+- Operators cannot easily explain whether time went to verification,
+  external readback, defect repair, or release synchronization.
+
+Fix direction:
+
+- Add a small live verify fast path with a bounded preflight and no commit/push
+  synchronization.
+- Keep broad smoke, commit, push, and release sync in explicit hardening or
+  goal slices after the verify outcome is reported.
+- Use source hashes and structured proof refs to reduce repeated full artifact
+  rereads by every participant.
 
 ## Phase Breakdown
 
@@ -789,10 +897,139 @@ Acceptance:
 - Phase 6 may begin only after this gate passes or an explicit no-go/defer
   decision is recorded with rationale.
 
+### Phase 5.8.7: Verify Boundary / Dashboard Convergence / Public Install Gate
+
+Status: implemented in repo-local command/protocol guards and controlled smoke;
+awaiting owner acceptance before Phase 6 packaging.
+
+Depends on:
+
+- Phase 5.8.5.
+- Phase 5.8.6.
+
+Purpose:
+
+Turn the 5.8.6 live-gate lessons into public-v1 invariants so another user can
+install the distribution without inheriting expert-only repair habits.
+
+Scope:
+
+Slice A, authority boundary:
+
+- Add structured Assignment Packet authority fields such as
+  `mutation_allowed`, `allowed_paths`, `allowed_surfaces`,
+  `external_mutation_allowed`, and `commit_push_allowed`.
+- Default standalone `verify` to read-only for product/source code and final
+  external state. Verify may create/update only its assigned evidence/result,
+  progress, and proof artifacts, plus non-final visibility where the protocol
+  already allows it.
+- Allow `goal` and explicit hardening/fix scopes to mutate source code only
+  when the Assignment Packet grants mutation authority, target paths/surfaces,
+  and verification criteria.
+- Record defects found during verify as `revise`, `blocked`, or explicit
+  findings instead of silently patching under the verify label.
+- Gate Company Ops-owned source/external mutation commands against mode and
+  authority context. This is command/protocol-level fail-closed behavior, not
+  an OS filesystem sandbox for arbitrary shell edits.
+- Require owner-visible reports to label follow-up repair/hardening separately
+  from verify completion.
+
+Slice B, closeout/dashboard convergence:
+
+- Add an explicit Project sync requirement state, for example
+  `--project-sync-mode required|disabled` or an equivalent config-backed
+  `require_project_sync`, so final closeout cannot infer that Project
+  visibility is disabled merely because a field-map argument was omitted.
+- Make closeout delegate wake and guarded closeout preflight require every live
+  target and Project sync argument needed for final convergence when Project
+  visibility is required.
+- Replace ambiguous `project_sync_ok=true` with structured states such as
+  `not_configured`, `not_attempted`, `attempted_ok`, `failed`, and
+  `readback_mismatch`.
+- Implement final desired-vs-live GitHub Project readback in
+  `project_sync.py`; closeout consumes that result instead of inferring
+  convergence from local stage flags or subprocess success alone.
+- Treat Project item absence during final closeout as `project_item_missing` or
+  `project-sync-needed`. Creation of missing Project items belongs to setup,
+  handoff, or explicit foreground reconcile, not final completion.
+
+Slice C, minimal public-install preflight:
+
+- Add only the read-only checks needed by Slices A and B: Project field-map
+  readiness, GitHub `project` scope, Project readback support, Discord target
+  config, proof-log writability, adapter command presence, role context/config,
+  and package/CLI availability.
+- Report `OK`, `WARN`, or `BLOCKED` with JSON and human-readable output.
+- Do not include broad stale-dashboard hygiene or repair automation in this
+  phase; that remains Phase 6 packaging or later foreground reconcile work.
+
+Slice D, small verify fast-path acceptance:
+
+- Treat small verify fast-path as a policy and smoke fixture, not a new
+  workflow. The path is: bounded preflight, verify evidence, report
+  `accept`/`revise`/`blocked`/finding, then stop.
+- Avoid repeated CLI help scans, broad smoke, commit, push, release sync, or
+  repair unless a separate hardening/fix slice is explicitly opened.
+
+No-go boundaries:
+
+- Do not turn the Project dashboard into source truth. It remains a mirror, but
+  a required mirror must be read back before final public-v1 completion is
+  claimed.
+- Do not auto-create Projects, grant scopes, bind Discord targets, start
+  daemons, install cron, archive items, or repair external resources from the
+  setup/preflight helper.
+- Do not let a verify-only Work Unit start product/source edits, commits,
+  pushes, final closeout, or Project final mutation under a verify completion
+  label.
+- Do not hide a verify defect by immediately patching it unless the current
+  Work Unit is explicitly converted through an owner-approved goal/hardening
+  boundary.
+- Do not claim universal protection against arbitrary shell edits. The v1
+  boundary is the package's command/protocol authority guard plus evidence and
+  dirty-state checks where the workflow owns them.
+- Do not silently create missing Project items during final closeout. Missing
+  final dashboard membership is a setup/reconcile problem, not a reason to
+  claim completion.
+- Do not add a background reconciler, retry queue, or hidden dashboard repair
+  runner.
+
+Acceptance:
+
+- Assignment Packet rendering and validation include structured mutation
+  authority fields; standalone verify defaults to mutation denied.
+- A verify-only fixture that attempts Company Ops-owned product/source edits,
+  commits, pushes, final Project mutation, or code hardening fails closed
+  before mutation.
+- A goal/hardening fixture with explicit mutation authority can patch and
+  verify; the same fixture without mutation authority fails closed.
+- Closeout with Project visibility required but missing field-map, live targets,
+  Project args, or readback support fails before publishing a false
+  fully-converged completion.
+- Closeout with Project sync disabled reports `not_configured` or
+  owner-approved dashboard no-go, not `ok`; closeout with no attempted sync
+  reports `not_attempted`.
+- A live-readback or controlled mock fixture proves final Project fields match
+  source-derived desired `Accepted`, `Needs Revision`, or `Blocked` state before
+  final completion is claimed.
+- A final closeout fixture with a missing Project item reports
+  `project_item_missing` or `project-sync-needed` instead of auto-creating the
+  item and claiming convergence.
+- Distribution preflight reports missing Project field map, missing GitHub
+  `project` scope, missing Discord targets, unwritable proof logs, missing
+  adapters, and missing role context as `WARN` or `BLOCKED` with next steps,
+  without creating or mutating resources.
+- Small verify fast-path smoke completes without full smoke, commit, push, or
+  release sync, and reports any discovered defect as a separate next action.
+- Owner-visible reporting tests or examples show an immediate accepted/interim
+  report when follow-up hardening continues after acceptance.
+
 ## Phase 6 Blocker Rule
 
-Satisfied as of the Phase 5.8.5 live gate. If future changes reopen any P0
-workflow issue, reapply this blocker before Phase 6 packaging continues.
+Reopened by the Phase 5.8.6 live gate and implemented by Phase 5.8.7. Phase 6
+packaging must not begin until the owner accepts the 5.8.7
+boundary/convergence implementation or explicitly records a no-go/defer
+decision with rationale for each P0 boundary.
 
 Historical rule:
 

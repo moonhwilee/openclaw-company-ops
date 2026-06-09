@@ -1752,6 +1752,68 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     if planned["planned_actions"][0].get("type") != "ensure_project_item":
         raise RuntimeError("project sync dry-run did not plan Project item membership first")
 
+    import project_sync as project_sync_module  # type: ignore
+
+    field_map_data = json.loads(field_map.read_text(encoding="utf-8"))
+    project_apply_args = argparse.Namespace(
+        no_create_missing_project_item=True,
+        skip_missing_project_items=False,
+        audit_log=artifact_root.parent / "project-apply-audit.jsonl",
+        gh_binary="fake-gh",
+        timeout=1,
+    )
+    original_list_items = project_sync_module.list_project_items
+    original_fetch_values = project_sync_module.fetch_current_field_values
+    original_add_item = project_sync_module.add_project_item
+    original_edit_field = project_sync_module.edit_project_field
+    original_append_audit = project_sync_module.append_audit
+    try:
+        project_sync_module.list_project_items = lambda args, fmap: {}
+        project_sync_module.add_project_item = lambda args, fmap, work_card: (_ for _ in ()).throw(
+            RuntimeError("final closeout must not auto-create missing Project items")
+        )
+        project_sync_module.append_audit = lambda path, row: None
+        missing_apply = project_sync_module.apply_work_units(project_apply_args, {"work_units": [planned]}, field_map_data)
+        if missing_apply.get("sync_state") != "project_item_missing":
+            raise RuntimeError("project sync no-create path did not report project_item_missing")
+        if missing_apply.get("summary", {}).get("failed") != 1:
+            raise RuntimeError("project sync no-create path did not fail closed")
+
+        project_sync_module.list_project_items = lambda args, fmap: {planned["work_card"]: {"id": "PVTI_item", "url": planned["work_card"]}}
+        fetch_count = {"count": 0}
+
+        def mismatched_fetch(args: argparse.Namespace, item_node_id: str) -> dict[str, str]:
+            fetch_count["count"] += 1
+            if fetch_count["count"] == 1:
+                return {}
+            live = dict(planned["desired_fields"])
+            live["Status"] = "In Progress"
+            return live
+
+        project_sync_module.fetch_current_field_values = mismatched_fetch
+        project_sync_module.edit_project_field = lambda args, fmap, item_id, field_name, field_id, desired: None
+        mismatch_apply = project_sync_module.apply_work_units(
+            argparse.Namespace(
+                no_create_missing_project_item=False,
+                skip_missing_project_items=False,
+                audit_log=artifact_root.parent / "project-mismatch-audit.jsonl",
+                gh_binary="fake-gh",
+                timeout=1,
+            ),
+            {"work_units": [planned]},
+            field_map_data,
+        )
+        if mismatch_apply.get("sync_state") != "readback_mismatch":
+            raise RuntimeError("project sync apply did not fail closed on desired-vs-live mismatch")
+        if not mismatch_apply.get("readback", {}).get("mismatches"):
+            raise RuntimeError("project sync readback mismatch did not include mismatch details")
+    finally:
+        project_sync_module.list_project_items = original_list_items
+        project_sync_module.fetch_current_field_values = original_fetch_values
+        project_sync_module.add_project_item = original_add_item
+        project_sync_module.edit_project_field = original_edit_field
+        project_sync_module.append_audit = original_append_audit
+
     proof_only_root = artifact_root.parent / "proof-only-artifacts"
     shutil.copytree(artifact_root / work_unit_id, proof_only_root / work_unit_id)
     proof_only_progress = proof_only_root / work_unit_id / "progress.jsonl"
@@ -2150,6 +2212,63 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     if (handoff_root / "WU-260606-906").exists():
         raise RuntimeError("handoff dry-run wrote persistent artifacts")
 
+    verify_mutation_spec = artifact_root.parent / "verify-mutation-handoff-spec.json"
+    verify_mutation_data = {
+        **handoff_spec_data,
+        "mutation_authority": {
+            "mutation_allowed": True,
+            "allowed_paths": ["scripts/work_unit_artifacts.py"],
+            "allowed_surfaces": ["source"],
+        },
+    }
+    write_json(verify_mutation_spec, verify_mutation_data)
+    verify_mutation_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(verify_mutation_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+        ]
+    )
+    if verify_mutation_result.returncode == 0:
+        raise RuntimeError("verify handoff accepted mutation authority")
+    if "verify mode cannot grant mutation authority" not in verify_mutation_result.stderr:
+        raise RuntimeError("verify mutation authority rejection did not explain the boundary")
+
+    goal_mutation_spec = artifact_root.parent / "goal-mutation-handoff-spec.json"
+    goal_mutation_data = {
+        **handoff_spec_data,
+        "mode": "goal",
+        "mutation_authority": {
+            "mutation_allowed": True,
+            "allowed_paths": ["scripts/work_unit_artifacts.py"],
+            "allowed_surfaces": ["source", "git"],
+            "commit_push_allowed": True,
+        },
+    }
+    write_json(goal_mutation_spec, goal_mutation_data)
+    goal_mutation_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(goal_mutation_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(goal_mutation_result, "goal handoff with explicit mutation authority")
+
     bad_handoff_spec = artifact_root.parent / "bad-handoff-spec.json"
     bad_handoff_data = dict(handoff_spec_data)
     bad_handoff_data.pop("verification_criteria")
@@ -2222,6 +2341,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("draft-handoff did not produce a Work Card draft")
     if "Assignment Packet" not in draft_payload.get("assignment_packet_draft", ""):
         raise RuntimeError("draft-handoff did not produce an Assignment Packet draft")
+    if "Mutation allowed: `false`" not in draft_payload.get("assignment_packet_draft", ""):
+        raise RuntimeError("verify draft-handoff did not render read-only mutation authority")
 
     completed_draft_spec = artifact_root.parent / "completed-draft-handoff-spec.json"
     write_json(completed_draft_spec, draft_payload["handoff_spec_draft"])
@@ -3478,6 +3599,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         "--team-target",
         "--ops-target",
         "--project-sync-field-map",
+        "--project-sync-mode required",
         "--project-sync-ledger",
         "--project-sync-audit-log",
     ):
@@ -4429,7 +4551,13 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
 
     try:
         work_unit_module.publish_card = successful_publish_card
-        work_unit_module.run_project_sync = lambda args: {"enabled": True, "ok": False, "error": "project sync unavailable"}
+        work_unit_module.run_project_sync = lambda args: {
+            "enabled": True,
+            "required": True,
+            "ok": False,
+            "sync_state": "failed",
+            "error": "project sync unavailable",
+        }
         project_args = partial_parser.parse_args(
             [
                 "work-unit",
@@ -4447,6 +4575,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "channel:ops",
                 "--project-sync-field-map",
                 str(work_dir / "field-map.json"),
+                "--project-sync-mode",
+                "required",
                 "--transition-at",
                 "2026-06-07T02:10:00Z",
                 "--format",
@@ -4463,12 +4593,21 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         if project_payload.get("status") != "project-sync-needed":
             raise RuntimeError("Project sync failure did not leave project-sync-needed status")
         stage_payload = json.loads((project_sync_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
-        if stage_payload.get("status") != "project-sync-needed" or stage_payload.get("project_sync_ok") is not False:
+        if (
+            stage_payload.get("status") != "project-sync-needed"
+            or stage_payload.get("project_sync_state") != "failed"
+            or stage_payload.get("project_sync_required") is not True
+        ):
             raise RuntimeError("Project sync failure stage did not remain recoverable")
         if "Status: Accepted" not in (project_sync_wu / "decision.md").read_text(encoding="utf-8"):
             raise RuntimeError("Project sync failure did not preserve source decision after visibility success")
 
-        work_unit_module.run_project_sync = lambda args: {"enabled": True, "ok": True}
+        work_unit_module.run_project_sync = lambda args: {
+            "enabled": True,
+            "required": True,
+            "ok": True,
+            "sync_state": "attempted_ok",
+        }
         resume_args = partial_parser.parse_args(
             [
                 "work-unit",
@@ -4486,6 +4625,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "channel:ops",
                 "--project-sync-field-map",
                 str(work_dir / "field-map.json"),
+                "--project-sync-mode",
+                "required",
                 "--transition-at",
                 "2026-06-07T02:11:00Z",
                 "--format",

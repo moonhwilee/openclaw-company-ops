@@ -89,6 +89,17 @@ Evidence or checks required for review:
 
 -
 
+## Mutation Authority
+
+This block is structured authority, not prose. Company Ops-owned commands and
+handoff validators use it to fail closed when mode and mutation scope conflict.
+
+- Mutation allowed: `<true|false>`
+- Allowed paths: `<none|repo-relative paths>`
+- Allowed surfaces: `<none|source|project|discord|git|external>`
+- External mutation allowed: `<true|false>`
+- Commit/push allowed: `<true|false>`
+
 ## Protocol Capsule
 
 Use this compact execution protocol for this Work Unit. Do not replace this
@@ -109,6 +120,12 @@ gaps, and next action, then continue the selected mode.
 ```yaml
 protocol_capsule:
   mode: <goal|verify>
+  mutation_authority:
+    mutation_allowed: <true|false>
+    allowed_paths: []
+    allowed_surfaces: []
+    external_mutation_allowed: <true|false>
+    commit_push_allowed: <true|false>
   support: []
   loop: <plan -> repeat(act_or_improve -> verify) until stop_only_on, only for goal>
   stop_only_on:

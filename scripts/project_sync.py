@@ -786,10 +786,12 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
     item_index = list_project_items(args, field_map)
     result: dict[str, Any] = {
         "mode": "apply",
+        "sync_state": "attempted_ok",
         "project_mutation": True,
         "llm_calls": 0,
         "work_units": [],
-        "summary": {"changed": 0, "unchanged": 0, "failed": 0, "skipped": 0},
+        "summary": {"changed": 0, "unchanged": 0, "failed": 0, "skipped": 0, "readback_mismatch": 0},
+        "readback": {"checked": True, "ok": True, "mismatches": []},
         "skipped_work_units": [],
     }
     for item_plan in plan["work_units"]:
@@ -808,6 +810,27 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
                     "work_unit_id": item_plan["work_unit_id"],
                     "work_card": work_card,
                     "reason": "Project item is absent; reconcile updates existing dashboard items only",
+                }
+            )
+            continue
+        elif getattr(args, "no_create_missing_project_item", False):
+            result["summary"]["failed"] += 1
+            result["readback"]["ok"] = False
+            result["readback"]["mismatches"].append(
+                {
+                    "work_unit_id": item_plan["work_unit_id"],
+                    "work_card": work_card,
+                    "field": "project_item",
+                    "reason": "project_item_missing",
+                }
+            )
+            result["work_units"].append(
+                {
+                    "work_unit_id": item_plan["work_unit_id"],
+                    "work_card": work_card,
+                    "project_item_id": "",
+                    "result": "project_item_missing",
+                    "actions": [{"type": "ensure_project_item", "result": "failed", "work_card": work_card}],
                 }
             )
             continue
@@ -837,13 +860,38 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
             )
 
         status = "changed" if item_changed else "unchanged"
-        result["summary"][status] += 1
+        readback_values = fetch_current_field_values(args, item_node_id)
+        readback_mismatches = []
+        for field_name in DEFAULT_FIELDS:
+            desired = item_plan["desired_fields"].get(field_name, "")
+            live = current_value_for_field(readback_values, field_map, field_name)
+            if live != desired:
+                readback_mismatches.append({"field": field_name, "desired": desired, "live": live})
+        if readback_mismatches:
+            status = "readback_mismatch"
+            result["summary"]["failed"] += 1
+            result["summary"]["readback_mismatch"] += 1
+            result["readback"]["ok"] = False
+            for mismatch in readback_mismatches:
+                result["readback"]["mismatches"].append(
+                    {
+                        "work_unit_id": item_plan["work_unit_id"],
+                        "work_card": work_card,
+                        **mismatch,
+                    }
+                )
+        else:
+            result["summary"][status] += 1
         unit_result = {
             "work_unit_id": item_plan["work_unit_id"],
             "work_card": work_card,
             "project_item_id": item_node_id,
             "result": status,
             "actions": actions,
+            "readback": {
+                "ok": not readback_mismatches,
+                "mismatches": readback_mismatches,
+            },
         }
         result["work_units"].append(unit_result)
         append_audit(
@@ -858,6 +906,9 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
                 "changed_action_count": sum(1 for action in actions if action.get("result") == "changed"),
             },
         )
+    if result["summary"]["failed"]:
+        missing = any(unit.get("result") == "project_item_missing" for unit in result["work_units"])
+        result["sync_state"] = "project_item_missing" if missing else "readback_mismatch"
     return result
 
 
@@ -930,11 +981,13 @@ def cmd_apply(args: argparse.Namespace) -> int:
     else:
         print(
             "Project sync apply complete: "
+            f"sync_state={result['sync_state']} "
             f"changed={result['summary']['changed']} "
             f"unchanged={result['summary']['unchanged']} "
+            f"failed={result['summary']['failed']} "
             f"audit_log={args.audit_log.expanduser()}"
         )
-    return 0
+    return 1 if result["summary"].get("failed") else 0
 
 
 def cmd_reconcile(args: argparse.Namespace) -> int:
@@ -979,6 +1032,11 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--gh-binary", default="gh")
         command.add_argument("--timeout", type=int, default=30)
         command.add_argument("--item-limit", type=int, default=200)
+        command.add_argument(
+            "--no-create-missing-project-item",
+            action="store_true",
+            help="Fail when the Project item is absent instead of adding it; use for final closeout readback gates",
+        )
 
     dry_run = project_subparsers.add_parser("dry-run", help="Show Project changes without mutation")
     add_source_args(dry_run)

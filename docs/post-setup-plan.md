@@ -1250,7 +1250,9 @@ deferred surfaces, and no-go surfaces listed above.
 ### Phase 5.8: Live Workflow Stabilization Gate
 
 Purpose: resolve the live workflow lifecycle issues found in
-`WU-260608-001` through `WU-260608-004` before Phase 6 packaging begins.
+`WU-260608-001` through `WU-260608-004`, plus the distribution-critical
+verify/fix boundary and dashboard convergence issues exposed by the 5.8.6 live
+gate, before Phase 6 packaging begins.
 
 Implementation reference: `docs/phase-5.8-stabilization-gate.md`.
 
@@ -1267,6 +1269,11 @@ Scope:
 - Add result-ready closeout delegate wake, guarded commit-request closeout, and
   explicit partial-publish resume behavior.
 - Add a no-bypass regression gate for live workflow tests.
+- Add a 5.8.7 public-install gate for structured Assignment Packet mutation
+  authority, verify-only read-only boundaries, explicit Project sync
+  required/disabled state, final GitHub Project desired-vs-live readback,
+  narrow command/protocol guards, minimal setup preflight, and a small live
+  verify fast-path policy.
 
 Acceptance gate:
 
@@ -1280,6 +1287,15 @@ Acceptance gate:
   Team Lead foreground execution.
 - Result-ready delegate wake and guarded closeout commit request are exercised,
   including fail-closed and partial-resume edge cases introduced by 5.8.4c.
+- Verify-only work cannot mutate Company Ops-owned product/source code or final
+  external state; defects found during verify become revise/blocked/findings
+  unless a separate owner-approved goal/hardening slice grants structured
+  mutation authority.
+- Final Company Ops completion with required Project visibility requires live
+  dashboard readback, not only local stage flags, omitted field-map arguments,
+  or Discord proof.
+- Public-install preflight can detect missing Project/Discord/auth/adapter/role
+  readiness without creating or mutating resources.
 - Any remaining P1/P2 items have explicit owner-approved defer rationale.
 
 Phase 5 acceptance gate:

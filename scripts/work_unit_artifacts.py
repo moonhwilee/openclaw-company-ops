@@ -24,6 +24,9 @@ WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
 STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 ROUND_VISIBLE_MODES = {"goal", "convergence"}
+HANDOFF_MODE_CHOICES = {"goal", "verify"}
+MUTATION_SURFACE_CHOICES = {"source", "project", "discord", "git", "external"}
+PROJECT_SYNC_MODE_CHOICES = ("disabled", "required")
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
@@ -141,6 +144,12 @@ DRAFT_HANDOFF_SPEC_FIELDS = {
     "created_at",
     "subagent_budget",
     "subagent_budget_reason",
+    "mutation_authority",
+    "mutation_allowed",
+    "allowed_paths",
+    "allowed_surfaces",
+    "external_mutation_allowed",
+    "commit_push_allowed",
 }
 STABLE_HANDOFF_FIELDS = {
     "work unit id",
@@ -353,6 +362,29 @@ def optional_spec_text(spec: dict[str, Any], key: str, default: str = "") -> str
     return value.strip()
 
 
+def spec_bool_value(value: Any, *, default: bool, key: str) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in {"true", "yes", "1", "on"}:
+            return True
+        if cleaned in {"false", "no", "0", "off", ""}:
+            return False
+    raise ValueError(f"handoff spec field must be boolean: {key}")
+
+
+def normalize_handoff_mode(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("handoff spec requires non-empty string: mode")
+    mode = value.strip().lower()
+    if mode not in HANDOFF_MODE_CHOICES:
+        raise ValueError("handoff spec mode must be one of: goal, verify")
+    return mode
+
+
 def normalize_subagent_budget(value: Any, default: str = "3") -> str:
     raw = default if value is None or value == "" else str(value).strip().lower()
     if raw in {"0", "no", "none", "unused"}:
@@ -395,6 +427,98 @@ def optional_spec_text_list(spec: dict[str, Any], key: str) -> list[str]:
     if key not in spec or spec.get(key) is None:
         return []
     return spec_text_list(spec, key)
+
+
+def spec_string_list_value(value: Any, *, key: str) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        items = [line.strip(" -,") for line in value.splitlines()]
+    elif isinstance(value, list):
+        items = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(f"handoff spec list contains non-string item: {key}")
+            items.append(item.strip())
+    else:
+        raise ValueError(f"handoff spec field must be string or list: {key}")
+    return [item for item in items if item]
+
+
+def normalize_mutation_authority(spec: dict[str, Any], mode: str) -> dict[str, Any]:
+    raw = spec.get("mutation_authority")
+    if raw is None:
+        raw_authority: dict[str, Any] = {}
+    elif isinstance(raw, dict):
+        raw_authority = raw
+    else:
+        raise ValueError("handoff spec field must be an object: mutation_authority")
+
+    mutation_allowed = spec_bool_value(
+        spec.get("mutation_allowed", raw_authority.get("mutation_allowed")),
+        default=False,
+        key="mutation_allowed",
+    )
+    external_mutation_allowed = spec_bool_value(
+        spec.get("external_mutation_allowed", raw_authority.get("external_mutation_allowed")),
+        default=False,
+        key="external_mutation_allowed",
+    )
+    commit_push_allowed = spec_bool_value(
+        spec.get("commit_push_allowed", raw_authority.get("commit_push_allowed")),
+        default=False,
+        key="commit_push_allowed",
+    )
+    allowed_paths = spec_string_list_value(
+        spec.get("allowed_paths", raw_authority.get("allowed_paths")),
+        key="allowed_paths",
+    )
+    allowed_surfaces = [
+        item.lower()
+        for item in spec_string_list_value(
+            spec.get("allowed_surfaces", raw_authority.get("allowed_surfaces")),
+            key="allowed_surfaces",
+        )
+    ]
+    unknown_surfaces = sorted(set(allowed_surfaces) - MUTATION_SURFACE_CHOICES)
+    if unknown_surfaces:
+        raise ValueError(f"handoff spec has unknown allowed_surfaces: {', '.join(unknown_surfaces)}")
+
+    grants_mutation = (
+        mutation_allowed
+        or external_mutation_allowed
+        or commit_push_allowed
+        or bool(allowed_paths)
+        or bool(allowed_surfaces)
+    )
+    if mode == "verify" and grants_mutation:
+        raise ValueError("verify mode cannot grant mutation authority")
+    if (external_mutation_allowed or commit_push_allowed or allowed_paths or allowed_surfaces) and not mutation_allowed:
+        raise ValueError("allowed mutation scope requires mutation_allowed=true")
+    if commit_push_allowed and "git" not in allowed_surfaces:
+        raise ValueError("commit_push_allowed requires allowed_surfaces to include git")
+    if external_mutation_allowed and not ({"project", "discord", "external"} & set(allowed_surfaces)):
+        raise ValueError("external_mutation_allowed requires an external allowed surface")
+
+    return {
+        "mutation_allowed": mutation_allowed,
+        "allowed_paths": allowed_paths,
+        "allowed_surfaces": allowed_surfaces,
+        "external_mutation_allowed": external_mutation_allowed,
+        "commit_push_allowed": commit_push_allowed,
+    }
+
+
+def bool_yaml(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def inline_yaml_list(items: list[str]) -> str:
+    return json.dumps(items, ensure_ascii=False)
+
+
+def human_list_or_none(items: list[str]) -> str:
+    return ", ".join(items) if items else "none"
 
 
 def amendment_value_needs_decision(value: Any) -> bool:
@@ -571,7 +695,13 @@ def guarded_closeout_contract(
     artifact_root: Path,
     team_target: str,
     ops_target: str,
+    project_sync_field_map: str,
+    project_sync_ledger: str,
+    project_sync_audit_log: str,
 ) -> dict[str, str]:
+    project_field_map = project_sync_field_map or str(DEFAULT_PROJECT_FIELD_MAP)
+    project_ledger = project_sync_ledger or str(DEFAULT_PROJECT_LEDGER)
+    project_audit_log = project_sync_audit_log or str(DEFAULT_PROJECT_AUDIT_LOG)
     return {
         "command": (
             "python3 scripts/openclaw_company_ops.py work-unit closeout "
@@ -579,9 +709,10 @@ def guarded_closeout_contract(
             "--commit-request <json> --authority-role operations-lead-delegate "
             f"--team-target {team_target} --ops-target {ops_target} "
             "--channel discord --account default "
-            f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
-            f"--project-sync-ledger {DEFAULT_PROJECT_LEDGER} "
-            f"--project-sync-audit-log {DEFAULT_PROJECT_AUDIT_LOG} "
+            "--project-sync-mode required "
+            f"--project-sync-field-map {project_field_map} "
+            f"--project-sync-ledger {project_ledger} "
+            f"--project-sync-audit-log {project_audit_log} "
             "--publish"
         ),
         "rule": "Fresh OL delegate may judge and publish only through guarded closeout.",
@@ -702,6 +833,9 @@ def build_closeout_delegate_payload(
             artifact_root=args.artifact_root,
             team_target=team_target,
             ops_target=ops_target,
+            project_sync_field_map=getattr(args, "project_sync_field_map", ""),
+            project_sync_ledger=getattr(args, "project_sync_ledger", ""),
+            project_sync_audit_log=getattr(args, "project_sync_audit_log", ""),
         ),
         "authority_boundary": CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY,
         "autonomy_classes": ["auto_eligible", "deep_review_auto_eligible", "manual_required"],
@@ -1293,6 +1427,69 @@ def active_wu_capacity(artifact_root: Path, current_work_unit_id: str = "") -> d
     }
 
 
+def path_parent_writable(path: Path) -> bool:
+    parent = path.expanduser().parent
+    return parent.exists() and os.access(parent, os.W_OK)
+
+
+def public_install_preflight_checks(args: argparse.Namespace) -> tuple[list[dict[str, str]], list[str]]:
+    checks: list[dict[str, str]] = []
+    blockers: list[str] = []
+
+    project_sync_mode = str(getattr(args, "project_sync_mode", "disabled") or "disabled")
+    project_sync_field_map = str(getattr(args, "project_sync_field_map", "") or "").strip()
+    if project_sync_mode == "required":
+        if not project_sync_field_map:
+            blockers.append("Project sync is required but --project-sync-field-map is missing")
+            checks.append({"name": "project_field_map", "status": "BLOCKED", "reason": "missing"})
+        elif not Path(project_sync_field_map).expanduser().exists():
+            blockers.append(f"Project field map does not exist: {project_sync_field_map}")
+            checks.append({"name": "project_field_map", "status": "BLOCKED", "reason": "missing_file"})
+        else:
+            checks.append({"name": "project_field_map", "status": "OK", "reason": project_sync_field_map})
+    else:
+        checks.append({"name": "project_sync_mode", "status": "OK", "reason": project_sync_mode})
+
+    proof_log_value = str(getattr(args, "proof_log", "") or "").strip()
+    if proof_log_value:
+        proof_log = Path(proof_log_value)
+        if path_parent_writable(proof_log):
+            checks.append({"name": "proof_log_writable", "status": "OK", "reason": proof_log_value})
+        else:
+            blockers.append(f"Proof log parent is not writable: {proof_log_value}")
+            checks.append({"name": "proof_log_writable", "status": "BLOCKED", "reason": "parent_not_writable"})
+
+    if bool(getattr(args, "require_discord_targets", False)):
+        missing_targets = []
+        if not str(getattr(args, "team_target", "") or "").strip():
+            missing_targets.append("team-target")
+        if not str(getattr(args, "ops_target", "") or "").strip():
+            missing_targets.append("ops-target")
+        if missing_targets:
+            blockers.append(f"Discord target(s) missing: {', '.join(missing_targets)}")
+            checks.append({"name": "discord_targets", "status": "BLOCKED", "reason": ",".join(missing_targets)})
+        else:
+            checks.append({"name": "discord_targets", "status": "OK", "reason": "team+ops"})
+
+    if bool(getattr(args, "require_adapter_command", False)):
+        adapter_command = str(getattr(args, "adapter_command", "") or "").strip()
+        if not adapter_command:
+            blockers.append("Adapter command is required but missing")
+            checks.append({"name": "adapter_command", "status": "BLOCKED", "reason": "missing"})
+        else:
+            checks.append({"name": "adapter_command", "status": "OK", "reason": adapter_command})
+
+    if hasattr(args, "role_context"):
+        role_context = str(getattr(args, "role_context", "") or "").strip()
+        if role_context:
+            checks.append({"name": "role_context", "status": "OK", "reason": role_context})
+        else:
+            blockers.append("Role context is missing")
+            checks.append({"name": "role_context", "status": "BLOCKED", "reason": "missing"})
+
+    return checks, blockers
+
+
 def capacity_check(args: argparse.Namespace) -> int:
     agent_count = args.company_ops_agent_count
     if agent_count < 1:
@@ -1327,7 +1524,10 @@ def capacity_check(args: argparse.Namespace) -> int:
         capacity_warnings.append(f"Company Ops active WU count is {capacity['active_count']}; cap is {cap}")
     elif capacity["active_count"] == cap and not capacity["current_active"]:
         capacity_warnings.append(f"Company Ops active WU cap is full at {cap}")
+    setup_checks, setup_blockers = public_install_preflight_checks(args)
     status = "OK" if not host_warnings and not capacity_warnings else "WARN"
+    if setup_blockers:
+        status = "BLOCKED"
     payload = {
         "status": status,
         "source": "local-source-artifacts-and-openclaw-config",
@@ -1348,6 +1548,8 @@ def capacity_check(args: argparse.Namespace) -> int:
         },
         "active": capacity,
         "warnings": [*warnings, *host_warnings, *capacity_warnings],
+        "setup_checks": setup_checks,
+        "setup_blockers": setup_blockers,
         "apply_policy": {
             "openclaw_config_auto_mutation": False,
             "gateway_restart_auto": False,
@@ -1355,9 +1557,13 @@ def capacity_check(args: argparse.Namespace) -> int:
             "subagent_budget_runtime_enforcement": False,
         },
         "next_action": (
+            "Resolve BLOCKED setup checks before live Company Ops mutation."
+            if status == "BLOCKED"
+            else (
             "Review warnings and explicitly update OpenClaw host config if appropriate."
             if status == "WARN"
             else "Capacity policy is within the recommended boundary."
+            )
         ),
     }
     if args.format == "json":
@@ -1371,6 +1577,8 @@ def capacity_check(args: argparse.Namespace) -> int:
         print(f"- Active WUs: {capacity['active_count']}")
         for warning in payload["warnings"]:
             print(f"- WARN: {warning}")
+        for blocker in setup_blockers:
+            print(f"- BLOCKED: {blocker}")
         print(f"- Next: {payload['next_action']}")
     return 0
 
@@ -1437,12 +1645,14 @@ def validate_handoff_spec(spec: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(team_target, str) or not team_target.strip():
         raise ValueError("handoff spec requires non-empty targets.team_detail")
 
+    mode = normalize_handoff_mode(spec.get("mode"))
     subagent_budget = normalize_subagent_budget(spec.get("subagent_budget"), default="3")
+    mutation_authority = normalize_mutation_authority(spec, mode)
     normalized = {
         "work_unit_id": work_unit_id(require_spec_text(spec, "work_unit_id")),
         "title": require_spec_text(spec, "title"),
         "team": require_spec_text(spec, "team"),
-        "mode": require_spec_text(spec, "mode"),
+        "mode": mode,
         "goal": require_spec_text(spec, "goal"),
         "scope": spec_text_list(spec, "scope"),
         "done_criteria": spec_text_list(spec, "done_criteria"),
@@ -1465,6 +1675,7 @@ def validate_handoff_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "source_refs": spec_text_list(spec, "source_refs") if "source_refs" in spec else [],
         "subagent_budget": subagent_budget,
         "subagent_budget_reason": normalize_subagent_budget_reason(spec.get("subagent_budget_reason"), subagent_budget),
+        "mutation_authority": mutation_authority,
     }
     if not normalized["work_card"] and not normalized["work_card_repo"]:
         raise ValueError("handoff spec requires work_card/work_card_ref or work_card_repo")
@@ -1502,6 +1713,14 @@ def work_card_body(spec: dict[str, Any], output_dir: Path) -> str:
 ## Verification Criteria
 
 {markdown_bullets(spec["verification_criteria"])}
+
+## Mutation Authority
+
+- Mutation allowed: `{bool_yaml(spec["mutation_authority"]["mutation_allowed"])}`
+- Allowed paths: `{human_list_or_none(spec["mutation_authority"]["allowed_paths"])}`
+- Allowed surfaces: `{human_list_or_none(spec["mutation_authority"]["allowed_surfaces"])}`
+- External mutation allowed: `{bool_yaml(spec["mutation_authority"]["external_mutation_allowed"])}`
+- Commit/push allowed: `{bool_yaml(spec["mutation_authority"]["commit_push_allowed"])}`
 
 ## Source Refs
 
@@ -1614,11 +1833,25 @@ Team Lead OpenClaw Agent for a delegated Work Unit.
 
 {markdown_bullets(context["verification_criteria"])}
 
+## Mutation Authority
+
+- Mutation allowed: `{bool_yaml(context["mutation_authority"]["mutation_allowed"])}`
+- Allowed paths: `{human_list_or_none(context["mutation_authority"]["allowed_paths"])}`
+- Allowed surfaces: `{human_list_or_none(context["mutation_authority"]["allowed_surfaces"])}`
+- External mutation allowed: `{bool_yaml(context["mutation_authority"]["external_mutation_allowed"])}`
+- Commit/push allowed: `{bool_yaml(context["mutation_authority"]["commit_push_allowed"])}`
+
 ## Protocol Capsule
 
 ```yaml
 protocol_capsule:
   mode: {context["mode"]}
+  mutation_authority:
+    mutation_allowed: {bool_yaml(context["mutation_authority"]["mutation_allowed"])}
+    allowed_paths: {inline_yaml_list(context["mutation_authority"]["allowed_paths"])}
+    allowed_surfaces: {inline_yaml_list(context["mutation_authority"]["allowed_surfaces"])}
+    external_mutation_allowed: {bool_yaml(context["mutation_authority"]["external_mutation_allowed"])}
+    commit_push_allowed: {bool_yaml(context["mutation_authority"]["commit_push_allowed"])}
   support: []
   ownership: team_lead_owns_execution
   subagents: direct_team_lead_control_only
@@ -1671,6 +1904,7 @@ def render_handoff_artifacts(spec: dict[str, Any], output_dir: Path, created_at:
         "scope": spec["scope"],
         "done_criteria": spec["done_criteria"],
         "verification_criteria": spec["verification_criteria"],
+        "mutation_authority": spec["mutation_authority"],
         "source_refs": spec["source_refs"],
         "report": spec["report"],
         "subagent_budget": spec["subagent_budget"],
@@ -2463,8 +2697,27 @@ def publish_card(
 
 
 def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
-    if not args.project_sync_field_map:
-        return {"enabled": False}
+    sync_mode = getattr(args, "project_sync_mode", "auto")
+    if sync_mode not in {"auto", *PROJECT_SYNC_MODE_CHOICES}:
+        return {
+            "enabled": False,
+            "required": False,
+            "ok": False,
+            "sync_state": "failed",
+            "error": f"unknown Project sync mode: {sync_mode}",
+        }
+    required_sync = sync_mode == "required"
+    if sync_mode == "disabled":
+        return {"enabled": False, "required": False, "ok": False, "sync_state": "not_configured"}
+    if not getattr(args, "project_sync_field_map", ""):
+        state = "not_attempted" if required_sync else "not_configured"
+        return {
+            "enabled": False,
+            "required": required_sync,
+            "ok": False,
+            "sync_state": state,
+            "error": "Project sync is required but --project-sync-field-map is missing" if required_sync else "",
+        }
     artifact_root = getattr(args, "artifact_root", None) or args.output_root
     command = [
         sys.executable,
@@ -2482,17 +2735,25 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
         "--format",
         "json",
     ]
+    if getattr(args, "project_sync_no_create_missing_project_item", False):
+        command.append("--no-create-missing-project-item")
     if args.project_sync_ledger:
         command.extend(["--ledger", args.project_sync_ledger])
     else:
         command.append("--no-ledger")
     code, parsed, output = run_json_command(command)
+    sync_state = parsed.get("sync_state")
+    if not isinstance(sync_state, str) or not sync_state.strip():
+        sync_state = "attempted_ok" if code == 0 else "failed"
     return {
         "enabled": True,
-        "ok": code == 0,
+        "required": required_sync,
+        "ok": code == 0 and sync_state == "attempted_ok",
         "mode": "apply",
         "returncode": code,
+        "sync_state": sync_state,
         "summary": parsed.get("summary", {}),
+        "readback": parsed.get("readback", {}),
         "error": output if code != 0 else "",
     }
 
@@ -3385,6 +3646,20 @@ def perform_closeout_delegate_wake(
     if not args.closeout_delegate_session_key:
         args.closeout_delegate_session_key = closeout_delegate_session_key(args.work_unit_id)
     payload = build_closeout_delegate_payload(args, item, artifact_dir, transition_at=transition_at)
+    unresolved_targets = [
+        name
+        for name, target in payload.get("targets", {}).items()
+        if isinstance(target, str) and target.startswith("<") and target.endswith(">")
+    ]
+    if unresolved_targets:
+        return 1, {
+            "enabled": True,
+            "status": "delegate-wake setup-needed",
+            "reason": "closeout delegate requires live visibility targets before guarded closeout",
+            "missing_targets": unresolved_targets,
+            "delegate_payload": payload,
+            "would_write_delegate_wake": False,
+        }
     wake_path = artifact_dir / CLOSEOUT_DELEGATE_WAKE_FILENAME
     base_payload = {
         "enabled": True,
@@ -4381,7 +4656,11 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 )
                 decision_path.write_text(decision_preview, encoding="utf-8")
                 project_sync = run_project_sync(args)
-                if project_sync.get("enabled") and not project_sync.get("ok"):
+                if project_sync.get("required") and not project_sync.get("ok"):
+                    print(f"error: Project closeout sync failed: {project_sync.get('error')}", file=sys.stderr)
+                    stage_status = "project-sync-needed"
+                    closeout_exit_code = 1
+                elif project_sync.get("enabled") and not project_sync.get("ok"):
                     print(f"error: Project closeout sync failed: {project_sync.get('error')}", file=sys.stderr)
                     stage_status = "project-sync-needed"
                     closeout_exit_code = 1
@@ -4397,7 +4676,8 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         "card_paths": {key: str(value) for key, value in card_paths.items()},
                         "team_publish": team_publish.get("publish", {}),
                         "owner_publish": owner_publish.get("publish", {}),
-                        "project_sync_ok": not project_sync.get("enabled") or bool(project_sync.get("ok")),
+                        "project_sync_state": project_sync.get("sync_state", "not_configured"),
+                        "project_sync_required": bool(project_sync.get("required")),
                     },
                 )
                 publish_payload = {
@@ -5108,6 +5388,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Override current agents.defaults.subagents.maxConcurrent",
     )
+    preflight.add_argument("--project-sync-mode", choices=PROJECT_SYNC_MODE_CHOICES, default="disabled")
+    preflight.add_argument("--project-sync-field-map", default="", help="Project field-map JSON to verify when required")
+    preflight.add_argument("--proof-log", default="", help="Optional proof log path whose parent must be writable")
+    preflight.add_argument("--team-target", default="", help="Optional Discord team-detail target")
+    preflight.add_argument("--ops-target", default="", help="Optional Discord ops-feed target")
+    preflight.add_argument("--require-discord-targets", action="store_true")
+    preflight.add_argument("--adapter-command", default="", help="Optional adapter command for install readiness checks")
+    preflight.add_argument("--require-adapter-command", action="store_true")
+    preflight.add_argument("--role-context", default="operations-lead")
     preflight.add_argument("--format", choices=("text", "json"), default="text")
     preflight.set_defaults(func=capacity_check)
 
@@ -5286,6 +5575,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     delegate_wake.add_argument("--closeout-delegate-adapter-timeout-seconds", type=int, default=30)
     delegate_wake.add_argument("--closeout-delegate-active-cap", type=int, default=CLOSEOUT_DELEGATE_ACTIVE_CAP_DEFAULT)
+    delegate_wake.add_argument(
+        "--project-sync-field-map",
+        default=str(DEFAULT_PROJECT_FIELD_MAP),
+        help="Project field-map JSON embedded into the guarded closeout contract",
+    )
+    delegate_wake.add_argument(
+        "--project-sync-ledger",
+        default=str(DEFAULT_PROJECT_LEDGER),
+        help="Ledger embedded into the guarded closeout contract; empty disables ledger",
+    )
+    delegate_wake.add_argument(
+        "--project-sync-audit-log",
+        default=str(DEFAULT_PROJECT_AUDIT_LOG),
+        help="Project audit log embedded into the guarded closeout contract",
+    )
     delegate_wake.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
     delegate_wake.add_argument("--recorded-by", default="operations-lead")
     delegate_wake.add_argument("--force", action="store_true", help="Replace an existing closeout-delegate-wake record intentionally")
@@ -5371,7 +5675,13 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument(
         "--project-sync-field-map",
         default="",
-        help="Optional Project field-map JSON; runs mirror sync after successful publish",
+        help="Project field-map JSON; required when --project-sync-mode=required",
+    )
+    closeout.add_argument(
+        "--project-sync-mode",
+        choices=PROJECT_SYNC_MODE_CHOICES,
+        default="disabled",
+        help="Final closeout Project mirror policy. required fails closed unless live readback matches.",
     )
     closeout.add_argument(
         "--project-sync-ledger",
@@ -5388,7 +5698,7 @@ def build_parser() -> argparse.ArgumentParser:
     closeout_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without decision, Discord, or Project mutation")
     closeout_mode.add_argument("--publish", action="store_true", help="Write decision, publish final review/owner closeout, then sync Project mirror")
     closeout.add_argument("--format", choices=("text", "json"), default="text")
-    closeout.set_defaults(func=closeout_dry_run)
+    closeout.set_defaults(func=closeout_dry_run, project_sync_no_create_missing_project_item=True)
     return parser
 
 
