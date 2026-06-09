@@ -2964,7 +2964,7 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
         if code == 0 or "project sync already running" not in output:
             break
         if attempt + 1 < attempts:
-            time.sleep(1.5)
+            time.sleep(2)
     sync_state = parsed.get("sync_state")
     if not isinstance(sync_state, str) or not sync_state.strip():
         sync_state = "attempted_ok" if code == 0 else "failed"
