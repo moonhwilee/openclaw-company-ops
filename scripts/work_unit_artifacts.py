@@ -4133,17 +4133,22 @@ def validate_closeout_authority(args: argparse.Namespace, item: dict[str, Any], 
     failures: list[str] = []
     role = commit_request_text(getattr(args, "authority_role", ""))
     if role not in CLOSEOUT_PUBLISH_AUTHORITY_ROLES:
-        failures.append("closeout publish authority_role must be operations-lead or operations-lead-delegate")
+        failures.append(
+            "closeout publish requires --authority-role operations-lead "
+            "or --authority-role operations-lead-delegate"
+        )
     if role == "operations-lead-delegate":
         agent = commit_request_text(getattr(args, "delegate_agent", "")) or commit_request_ref(request, "delegate_agent", "agent")
         if agent not in CLOSEOUT_DELEGATE_ALLOWED_AGENTS:
-            failures.append("closeout delegate agent must be allowlisted")
+            failures.append("delegated closeout requires --delegate-agent main")
         assigned_team = commit_request_text(item.get("team"))
         if assigned_team and agent == assigned_team:
-            failures.append("closeout delegate agent must be independent from the assigned Team Lead")
+            failures.append("delegated closeout agent must be independent from the assigned Team Lead")
         boundary = commit_request_text(request.get("authority_boundary"))
         if boundary and boundary != CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY:
-            failures.append("commit-request authority_boundary does not match delegated closeout boundary")
+            failures.append(
+                "commit-request authority_boundary must be closeout_delegate_guarded_closeout_only"
+            )
     return failures
 
 
@@ -5813,7 +5818,7 @@ def build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument(
         "--show-round",
         action="store_true",
-        help="Force round display in dashboard Progress",
+        help="Show round in dashboard Progress for goal/convergence modes",
     )
     checkpoint.add_argument("--proof-ref", default="", help=argparse.SUPPRESS)
     checkpoint.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")

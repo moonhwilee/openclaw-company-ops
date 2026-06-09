@@ -1914,7 +1914,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError(f"project sync dry-run expected Result Ready status, got {fields.get('Status')}")
     if fields.get("Evidence present") != "yes":
         raise RuntimeError("project sync dry-run did not mark evidence present")
-    if fields.get("Progress") != "2/7 · dashboard progress smoke":
+    if fields.get("Progress") != "2/7 · project-sync derivation":
         raise RuntimeError(
             f"project sync dry-run did not derive Progress from progress artifact: {fields.get('Progress')}"
         )
@@ -2195,6 +2195,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
                 "phase_index": "3",
                 "phase_total": "3",
                 "phase": "verify operating path",
+                "mode": "goal",
                 "round": "1",
                 "show_round": True,
                 "transition_at": "2026-06-06T12:45:00Z",
@@ -2307,7 +2308,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "--status",
             "Goal loop checkpoint is ready.",
             "--current-slice",
-            "checkpoint command smoke",
+            "converge implementation",
             "--next",
             "Continue the next goal slice.",
             "--mode",
@@ -2346,6 +2347,51 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     if after_checkpoint != before_checkpoint:
         raise RuntimeError("checkpoint dry-run mutated progress.jsonl")
 
+    verify_checkpoint = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(checkpoint_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "Verify checkpoint is ready.",
+            "--current-slice",
+            "positioning note",
+            "--next",
+            "Continue the verify slice.",
+            "--mode",
+            "verify",
+            "--round",
+            "1",
+            "--show-round",
+            "--phase-index",
+            "1",
+            "--phase-total",
+            "3",
+            "--phase",
+            "progress display",
+            "--source-ref",
+            "local-smoke://checkpoint-verify",
+            "--transition-at",
+            "2026-06-06T12:57:00Z",
+            "--format",
+            "json",
+            "--dry-run",
+        ]
+    )
+    require_success(verify_checkpoint, "work-unit checkpoint verify display dry-run")
+    verify_payload = json.loads(verify_checkpoint.stdout)
+    if verify_payload.get("card", {}).get("rendered_progress_summary") != "1/3 · positioning note":
+        raise RuntimeError("verify checkpoint should prefer current_slice and suppress round display")
+    if "Progress: 1/3 · positioning note" not in verify_payload.get("text", ""):
+        raise RuntimeError("verify checkpoint did not render Project Progress in Discord text")
+
     long_phase = "this is a deliberately long progress label that should be clamped for mobile visibility"
     clamped_checkpoint = run_command(
         [
@@ -2362,7 +2408,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "--status",
             "Long label checkpoint is ready.",
             "--current-slice",
-            "long label smoke",
+            long_phase,
             "--next",
             "Continue the next goal slice.",
             "--mode",
@@ -4474,6 +4520,36 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("duplicate RESULT_READY guard mutated visibility proof")
 
     decision_before = (ready_late / "decision.md").read_text(encoding="utf-8")
+    missing_authority_closeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(ready_late / "evidence.md"),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if missing_authority_closeout.returncode == 0:
+        raise RuntimeError("closeout accepted a final decision without explicit authority")
+    missing_authority_payload = json.loads(missing_authority_closeout.stdout)
+    if "requires --authority-role operations-lead" not in " ".join(
+        missing_authority_payload.get("decision_failures", [])
+    ):
+        raise RuntimeError("closeout authority failure did not name the required authority flag")
+
     closeout_accept = run_command(
         [
             sys.executable,

@@ -18,7 +18,11 @@ def truthy(value: Any) -> bool:
 
 
 def should_show_round(mode: str, explicit_show_round: Any) -> bool:
-    return truthy(explicit_show_round) or mode.strip().lower() in ROUND_VISIBLE_MODES
+    if mode.strip().lower() not in ROUND_VISIBLE_MODES:
+        return False
+    if str(explicit_show_round or "").strip().lower() in {"0", "false", "no"}:
+        return False
+    return True
 
 
 def utf16_units(value: str) -> int:
@@ -61,7 +65,7 @@ def progress_parts(row: dict[str, Any]) -> tuple[str, str, str]:
 
     prefix = f"{index}/{total}" if index and total else index
     round_part = f"R{round_value}" if round_value and should_show_round(mode, row.get("show_round")) else ""
-    label = phase or current_slice
+    label = current_slice or phase
     return round_part, prefix, label
 
 
