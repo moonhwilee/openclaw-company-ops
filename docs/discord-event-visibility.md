@@ -497,12 +497,12 @@ Preferred repo-local visibility cards can be composed without sending:
 python3 scripts/openclaw_company_ops.py discord card \
   --surface ops-feed \
   --kind ASSIGNED \
-  --work-unit-id WU-260606-002 \
+  --work-unit-id WU-YYMMDD-NNN \
   --team build-lab \
   --problem "요청-완료 visibility 흐름이 실제로 보이는지 확인이 필요합니다." \
   --request "build-lab에 card composer smoke를 맡깁니다." \
   --criteria "ops-feed에는 내부 필드 없이 문제, 요청, 기준, 다음 액션이 보여야 합니다." \
-  --evidence "docs/work-units/WU-260606-002/assignment.md" \
+  --evidence "docs/work-units/WU-YYMMDD-NNN/assignment.md" \
   --next "Team Lead가 실행 후 결과 요약을 보고합니다."
 ```
 
@@ -637,7 +637,7 @@ WU-YYMMDD-NNN
 Example:
 
 ```text
-WU-260606-001
+WU-YYMMDD-NNN
 ```
 
 The date segment uses the last two digits of the year, then month and day. The
@@ -674,9 +674,9 @@ Recommended `#ops-feed` completion card:
 Recommended `#team-*` detail message:
 
 ```text
-📦 [RESULT_READY] WU-260606-001 · 🧪 build-lab
+📦 [RESULT_READY] WU-YYMMDD-NNN · 🧪 build-lab
 Result: Demo thread handoff evidence가 제출되었고 금비 검토 대기 상태입니다.
-Evidence: docs/work-units/WU-260606-001/evidence.md
+Evidence: docs/work-units/WU-YYMMDD-NNN/evidence.md
 Verification: Team Lead가 보고한 smoke가 통과했습니다.
 Next: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 ```
@@ -714,13 +714,13 @@ record remains the GitHub-based ledger, not the Discord archive setting.
 
 Use these canonical role headers for the single-bot Discord setup:
 
-- `🎯 [OPS-LEAD] [ASSIGNED] WU-260606-001`
-- `🧱 [BUILD-PQ] [ACK] WU-260606-001`
-- `🧪 [BUILD-LAB] [STARTED] WU-260606-001`
-- `📣 [MARKET] [BLOCKED] WU-260606-001`
-- `💼 [REVENUE] [RESULT_READY] WU-260606-001`
-- `🚦 [OPS-FEED] [DECISION] WU-260606-001`
-- `🚨 [OPS-ALERTS] [CLAIM_STALE] WU-260606-001`
+- `🎯 [OPS-LEAD] [ASSIGNED] WU-YYMMDD-NNN`
+- `🧱 [BUILD-PQ] [ACK] WU-YYMMDD-NNN`
+- `🧪 [BUILD-LAB] [STARTED] WU-YYMMDD-NNN`
+- `📣 [MARKET] [BLOCKED] WU-YYMMDD-NNN`
+- `💼 [REVENUE] [RESULT_READY] WU-YYMMDD-NNN`
+- `🚦 [OPS-FEED] [DECISION] WU-YYMMDD-NNN`
+- `🚨 [OPS-ALERTS] [CLAIM_STALE] WU-YYMMDD-NNN`
 
 ## Forbidden Actions
 

@@ -3,8 +3,8 @@
 Status: canonical repo-local artifact root
 
 This directory is the canonical repo-local Work Unit artifact root for Company
-Ops. It contains historical dry-run, smoke, dogfood, and live-gate evidence
-under one `<artifact-root>/<work-unit-id>/` layout.
+Ops. It contains the current active Work Unit evidence under one
+`<artifact-root>/<work-unit-id>/` layout.
 
 These artifacts are source truth and audit evidence for individual Work Units.
 External surfaces such as Discord, GitHub Project dashboards, and GitHub Work
@@ -14,31 +14,15 @@ their convergence.
 This directory is not a runtime, dashboard backend, database, command router,
 recovery system, hidden retry queue, or Project source of truth.
 
-## Examples
+## Current Scope
 
-- `WU-20260604-001`: validates the current Day-0 templates and produces the
-  first operations manual.
-- `WU-20260604-002`: validates the manual loop on a Discord event visibility
-  guide.
-- `WU-20260604-003`: validates the manual loop on a Company Dashboard timing
-  guide.
-- `WU-20260604-004`: validates the manual loop on a full implementation setup
-  guide.
-- `WU-20260605-001`: validates the Team Lead Protocol Capsule convention and
-  packet-first `goal` / `verify` loop before CLI work starts.
-- `WU-20260605-002`: real product Work Unit for the first minimal Work Unit
-  artifact generator CLI.
-- `WU-20260605-003`: real product Work Unit for the Team Lead Protocol Capsule
-  convention and related repo-local smoke coverage.
-- `WU-260606-001` through `WU-260606-003`: repo-local examples for source-backed
-  state publishing, Discord visibility, and GitHub Project dashboard sync
-  improvements.
-- `WU-260607-001` through `WU-260607-005`: later dogfood examples for
-  result-ready, revise/accept closeout, Project mirror proof, and Discord
-  foreground publisher/proof paths.
-- `scripts/company_ops_smoke.py multi-team`: bounded repo-local smoke that
-  validates two Team Lead claims, Pulse Monitor no-alert behavior, and one
-  result-ready claim update without mutating external systems.
+Only Work Units that remain active in the GitHub Project mirror are kept in the
+active source tree. Older Day-0, dry-run, and dogfood artifacts were removed
+from the active tree after the current `docs/work-units/` structure stabilized;
+they remain recoverable from Git history when needed.
+
+`scripts/company_ops_smoke.py multi-team` is the bounded repo-local smoke that
+validates the current multi-team lifecycle without mutating external systems.
 
 ## Layout
 
@@ -66,8 +50,9 @@ Project sync audit is intentionally separate from repo-local Work Unit artifacts
 ## Distribution Boundary
 
 Release/package exports include this guide and the empty artifact root, but
-exclude concrete `WU-*` evidence files. Source clones may retain historical audit
-artifacts; those records are not active protocol contracts.
+exclude concrete `WU-*` evidence files. Source clones keep only current active
+Work Unit artifacts; removed historical records are not active protocol
+contracts.
 
 ## Rules
 

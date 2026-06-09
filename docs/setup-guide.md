@@ -589,12 +589,10 @@ The GitHub Issue form for Work Cards lives in:
 These templates make the manual loop reproducible. They are not an implemented
 runtime, database, dashboard, command router, or recovery system.
 
-The first worked manual example lives in:
-
-- `docs/work-units/WU-20260604-001/`
-- `docs/work-units/WU-20260604-002/`
-- `docs/work-units/WU-20260604-003/`
-- `docs/work-units/WU-20260604-004/`
+Current active Work Unit examples live in `docs/work-units/` and are mirrored
+from source artifacts into the configured GitHub Project. Older Day-0 worked
+examples were removed from the active tree after the artifact layout stabilized;
+use Git history when those historical records are needed.
 
 ## Future Installation Path
 
@@ -651,21 +649,9 @@ The current setup is ready for a manual dry run when:
 - Any missing claim, evidence, or assignment artifact is treated as blocked,
   not replaced by a fallback.
 
-The first manual dry run is documented at:
-
-- `docs/work-units/WU-20260604-001/`
-
-The second manual dry run is documented at:
-
-- `docs/work-units/WU-20260604-002/`
-
-The third manual dry run is documented at:
-
-- `docs/work-units/WU-20260604-003/`
-
-The fourth manual dry run is documented at:
-
-- `docs/work-units/WU-20260604-004/`
+Current active Work Unit artifacts are documented under `docs/work-units/`.
+Historical Day-0 dry-run artifacts were removed from the active tree and remain
+recoverable from Git history.
 
 The first small Work Unit artifact generator exists as
 `scripts/work_unit_artifacts.py`, and the first repo-local Ops Claim Ledger CLI

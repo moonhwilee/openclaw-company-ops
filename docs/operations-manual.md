@@ -953,36 +953,12 @@ Packets, claims, evidence, and decisions.
 Detailed timing criteria are documented in
 `docs/company-dashboard-timing.md`.
 
-## Reference Dry Run
+## Reference Work Units
 
-The first manual dry run is:
-
-- Work Unit: `WU-20260604-001`
-- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/4
-- Artifacts: `docs/work-units/WU-20260604-001/`
-
-Use it as a worked example of the manual loop, not as a runtime implementation.
-
-The second manual dry run is:
-
-- Work Unit: `WU-20260604-002`
-- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/6
-- Artifacts: `docs/work-units/WU-20260604-002/`
-- Output: `docs/discord-event-visibility.md`
-
-The third manual dry run is:
-
-- Work Unit: `WU-20260604-003`
-- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/8
-- Artifacts: `docs/work-units/WU-20260604-003/`
-- Output: `docs/company-dashboard-timing.md`
-
-The fourth manual dry run is:
-
-- Work Unit: `WU-20260604-004`
-- Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/10
-- Artifacts: `docs/work-units/WU-20260604-004/`
-- Output: `docs/implementation-setup-guide.md`
+Current active Work Units live under `docs/work-units/` and mirror into the
+configured GitHub Project from source artifacts. Earlier Day-0 reference dry
+runs were removed from the active tree after the current artifact structure
+stabilized; use Git history for those historical examples when needed.
 
 The active post-setup plan is:
 
