@@ -938,11 +938,13 @@ scheduled activation deferred with trigger; daemon install no-go for now. Phase
 `pulse check` is implemented and included; scheduled Pulse and daemon
 installation remain deferred/no-go; Project and Discord live mutation tools
 remain configured foreground-only; hooks remain optional guardrails, not
-required runtime state. Phase 5.8.1 through 5.8.4 are implemented in the
-repo-local model, including canonical start/result-ready guards, detached
-fresh-session dispatch, closeout delegate wake, guarded commit-request
-closeout, and foreground-resumable closeout publish staging. Phase 5.8.5
-remains the live no-bypass regression gate before Phase 6 packaging begins.
+required runtime state. Phase 5.8.1 through 5.8.7 are implemented in the
+repo-local and controlled-smoke model, including canonical start/result-ready
+guards, detached fresh-session dispatch, closeout delegate wake, guarded
+commit-request closeout, foreground-resumable closeout publish staging,
+verify/fix authority boundaries, final Project readback convergence, and
+minimal public-install preflight. Phase 6 packaging may begin after owner
+acceptance of the Phase 5.8.7 boundary/convergence implementation.
 
 For packaged users, `pulse check` remains a foreground operating command. The
 package should expose it through the installed CLI, read the user's local
