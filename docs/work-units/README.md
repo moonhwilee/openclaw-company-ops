@@ -63,6 +63,12 @@ Handoff spec drafts may live next to Work Unit directories as
 Project sync audit is intentionally separate from repo-local Work Unit artifacts:
 `~/.openclaw/state/openclaw-company-ops/project-sync-audit.jsonl`.
 
+## Distribution Boundary
+
+Release/package exports include this guide and the empty artifact root, but
+exclude concrete `WU-*` evidence files. Source clones may retain historical audit
+artifacts; those records are not active protocol contracts.
+
 ## Rules
 
 - A Work Card is the shared task card, not the Assignment Packet.
