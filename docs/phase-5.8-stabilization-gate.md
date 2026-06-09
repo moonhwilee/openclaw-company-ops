@@ -495,10 +495,14 @@ Depends on:
 
 Current status:
 
-- Concept only. Not implemented.
-- Design baseline settled as B-prime: foreground `result-ready --publish`
-  wakes a fresh Work Unit-scoped closeout reviewer, then final decisions are
-  applied only through the guarded closeout path.
+- `5.8.4c-1` wake foundation is implemented: foreground
+  `result-ready --publish` can request a fresh Work Unit-scoped closeout
+  reviewer wake after successful RESULT_READY publish/readback, and
+  `work-unit review-wake` provides a source-backed foreground recovery path.
+- `5.8.4c-2` guarded closeout commit request is not implemented yet.
+- The B-prime design baseline remains: the fresh closeout reviewer may judge
+  the Work Unit, but final decisions are applied only through the guarded
+  closeout path.
 - This phase is needed because detached dispatch solves Operations Lead
   foreground blocking, but it does not by itself wake the Operations Lead when a
   Team Lead later publishes `result-ready`.
@@ -612,11 +616,13 @@ Guarded closeout commit request:
 
 Implementation slices:
 
-- `5.8.4c-1`: result-ready wake foundation: self-contained wake payload,
-  reviewer enqueue adapter or generalized session-send helper, enqueue proof,
-  `review-needed` visibility, stale/duplicate suppression, and source-inbox
-  recovery after wake failure.
-- `5.8.4c-2`: B-prime guarded closeout: `--commit-request`, artifact hash and
+- `5.8.4c-1` (implemented): result-ready wake foundation: self-contained wake
+  payload, closeout-review-specific session-send adapter, enqueue proof,
+  foreground `review-wake` recovery path, stale/duplicate suppression, and
+  source-inbox recovery after wake failure. This slice deliberately does not
+  add a daemon, queue, DB, retry worker, reverse-import path, or final
+  auto-closeout.
+- `5.8.4c-2` (remaining): B-prime guarded closeout: `--commit-request`, artifact hash and
   result-ready proof revalidation, reviewer autonomy classes, closeout staging
   or idempotent resume guard, and final visibility/status convergence.
 

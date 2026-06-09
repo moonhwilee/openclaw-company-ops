@@ -18,6 +18,7 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 ARTIFACTS = SCRIPT_DIR / "work_unit_artifacts.py"
 DISPATCH_SESSIONS_SEND = SCRIPT_DIR / "openclaw_dispatch_sessions_send.py"
+CLOSEOUT_REVIEW_SESSIONS_SEND = SCRIPT_DIR / "openclaw_closeout_review_sessions_send.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
@@ -3009,6 +3010,116 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     missing_send_ref_payload = json.loads(missing_send_ref_result.stdout)
     if "real Gateway run reference" not in str(missing_send_ref_payload.get("reason") or ""):
         raise RuntimeError("sessions.send wrapper did not reject missing Gateway execution ref")
+
+    fake_openclaw.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import json, os, sys",
+                "mode = os.environ.get('COMPANY_OPS_FAKE_OPENCLAW_MODE', 'ok')",
+                "if len(sys.argv) > 1 and sys.argv[1] == 'agent':",
+                "    readback = {",
+                "        'status': 'accepted',",
+                "        'work_unit_id': 'WU-260607-121',",
+                "        'closeout_review_payload_hash': 'smoke-closeout-review-hash',",
+                "        'guarded_closeout_contract': 'work-unit closeout --commit-request <json> --publish',",
+                "        'authority_boundary': 'closeout_reviewer_guarded_commit_only',",
+                "    }",
+                "    if mode == 'fallback_acceptance':",
+                "        print(json.dumps({'runId': 'gateway-fallback-run', 'meta': {'transport': 'embedded', 'fallbackFrom': 'gateway', 'fallbackReason': 'gateway_timeout', 'sessionKey': 'gateway-fallback-WU-260607-121'}, 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
+                "        sys.exit(0)",
+                "    if mode == 'missing_accept_ref':",
+                "        print(json.dumps({'status': 'ok', 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
+                "        sys.exit(0)",
+                "    print(json.dumps({'runId': 'run-closeout-accept', 'status': 'ok', 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
+                "    sys.exit(0)",
+                "method = sys.argv[sys.argv.index('call') + 1]",
+                "params = json.loads(sys.argv[sys.argv.index('--params') + 1])",
+                "if method == 'sessions.create':",
+                "    print(json.dumps({'result': {'key': params['key']}}))",
+                "elif method == 'sessions.send':",
+                "    if mode == 'missing_send_ref':",
+                "        print(json.dumps({'result': {'status': 'queued'}}))",
+                "        sys.exit(0)",
+                "    print(json.dumps({'result': {'runId': 'run-closeout-execute', 'messageId': 'msg-closeout-execute'}}))",
+                "else:",
+                "    print(json.dumps({'error': 'unexpected method'}))",
+                "    sys.exit(1)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    closeout_wrapper_request = {
+        "adapter_protocol": "company_ops_closeout_review_adapter_v1",
+        "work_unit_id": "WU-260607-121",
+        "team": "ops",
+        "agent": "closeout-reviewer",
+        "runtime": "openclaw-agent",
+        "session_key": "company-ops-closeout-reviewer-wu-260607-121",
+        "artifact_dir": str(work_dir),
+        "transition_at": args.created_at,
+        "packet": {
+            "protocol": "company_ops_closeout_review_wake_v1",
+            "work_unit_id": "WU-260607-121",
+            "guarded_closeout_contract": {"command": "work-unit closeout --commit-request <json> --publish"},
+            "authority_boundary": "closeout_reviewer_guarded_commit_only",
+        },
+        "required_acceptance": {
+            "work_unit_id": "WU-260607-121",
+            "closeout_review_payload_hash": "smoke-closeout-review-hash",
+            "guarded_closeout_contract": "work-unit closeout --commit-request <json> --publish",
+            "authority_boundary": "closeout_reviewer_guarded_commit_only",
+        },
+    }
+
+    def run_closeout_wrapper(mode: str = "ok") -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(CLOSEOUT_REVIEW_SESSIONS_SEND), "--accept-timeout-ms", "1000"],
+            check=False,
+            text=True,
+            input=json.dumps(closeout_wrapper_request),
+            capture_output=True,
+            env={
+                **os.environ,
+                "PATH": f"{work_dir}:{os.environ.get('PATH', '')}",
+                "COMPANY_OPS_FAKE_OPENCLAW_MODE": mode,
+            },
+        )
+
+    closeout_wrapper_result = run_closeout_wrapper()
+    require_success(closeout_wrapper_result, "openclaw closeout review sessions.send wrapper")
+    closeout_wrapper_payload = json.loads(closeout_wrapper_result.stdout)
+    if closeout_wrapper_payload.get("adapter") != "openclaw-closeout-review-sessions-send":
+        raise RuntimeError("closeout review wrapper did not report the standard adapter")
+    if closeout_wrapper_payload.get("job_ref") != "run-closeout-execute":
+        raise RuntimeError("closeout review wrapper did not preserve execution run reference")
+    closeout_gateway = closeout_wrapper_payload.get("gateway", {})
+    if closeout_gateway.get("idempotency_key") != "WU-260607-121:closeout-review":
+        raise RuntimeError("closeout review wrapper did not persist the review idempotency key")
+    if closeout_wrapper_payload.get("readback", {}).get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
+        raise RuntimeError("closeout review wrapper did not preserve authority boundary readback")
+
+    closeout_fallback_result = run_closeout_wrapper("fallback_acceptance")
+    if closeout_fallback_result.returncode == 0:
+        raise RuntimeError("closeout review wrapper accepted embedded fallback proof")
+    closeout_fallback_payload = json.loads(closeout_fallback_result.stdout)
+    if "embedded gateway fallback" not in str(closeout_fallback_payload.get("reason") or ""):
+        raise RuntimeError("closeout review wrapper did not explain embedded fallback rejection")
+
+    closeout_missing_accept_ref = run_closeout_wrapper("missing_accept_ref")
+    if closeout_missing_accept_ref.returncode == 0:
+        raise RuntimeError("closeout review wrapper accepted proof without a Gateway acceptance ref")
+    closeout_missing_accept_payload = json.loads(closeout_missing_accept_ref.stdout)
+    if "real Gateway reference" not in str(closeout_missing_accept_payload.get("reason") or ""):
+        raise RuntimeError("closeout review wrapper did not reject missing Gateway acceptance ref")
+
+    closeout_missing_send_ref = run_closeout_wrapper("missing_send_ref")
+    if closeout_missing_send_ref.returncode == 0:
+        raise RuntimeError("closeout review wrapper accepted execution enqueue without a Gateway run ref")
+    closeout_missing_send_payload = json.loads(closeout_missing_send_ref.stdout)
+    if "real Gateway run reference" not in str(closeout_missing_send_payload.get("reason") or ""):
+        raise RuntimeError("closeout review wrapper did not reject missing Gateway execution ref")
     dispatch_publish = run_command(
         [
             sys.executable,
@@ -3179,6 +3290,236 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     inbox_ids = [item["work_unit_id"] for item in inbox_payload["items"]]
     if inbox_ids != ["WU-260607-102", "WU-260607-101"]:
         raise RuntimeError(f"result-ready inbox did not sort actionable items deterministically: {inbox_ids}")
+
+    review_wake_dir = create_artifacts(args, inbox_work_dir, "WU-260607-117", "ops")
+    review_command_dir = create_artifacts(args, inbox_work_dir, "WU-260607-118", "ops")
+    review_setup_dir = create_artifacts(args, inbox_work_dir, "WU-260607-119", "ops")
+    for artifact_dir in (review_wake_dir, review_command_dir, review_setup_dir):
+        mark_artifact_started(artifact_dir)
+        mark_artifact_result_ready(artifact_dir, recommendation="accept")
+    for work_unit_id, artifact_dir, proof_id in (
+        ("WU-260607-117", review_wake_dir, "review-wake-001"),
+        ("WU-260607-118", review_command_dir, "review-wake-002"),
+        ("WU-260607-119", review_setup_dir, "review-wake-003"),
+    ):
+        write_jsonl(
+            artifact_dir / "visibility-proof.jsonl",
+            proof_rows(
+                work_unit_id,
+                [("team-detail", "RESULT_READY", proof_id, "2026-06-07T01:35:00Z")],
+            ),
+        )
+    review_wake_progress_before = (review_wake_dir / "progress.jsonl").read_text(encoding="utf-8")
+    review_wake_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "review-wake",
+            "--work-unit-id",
+            "WU-260607-117",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(review_wake_dir / "evidence.md"),
+            "--closeout-reviewer-runtime",
+            "openclaw-agent",
+            "--closeout-reviewer-adapter",
+            "fake",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(review_wake_dry_run, "closeout review wake dry-run")
+    review_wake_dry_payload = json.loads(review_wake_dry_run.stdout)
+    if review_wake_dry_payload.get("status") != "ready-to-review-wake":
+        raise RuntimeError("closeout review wake dry-run did not report ready-to-review-wake")
+    review_payload = review_wake_dry_payload.get("review_payload", {})
+    if review_payload.get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
+        raise RuntimeError("closeout review payload did not carry the guarded authority boundary")
+    if review_payload.get("reviewer", {}).get("session_key") != "company-ops-closeout-reviewer-wu-260607-117":
+        raise RuntimeError("closeout review payload did not derive a stable reviewer session key")
+    if "evidence.md" not in review_payload.get("artifact_hashes", {}):
+        raise RuntimeError("closeout review payload did not bind evidence to an artifact hash")
+    if (review_wake_dir / "closeout-review-wake.json").exists():
+        raise RuntimeError("closeout review wake dry-run wrote a wake record")
+    if (review_wake_dir / "progress.jsonl").read_text(encoding="utf-8") != review_wake_progress_before:
+        raise RuntimeError("closeout review wake dry-run mutated progress.jsonl")
+
+    review_wake_publish = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "review-wake",
+            "--work-unit-id",
+            "WU-260607-117",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(review_wake_dir / "evidence.md"),
+            "--closeout-reviewer-runtime",
+            "openclaw-agent",
+            "--closeout-reviewer-adapter",
+            "fake",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(review_wake_publish, "closeout review wake fake adapter publish")
+    review_wake_publish_payload = json.loads(review_wake_publish.stdout)
+    if review_wake_publish_payload.get("status") != "review-wake-enqueued":
+        raise RuntimeError("closeout review wake publish did not report review-wake-enqueued")
+    review_wake_record = json.loads((review_wake_dir / "closeout-review-wake.json").read_text(encoding="utf-8"))
+    if review_wake_record.get("accepted_proof", {}).get("readback", {}).get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
+        raise RuntimeError("closeout review wake record did not persist guarded readback")
+    if (review_wake_dir / "decision.md").read_text(encoding="utf-8").count("Status: Pending") != 1:
+        raise RuntimeError("closeout review wake mutated decision.md")
+    duplicate_review_wake = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "review-wake",
+            "--work-unit-id",
+            "WU-260607-117",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(review_wake_dir / "evidence.md"),
+            "--closeout-reviewer-runtime",
+            "openclaw-agent",
+            "--closeout-reviewer-adapter",
+            "fake",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if duplicate_review_wake.returncode == 0:
+        raise RuntimeError("closeout review wake accepted duplicate wake without --force")
+
+    review_accept_adapter = work_dir / "accept_closeout_review_adapter.py"
+    review_accept_adapter.write_text(
+        "\n".join(
+            [
+                "import json, sys",
+                "request = json.load(sys.stdin)",
+                "required = request['required_acceptance']",
+                "print(json.dumps({",
+                "    'status': 'accepted',",
+                "    'adapter': 'smoke-closeout-review-command',",
+                "    'session_ref': 'session:' + request['session_key'],",
+                "    'job_ref': 'job:' + request['work_unit_id'] + ':closeout-review',",
+                "    'message_ref': 'message:' + request['work_unit_id'] + ':closeout-review-accepted',",
+                "    'accepted_at': request['transition_at'],",
+                "    'readback': {",
+                "        'work_unit_id': required['work_unit_id'],",
+                "        'closeout_review_payload_hash': required['closeout_review_payload_hash'],",
+                "        'guarded_closeout_contract': required['guarded_closeout_contract'],",
+                "        'authority_boundary': required['authority_boundary'],",
+                "    },",
+                "}, sort_keys=True))",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    review_command_wake = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "review-wake",
+            "--work-unit-id",
+            "WU-260607-118",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(review_command_dir / "evidence.md"),
+            "--closeout-reviewer-runtime",
+            "openclaw-agent",
+            "--closeout-reviewer-adapter",
+            "command",
+            "--closeout-reviewer-adapter-command",
+            f"{sys.executable} {review_accept_adapter}",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(review_command_wake, "closeout review wake command adapter publish")
+    review_command_record = json.loads((review_command_dir / "closeout-review-wake.json").read_text(encoding="utf-8"))
+    if review_command_record.get("accepted_proof", {}).get("adapter") != "smoke-closeout-review-command":
+        raise RuntimeError("closeout review command adapter proof was not persisted")
+
+    review_hanging_adapter = work_dir / "hanging_closeout_review_adapter.py"
+    review_hanging_adapter.write_text("import time\ntime.sleep(2)\n", encoding="utf-8")
+    setup_progress_before = (review_setup_dir / "progress.jsonl").read_text(encoding="utf-8")
+    review_setup_needed = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "review-wake",
+            "--work-unit-id",
+            "WU-260607-119",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(review_setup_dir / "evidence.md"),
+            "--closeout-reviewer-runtime",
+            "openclaw-agent",
+            "--closeout-reviewer-adapter",
+            "command",
+            "--closeout-reviewer-adapter-command",
+            f"{sys.executable} {review_hanging_adapter}",
+            "--closeout-reviewer-adapter-timeout-seconds",
+            "1",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if review_setup_needed.returncode == 0:
+        raise RuntimeError("closeout review wake accepted a timed-out adapter")
+    review_setup_payload = json.loads(review_setup_needed.stdout)
+    if review_setup_payload.get("status") != "review-wake setup-needed":
+        raise RuntimeError("timed-out closeout review adapter did not fail as setup-needed")
+    if (review_setup_dir / "closeout-review-wake.json").exists():
+        raise RuntimeError("setup-needed closeout review wake wrote a wake record")
+    if (review_setup_dir / "progress.jsonl").read_text(encoding="utf-8") != setup_progress_before:
+        raise RuntimeError("setup-needed closeout review wake mutated progress.jsonl")
+    missed_wake_inbox = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "inbox",
+            "--result-ready",
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            "WU-260607-119",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(missed_wake_inbox, "source inbox recovery after missed closeout review wake")
+    if json.loads(missed_wake_inbox.stdout)["items"][0].get("work_unit_id") != "WU-260607-119":
+        raise RuntimeError("missed closeout review wake was not recoverable from result-ready inbox")
 
     invalid_result = run_command(
         [
@@ -3764,6 +4105,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "live proof validation with burst replay rejection, "
         "Project sync dry-run planning without mutation, "
         "dispatch source contract/setup-needed guard, fresh session key guard, fake and command adapter accepted-proof guards, "
+        "closeout review wrapper and wake accepted-proof guards, source inbox recovery after missed review wake, "
         "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"
     )

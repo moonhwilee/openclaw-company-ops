@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -29,6 +30,11 @@ DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
 DISPATCH_RUNTIME_CHOICES = ("record-ref", "openclaw-agent")
 DISPATCH_ADAPTER_CHOICES = ("auto", "fake", "command")
 DISPATCH_ADAPTER_COMMAND_ENV = "COMPANY_OPS_DISPATCH_ADAPTER_COMMAND"
+CLOSEOUT_REVIEW_RUNTIME_CHOICES = ("none", "openclaw-agent")
+CLOSEOUT_REVIEW_ADAPTER_CHOICES = ("auto", "fake", "command")
+CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV = "COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND"
+CLOSEOUT_REVIEW_WAKE_FILENAME = "closeout-review-wake.json"
+CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY = "closeout_reviewer_guarded_commit_only"
 DEFAULT_COMPANY_OPS_AGENT_COUNT = 5
 DEFAULT_CAPACITY_RESERVED_SLOTS = 2
 OPENCLAW_MAX_CONCURRENT_FLOOR = 8
@@ -489,6 +495,60 @@ def assignment_requires_live_visibility(assignment: dict[str, Any]) -> bool:
     return False
 
 
+def canonical_json_hash(value: dict[str, Any]) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    if not path.exists():
+        return ""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def result_ready_proof_rows(proof_path: Path, work_unit: str) -> list[dict[str, Any]]:
+    rows, _warnings = proof_rows_for_work_unit(proof_path, work_unit)
+    return [
+        row
+        for row in rows
+        if row.get("surface") == "team-detail"
+        and row.get("kind") == "RESULT_READY"
+        and row.get("readback_ok") is not False
+    ]
+
+
+def closeout_review_session_key(work_unit_id: str) -> str:
+    return f"company-ops-closeout-reviewer-{work_unit_id.lower()}"
+
+
+def artifact_hashes_for_closeout_review(artifact_dir: Path, work_unit_id: str) -> dict[str, Any]:
+    proof_path = artifact_dir / DEFAULT_PROOF_LOG_NAME
+    proof_rows = result_ready_proof_rows(proof_path, work_unit_id)
+    return {
+        "assignment.md": file_sha256(artifact_dir / "assignment.md"),
+        "claim.md": file_sha256(artifact_dir / "claim.md"),
+        "evidence.md": file_sha256(artifact_dir / "evidence.md"),
+        "progress.jsonl": file_sha256(artifact_dir / "progress.jsonl"),
+        DEFAULT_PROOF_LOG_NAME: file_sha256(proof_path),
+        "result_ready_proof_rows": [canonical_json_hash(row) for row in proof_rows],
+    }
+
+
+def guarded_closeout_contract(work_unit_id: str) -> dict[str, str]:
+    return {
+        "command": (
+            "python3 scripts/openclaw_company_ops.py work-unit closeout "
+            f"--work-unit-id {work_unit_id} --artifact-root <artifact-root> "
+            "--commit-request <json> --publish"
+        ),
+        "rule": "Fresh reviewer may judge, but final writes only through guarded closeout.",
+    }
+
+
 def progress_has_transition(progress_path: Path, work_unit: str, transition_kinds: set[str]) -> bool:
     if not progress_path.exists():
         return False
@@ -517,6 +577,226 @@ def proof_has_event(proof_path: Path, work_unit: str, kind: str) -> bool:
         and row.get("readback_ok") is not False
         for row in rows
     )
+
+
+def build_closeout_review_payload(
+    args: argparse.Namespace,
+    item: dict[str, Any],
+    artifact_dir: Path,
+    *,
+    transition_at: str,
+) -> dict[str, Any]:
+    session_key = args.closeout_reviewer_session_key or closeout_review_session_key(args.work_unit_id)
+    args.closeout_reviewer_session_key = session_key
+    source_ref = args.source_ref or item["evidence_path"]
+    return {
+        "protocol": "company_ops_closeout_review_wake_v1",
+        "work_unit_id": args.work_unit_id,
+        "title": item["title"],
+        "team": args.team or item["team"],
+        "artifact_root": str(args.artifact_root.expanduser()),
+        "artifact_dir": str(artifact_dir),
+        "work_card": item["work_card"],
+        "refs": {
+            "assignment": str(artifact_dir / "assignment.md"),
+            "claim": str(artifact_dir / "claim.md"),
+            "evidence": str(artifact_dir / "evidence.md"),
+            "decision": str(artifact_dir / "decision.md"),
+            "progress": str(artifact_dir / "progress.jsonl"),
+            "visibility_proof": str(artifact_dir / DEFAULT_PROOF_LOG_NAME),
+            "source_ref": source_ref,
+        },
+        "result_ready": {
+            "proof_id": item["result_ready_source"].split("#", 1)[1] if "#" in item["result_ready_source"] else "",
+            "proof_ref": item["result_ready_source"],
+            "published_at": item["result_ready_at"],
+            "source_ref": source_ref,
+        },
+        "artifact_hashes": artifact_hashes_for_closeout_review(artifact_dir, args.work_unit_id),
+        "reviewer": {
+            "agent": args.closeout_reviewer_agent,
+            "session_key": session_key,
+            "runtime": args.closeout_reviewer_runtime,
+        },
+        "guarded_closeout_contract": guarded_closeout_contract(args.work_unit_id),
+        "authority_boundary": CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY,
+        "autonomy_classes": ["auto_eligible", "deep_review_auto_eligible", "manual_required"],
+        "no_go_actions": [
+            "Do not write decision.md directly.",
+            "Do not mutate Project final status directly.",
+            "Do not publish Discord final review or owner completion directly.",
+            "Do not archive, reassign, or reverse-import external mirror state.",
+            "Use guarded closeout commit request for any final decision.",
+        ],
+        "created_at": transition_at,
+    }
+
+
+def closeout_review_payload_hash(payload: dict[str, Any]) -> str:
+    return canonical_json_hash(payload)
+
+
+def closeout_review_adapter_command(args: argparse.Namespace) -> str:
+    return args.closeout_reviewer_adapter_command.strip() or os.environ.get(
+        CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV,
+        "",
+    ).strip()
+
+
+def fake_closeout_review_acceptance(args: argparse.Namespace, payload: dict[str, Any], accepted_at: str) -> dict[str, Any]:
+    payload_hash = closeout_review_payload_hash(payload)
+    return {
+        "status": "accepted",
+        "adapter": "fake-closeout-review",
+        "adapter_version": 1,
+        "agent": args.closeout_reviewer_agent,
+        "session_key": args.closeout_reviewer_session_key,
+        "session_ref": f"session:{args.closeout_reviewer_session_key}",
+        "job_ref": f"job:{args.work_unit_id}:closeout-review",
+        "message_ref": f"message:{args.work_unit_id}:closeout-review-accepted",
+        "accepted_at": accepted_at,
+        "readback": {
+            "work_unit_id": args.work_unit_id,
+            "closeout_review_payload_hash": payload_hash,
+            "guarded_closeout_contract": payload["guarded_closeout_contract"]["command"],
+            "authority_boundary": CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY,
+        },
+    }
+
+
+def validate_closeout_review_acceptance(args: argparse.Namespace, payload: dict[str, Any], proof: dict[str, Any]) -> str:
+    if not proof:
+        return "closeout reviewer adapter did not return JSON acceptance proof"
+    candidate = proof.get("result") if isinstance(proof.get("result"), dict) else proof
+    if not isinstance(candidate, dict):
+        return "closeout reviewer acceptance proof must be a JSON object"
+    if str(candidate.get("status", "")).strip().lower() != "accepted":
+        return "closeout reviewer adapter did not return status=accepted"
+    readback = candidate.get("readback") if isinstance(candidate.get("readback"), dict) else {}
+    if (readback.get("work_unit_id") or candidate.get("work_unit_id")) != args.work_unit_id:
+        return "closeout reviewer accepted proof has mismatched work_unit_id"
+    expected_hash = closeout_review_payload_hash(payload)
+    if (readback.get("closeout_review_payload_hash") or candidate.get("closeout_review_payload_hash")) != expected_hash:
+        return "closeout reviewer accepted proof has mismatched payload hash"
+    expected_contract = payload["guarded_closeout_contract"]["command"]
+    if (readback.get("guarded_closeout_contract") or candidate.get("guarded_closeout_contract")) != expected_contract:
+        return "closeout reviewer accepted proof did not confirm guarded closeout contract"
+    if (readback.get("authority_boundary") or candidate.get("authority_boundary")) != CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY:
+        return "closeout reviewer accepted proof did not confirm authority boundary"
+    if not candidate.get("job_ref"):
+        return "closeout reviewer accepted proof did not return an execution enqueue reference"
+    if not (candidate.get("session_ref") or candidate.get("message_ref")):
+        return "closeout reviewer accepted proof did not return a recoverable acceptance reference"
+    return ""
+
+
+def apply_closeout_review_acceptance(args: argparse.Namespace, proof: dict[str, Any]) -> dict[str, Any]:
+    candidate = proof.get("result") if isinstance(proof.get("result"), dict) else proof
+    assert isinstance(candidate, dict)
+    for field in ("session_ref", "job_ref", "message_ref"):
+        target_attr = f"closeout_reviewer_{field}"
+        if not getattr(args, target_attr, "") and isinstance(candidate.get(field), str):
+            setattr(args, target_attr, candidate[field].strip())
+    return compact_acceptance(candidate)
+
+
+def run_closeout_review_adapter(
+    args: argparse.Namespace,
+    *,
+    payload: dict[str, Any],
+    artifact_dir: Path,
+    transition_at: str,
+) -> tuple[dict[str, Any] | None, str]:
+    adapter = args.closeout_reviewer_adapter
+    command_text = closeout_review_adapter_command(args)
+    if adapter == "auto":
+        adapter = "command" if command_text else ""
+    if not adapter:
+        return None, (
+            "automatic closeout reviewer adapter is not configured; configure "
+            f"{CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV} or pass --closeout-reviewer-adapter-command"
+        )
+    if adapter == "fake":
+        proof = fake_closeout_review_acceptance(args, payload, transition_at)
+        reason = validate_closeout_review_acceptance(args, payload, proof)
+        return (proof, "" if not reason else reason)
+    if adapter == "command":
+        if not command_text:
+            return None, f"--closeout-reviewer-adapter command requires --closeout-reviewer-adapter-command or {CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV}"
+        command = shlex.split(command_text)
+        if not command:
+            return None, "closeout reviewer adapter command is empty"
+        request = {
+            "adapter_protocol": "company_ops_closeout_review_adapter_v1",
+            "work_unit_id": args.work_unit_id,
+            "agent": args.closeout_reviewer_agent,
+            "runtime": args.closeout_reviewer_runtime,
+            "session_key": args.closeout_reviewer_session_key,
+            "artifact_dir": str(artifact_dir),
+            "transition_at": transition_at,
+            "packet": payload,
+            "required_acceptance": {
+                "work_unit_id": args.work_unit_id,
+                "closeout_review_payload_hash": closeout_review_payload_hash(payload),
+                "guarded_closeout_contract": payload["guarded_closeout_contract"]["command"],
+                "authority_boundary": CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY,
+            },
+        }
+        returncode, proof, output = run_json_stdin_command(
+            command,
+            request,
+            args.closeout_reviewer_adapter_timeout_seconds,
+        )
+        if returncode != 0:
+            return None, f"closeout reviewer adapter command failed ({returncode}): {output}"
+        reason = validate_closeout_review_acceptance(args, payload, proof)
+        return (proof, "" if not reason else reason)
+    return None, f"unsupported closeout reviewer adapter: {adapter}"
+
+
+def closeout_review_ref(args: argparse.Namespace) -> str:
+    return args.closeout_reviewer_job_ref or args.closeout_reviewer_session_ref or args.closeout_reviewer_message_ref
+
+
+def closeout_review_setup_needed_payload(args: argparse.Namespace, reason: str, payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "dry_run": bool(args.dry_run),
+        "status": "review-wake setup-needed",
+        "work_unit_id": args.work_unit_id,
+        "runtime": args.closeout_reviewer_runtime,
+        "adapter": args.closeout_reviewer_adapter,
+        "reason": reason,
+        "review_payload": payload,
+        "review_payload_hash": closeout_review_payload_hash(payload),
+        "would_write_review_wake": False,
+        "would_mutate_decision": False,
+        "would_mutate_project_final": False,
+        "next_action": "Recover through work-unit inbox --result-ready, then rerun the foreground review-wake path.",
+    }
+
+
+def closeout_review_wake_record(
+    args: argparse.Namespace,
+    payload: dict[str, Any],
+    accepted_proof: dict[str, Any],
+    transition_at: str,
+) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "status": "review-wake-enqueued",
+        "work_unit_id": args.work_unit_id,
+        "review_payload_hash": closeout_review_payload_hash(payload),
+        "reviewer_agent": args.closeout_reviewer_agent,
+        "reviewer_runtime": args.closeout_reviewer_runtime,
+        "reviewer_session_key": args.closeout_reviewer_session_key,
+        "session_ref": args.closeout_reviewer_session_ref,
+        "job_ref": args.closeout_reviewer_job_ref,
+        "message_ref": args.closeout_reviewer_message_ref,
+        "accepted_proof": accepted_proof,
+        "payload": payload,
+        "enqueued_at": transition_at,
+        "recorded_by": getattr(args, "recorded_by", "team-lead-result-ready"),
+    }
 
 
 def latest_progress_timestamp(path: Path, work_unit: str, artifact_dir: Path) -> tuple[str, list[str], list[str]]:
@@ -2854,6 +3134,132 @@ def result_ready_card(args: argparse.Namespace, item: dict[str, Any]) -> tuple[d
     return card_from_command(command, "result-ready")
 
 
+def perform_closeout_review_wake(
+    args: argparse.Namespace,
+    *,
+    artifact_root: Path,
+    artifact_dir: Path,
+    transition_at: str,
+) -> tuple[int, dict[str, Any]]:
+    if args.closeout_reviewer_runtime == "none":
+        return 0, {
+            "enabled": False,
+            "status": "skipped",
+            "reason": "closeout reviewer wake was not requested",
+        }
+    if args.closeout_reviewer_runtime != "openclaw-agent":
+        return 1, {
+            "enabled": True,
+            "status": "review-wake setup-needed",
+            "reason": f"unsupported closeout reviewer runtime: {args.closeout_reviewer_runtime}",
+        }
+    if args.closeout_reviewer_adapter_timeout_seconds < 1:
+        return 1, {
+            "enabled": True,
+            "status": "review-wake setup-needed",
+            "reason": "closeout reviewer wake requires --closeout-reviewer-adapter-timeout-seconds >= 1",
+        }
+    item = build_work_unit_readiness(artifact_root, args.work_unit_id)
+    if not item["result_ready"]:
+        return 1, {
+            "enabled": True,
+            "status": "repair-needed",
+            "reason": "closeout reviewer wake requires a source-backed result_ready Work Unit",
+            "item": item,
+        }
+    if item["stale_reason"] or item["conflict_reason"] or item["result_ready_blockers"]:
+        return 1, {
+            "enabled": True,
+            "status": "repair-needed",
+            "reason": item["stale_reason"] or item["conflict_reason"] or "result_ready gate blockers remain",
+            "item": item,
+            "would_write_review_wake": False,
+        }
+    if not args.closeout_reviewer_agent:
+        args.closeout_reviewer_agent = "closeout-reviewer"
+    if not args.closeout_reviewer_session_key:
+        args.closeout_reviewer_session_key = closeout_review_session_key(args.work_unit_id)
+    payload = build_closeout_review_payload(args, item, artifact_dir, transition_at=transition_at)
+    wake_path = artifact_dir / CLOSEOUT_REVIEW_WAKE_FILENAME
+    base_payload = {
+        "enabled": True,
+        "dry_run": bool(args.dry_run),
+        "status": "ready-to-review-wake" if args.dry_run else "review-wake-enqueued",
+        "work_unit_id": args.work_unit_id,
+        "reviewer_agent": args.closeout_reviewer_agent,
+        "reviewer_runtime": args.closeout_reviewer_runtime,
+        "reviewer_session_key": args.closeout_reviewer_session_key,
+        "adapter": args.closeout_reviewer_adapter,
+        "review_payload": payload,
+        "review_payload_hash": closeout_review_payload_hash(payload),
+        "wake_path": str(wake_path),
+        "would_write_review_wake": bool(args.publish),
+        "would_mutate_decision": False,
+        "would_mutate_project_final": False,
+    }
+    if args.dry_run:
+        return 0, base_payload
+    if wake_path.exists() and not args.force:
+        return 1, {
+            **base_payload,
+            "status": "review-wake setup-needed",
+            "reason": f"{CLOSEOUT_REVIEW_WAKE_FILENAME} already exists; use --force to rerun intentionally",
+            "would_write_review_wake": False,
+        }
+    raw_proof, adapter_reason = run_closeout_review_adapter(
+        args,
+        payload=payload,
+        artifact_dir=artifact_dir,
+        transition_at=transition_at,
+    )
+    if adapter_reason:
+        return 1, closeout_review_setup_needed_payload(args, adapter_reason, payload)
+    assert raw_proof is not None
+    accepted_proof = apply_closeout_review_acceptance(args, raw_proof)
+    if not closeout_review_ref(args):
+        return 1, closeout_review_setup_needed_payload(
+            args,
+            "closeout reviewer accepted proof did not produce a review enqueue reference",
+            payload,
+        )
+    record = closeout_review_wake_record(args, payload, accepted_proof, transition_at)
+    wake_path.write_text(json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    return 0, {
+        **base_payload,
+        "status": "review-wake-enqueued",
+        "accepted_proof": accepted_proof,
+        "record": record,
+        "session_ref": args.closeout_reviewer_session_ref,
+        "job_ref": args.closeout_reviewer_job_ref,
+        "message_ref": args.closeout_reviewer_message_ref,
+        "review_ref": closeout_review_ref(args),
+        "would_write_review_wake": True,
+    }
+
+
+def closeout_review_wake_work_unit(args: argparse.Namespace) -> int:
+    artifact_root = args.artifact_root.expanduser()
+    artifact_dir = artifact_root / args.work_unit_id
+    if not artifact_dir.is_dir():
+        print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
+        return 1
+    transition_at = args.transition_at or utc_now_iso()
+    args.transition_at = transition_at
+    code, payload = perform_closeout_review_wake(
+        args,
+        artifact_root=artifact_root,
+        artifact_dir=artifact_dir,
+        transition_at=transition_at,
+    )
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    elif code == 0:
+        print(f"{payload['status']} {args.work_unit_id}: {payload.get('review_ref') or payload.get('wake_path')}")
+    else:
+        print(f"error: {payload.get('status')}: {payload.get('reason')}", file=sys.stderr)
+    return code
+
+
 def result_ready_work_unit(args: argparse.Namespace) -> int:
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
@@ -2918,21 +3324,30 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
     project_sync = run_project_sync(args)
     if project_sync.get("enabled") and not project_sync.get("ok"):
         print(f"warning: Project result-ready sync failed: {project_sync.get('error')}", file=sys.stderr)
+    review_wake_code, review_wake = perform_closeout_review_wake(
+        args,
+        artifact_root=artifact_root,
+        artifact_dir=artifact_dir,
+        transition_at=args.transition_at or utc_now_iso(),
+    )
 
     payload = {
         "dry_run": False,
-        "status": "published",
+        "status": "published" if review_wake_code == 0 else "review-wake setup-needed",
         "work_unit_id": args.work_unit_id,
         "pre_publish_gate": pre_gate,
         "publish": publish_payload.get("publish", {}),
         "post_publish_gate": post_gate,
         "project_sync": project_sync,
+        "review_wake": review_wake,
     }
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(f"published result-ready {args.work_unit_id}: {payload['publish'].get('proof_id', '')}")
-    return 0
+        if review_wake_code != 0:
+            print(f"warning: closeout reviewer wake failed: {review_wake.get('reason')}", file=sys.stderr)
+    return review_wake_code
 
 
 class CloseoutLock:
@@ -4180,12 +4595,75 @@ def build_parser() -> argparse.ArgumentParser:
         default=str(Path.home() / ".openclaw" / "state" / "openclaw-company-ops" / "project-sync-audit.jsonl"),
         help="Audit log for successful Project mirror sync",
     )
+    result_ready.add_argument(
+        "--closeout-reviewer-runtime",
+        choices=CLOSEOUT_REVIEW_RUNTIME_CHOICES,
+        default="none",
+        help="Optional fresh closeout reviewer wake after successful RESULT_READY publish",
+    )
+    result_ready.add_argument("--closeout-reviewer-agent", default="closeout-reviewer")
+    result_ready.add_argument("--closeout-reviewer-session-key", default="")
+    result_ready.add_argument("--closeout-reviewer-session-ref", default="", help=argparse.SUPPRESS)
+    result_ready.add_argument("--closeout-reviewer-job-ref", default="", help=argparse.SUPPRESS)
+    result_ready.add_argument("--closeout-reviewer-message-ref", default="", help=argparse.SUPPRESS)
+    result_ready.add_argument(
+        "--closeout-reviewer-adapter",
+        choices=CLOSEOUT_REVIEW_ADAPTER_CHOICES,
+        default="auto",
+        help="Reviewer wake adapter. auto uses a configured command; fake is smoke-only.",
+    )
+    result_ready.add_argument(
+        "--closeout-reviewer-adapter-command",
+        default="",
+        help=f"Command that reads reviewer wake JSON on stdin and returns accepted proof JSON. Defaults from {CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV}.",
+    )
+    result_ready.add_argument("--closeout-reviewer-adapter-timeout-seconds", type=int, default=30)
     result_ready.add_argument("--force", action="store_true", help="Allow duplicate publish proof when intentionally rerunning")
     result_ready.add_argument("--format", choices=("text", "json"), default="text")
     result_ready_mode = result_ready.add_mutually_exclusive_group(required=True)
     result_ready_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without sends or proof writes")
     result_ready_mode.add_argument("--publish", action="store_true", help="Publish/read back RESULT_READY, then run post-proof gate")
     result_ready.set_defaults(func=result_ready_work_unit)
+
+    review_wake = work_unit_subparsers.add_parser(
+        "review-wake",
+        help="Foreground wake of a fresh closeout reviewer for a source-backed RESULT_READY Work Unit",
+    )
+    review_wake.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    review_wake.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id> source artifacts",
+    )
+    review_wake.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
+    review_wake.add_argument("--source-ref", default="", help="Source reference for reviewer payload; defaults to evidence.md")
+    review_wake.add_argument("--closeout-reviewer-runtime", choices=CLOSEOUT_REVIEW_RUNTIME_CHOICES, default="openclaw-agent")
+    review_wake.add_argument("--closeout-reviewer-agent", default="closeout-reviewer")
+    review_wake.add_argument("--closeout-reviewer-session-key", default="")
+    review_wake.add_argument("--closeout-reviewer-session-ref", default="", help=argparse.SUPPRESS)
+    review_wake.add_argument("--closeout-reviewer-job-ref", default="", help=argparse.SUPPRESS)
+    review_wake.add_argument("--closeout-reviewer-message-ref", default="", help=argparse.SUPPRESS)
+    review_wake.add_argument(
+        "--closeout-reviewer-adapter",
+        choices=CLOSEOUT_REVIEW_ADAPTER_CHOICES,
+        default="auto",
+        help="Reviewer wake adapter. auto uses a configured command; fake is smoke-only.",
+    )
+    review_wake.add_argument(
+        "--closeout-reviewer-adapter-command",
+        default="",
+        help=f"Command that reads reviewer wake JSON on stdin and returns accepted proof JSON. Defaults from {CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV}.",
+    )
+    review_wake.add_argument("--closeout-reviewer-adapter-timeout-seconds", type=int, default=30)
+    review_wake.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
+    review_wake.add_argument("--recorded-by", default="operations-lead")
+    review_wake.add_argument("--force", action="store_true", help="Replace an existing closeout-review-wake record intentionally")
+    review_wake.add_argument("--format", choices=("text", "json"), default="text")
+    review_wake_mode = review_wake.add_mutually_exclusive_group(required=True)
+    review_wake_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without reviewer wake record or runtime call")
+    review_wake_mode.add_argument("--publish", action="store_true", help="Enqueue reviewer through the configured adapter and record proof")
+    review_wake.set_defaults(func=closeout_review_wake_work_unit)
 
     inbox = work_unit_subparsers.add_parser(
         "inbox",
