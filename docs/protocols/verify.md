@@ -40,13 +40,15 @@ but they must not change the candidate output or make final closeout decisions.
    writing final decision, GitHub Project final status, or Discord closeout
    messages directly.
 
-For standalone verification Work Units, `accept` means the verification report
-itself is adequate and evidence-backed. It does not mean the candidate output
-passed verification. If the candidate output is non-compliant but the
-verification report is complete, the Operations Lead may accept the verification
-Work Unit while the report records a `fail` or `unknown` verdict for the
-candidate. If the verification report itself is incomplete or unsupported,
-recommend `revise` or `blocked`.
+For standalone verification Work Units, `accept` means the verification
+procedure completed normally and the verification report itself is adequate and
+evidence-backed. It does not mean the candidate output passed verification. If
+the candidate output is non-compliant but the verification procedure and report
+are complete, the Operations Lead may accept the verification Work Unit while
+the report records a `fail` or `unknown` verdict for the candidate. The
+Operations Lead decision rationale must make that distinction explicit. If the
+verification procedure or report itself is incomplete or unsupported, recommend
+`revise` or `blocked`.
 
 If the Assignment Packet authorizes subagents for verification, use only the
 packet's `subagent_budget`. The budget is a prompt/packet contract, not a

@@ -25,6 +25,10 @@ Choose one:
 ## Rationale
 
 Explain the decision using the Assignment Packet and Evidence & Result Record.
+For standalone `verify` Work Units, distinguish the verification procedure
+verdict from the candidate output verdict. If the decision is `accept`, state
+that the verification report is accepted and separately state whether the
+candidate output passed, failed, or remains unknown.
 
 ## Required Follow-up
 

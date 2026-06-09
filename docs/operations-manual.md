@@ -894,12 +894,14 @@ Allowed decisions:
 - `blocked`: decision is blocked by missing evidence, dependency, context, or
   required owner/external action.
 
-For standalone `verify` Work Units, `accept` approves the verification report,
-not necessarily the candidate output under test. A complete verification report
-can be accepted while its criterion mapping records that the candidate failed or
-is unknown. Candidate non-compliance belongs in the Evidence & Result Record and
-follow-up routing; incomplete verification evidence should be `revise` or
-`blocked`, not accepted.
+For standalone `verify` Work Units, `accept` approves the completed
+verification procedure and report, not necessarily the candidate output under
+test. A complete verification report can be accepted while its criterion mapping
+records that the candidate failed or is unknown. The decision rationale must
+explicitly say whether the candidate passed, failed, or remains unknown, and
+must not let `Accepted` imply candidate pass. Candidate non-compliance belongs
+in the Evidence & Result Record and follow-up routing; incomplete verification
+evidence should be `revise` or `blocked`, not accepted.
 
 Only `accept` can move the lifecycle to `accepted`; it is not archival `done`
 until owner inspection and Work Card cleanup are complete. A merged PR, green
