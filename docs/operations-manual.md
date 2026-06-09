@@ -737,11 +737,20 @@ It should not include every execution detail. If the Assignment Packet is
 missing or unreadable, the Work Unit is blocked.
 
 GitHub comments are not the routine progress log. Do not use comments for
-`ASSIGNED`, `STARTED`, heartbeat, stale-claim, result-ready, or closure updates.
-Use the Work Card body, labels, Assignment Packet, Ops Claim Ledger entry,
-Evidence & Result Record, and Operations Lead Decision instead. Reserve comments
-for human review notes or external collaborator context that cannot live in
-those artifacts.
+`ASSIGNED`, `STARTED`, heartbeat, stale-claim, result-ready, or routine
+timeline updates. Use the Work Card body, labels, Assignment Packet, Ops Claim
+Ledger entry, Evidence & Result Record, and Operations Lead Decision instead.
+
+The one planned exception is the Phase 5.8.8 final Work Card result summary
+comment: after guarded closeout records `accept`, `revise`, or `blocked`, the
+closeout path may create or update exactly one marker-managed GitHub comment
+that mirrors the source-backed Evidence & Result Record and Operations Lead
+Decision for maintainer inspection. That comment is never source truth and must
+not be read by status, inbox, Project sync, result-ready, or closeout decision
+derivation.
+
+Reserve any other comments for human review notes or external collaborator
+context that cannot live in source artifacts.
 
 ## Label Meanings
 

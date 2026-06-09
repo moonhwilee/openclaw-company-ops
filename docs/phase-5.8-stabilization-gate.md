@@ -1,8 +1,8 @@
 # Phase 5.8 Stabilization Gate
 
 Status: distribution-critical Phase 5.8.7 implemented in repo-local and
-controlled smoke. Phase 6 packaging may begin after owner acceptance of this
-boundary/convergence implementation.
+controlled smoke. Phase 5.8.8 is open as a final GitHub Work Card visibility
+blocker before Phase 6 packaging.
 Phases 5.8.1 through 5.8.6 are implemented and live-verified, but the
 `WU-260609-958` live gate exposed a final packaging blocker: verify/fix
 authority boundaries and live dashboard convergence must be enforced as
@@ -16,7 +16,9 @@ duplicate RESULT_READY suppression and closeout delegate replay-safe
 idempotency. Phase 5.8.6 added delegated closeout authority and expanded
 negative smoke coverage. Phase 5.8.7 closes the verify-only boundary, Project
 readback, and public-install preflight gaps as repo-local command/protocol
-guards before Phase 6 packaging begins. Live OpenClaw delivery still requires configured adapter
+guards. Phase 5.8.8 closes the remaining GitHub Work Card inspection gap: a
+maintainer must be able to read the final result summary from the Work Card
+itself without following every source artifact link. Live OpenClaw delivery still requires configured adapter
 commands for dispatch and closeout delegate wake; if a required adapter is
 missing or cannot return current proof, the command returns `setup-needed` or
 `repair-needed` and writes no false source success.
@@ -24,8 +26,10 @@ missing or cannot return current proof, the command returns `setup-needed` or
 Phase 5.8 captures the live workflow issues found during the
 `WU-260608-001` through `WU-260608-004` test batch, the follow-up 5.8.5 live
 gate, and the 5.8.6 delegated closeout live gate. Phase 6 Packaging /
-Public v1 may begin after the Phase 5.8.7 boundary/convergence implementation
-is accepted.
+Public v1 must wait for owner acceptance of the Phase 5.8.7
+boundary/convergence implementation and the Phase 5.8.8 GitHub Work Card final
+result visibility blocker, unless a no-go/defer decision is explicitly
+recorded.
 
 This gate is not a feature expansion. It stabilizes the Work Unit runtime
 contract that Phase 6 packaging depends on.
@@ -1024,12 +1028,106 @@ Acceptance:
 - Owner-visible reporting tests or examples show an immediate accepted/interim
   report when follow-up hardening continues after acceptance.
 
+### Phase 5.8.8: GitHub Work Card Final Result Visibility
+
+Status: open; GitHub visibility blocker before Phase 6 packaging.
+
+Depends on:
+
+- Phase 5.8.7.
+
+Purpose:
+
+Make every accepted, revise, or blocked Work Unit inspectable from its GitHub
+Work Card by adding exactly one source-backed final result summary comment.
+The comment is a maintainer visibility mirror for owner inspection. It must
+never become source truth or a status derivation input.
+
+Scope:
+
+Slice A, source-backed decision-ready summary:
+
+- Require the Team Lead's submitted source artifacts to contain a concise,
+  human-readable decision-ready summary before `RESULT_READY` can be accepted
+  for closeout. The primary source is the Evidence & Result Record `Result
+  Summary`, backed by verification, remaining risks, and done-criteria mapping.
+- Reject missing, placeholder, template-like, or low-information summaries in
+  the result-ready or closeout readiness gate.
+- Do not generate the final GitHub comment from Discord text, Telegram text,
+  free-chat session summaries, GitHub Project fields, labels, or comments.
+
+Slice B, deterministic Work Card summary comment:
+
+- Add an explicit Work Card summary visibility mode such as
+  `--work-card-summary-mode required|disabled`.
+- Default live GitHub Work Card closeout should use `required` once this phase
+  is implemented and enabled. `disabled` is only for local smoke, non-GitHub
+  Work Cards, private/no-GitHub deployments, or an owner-approved no-go where
+  GitHub Work Card comments are intentionally unavailable.
+- Render a bounded deterministic comment from current source artifacts:
+  Assignment Packet identity, Evidence & Result Record summary, Operations Lead
+  Decision, verification summary, remaining risks, next action, and source
+  artifact links.
+- Use one canonical hidden marker, for example
+  `<!-- company-ops-work-card-summary:<WU>:v1 -->`, to create or update exactly
+  one managed summary comment. Never edit "the latest comment" by position and
+  never create repeated summary spam on closeout retry.
+- The comment must state that source artifacts remain the source of truth.
+
+Slice C, guarded closeout integration:
+
+- The guarded closeout path owns final GitHub summary comment mutation. A
+  closeout delegate may request or call the guarded closeout path, but it must
+  not write the Work Card comment outside that path.
+- On dry-run, render and report the planned comment without mutating GitHub.
+- On publish with summary mode `required`, create or update the managed comment,
+  read it back, and record the comment id/url or failure state in the closeout
+  stage/proof.
+- If the source decision publishes but the required comment or readback fails,
+  do not roll back the source decision. Leave the closeout stage in an explicit
+  visibility state such as `work-card-summary-needed`, return nonzero, and do
+  not report fully converged completion.
+
+Slice D, public-safety and non-truth guarantees:
+
+- Redact or omit raw logs, secrets, tokens, private absolute paths, Discord
+  internals, long diffs, and overly long evidence text from GitHub comments.
+- Keep comments bounded and maintainer-readable. The default implementation
+  must not make an extra LLM call; if LLM-polished summaries are ever added,
+  they require an explicit opt-in phase and must still be source-backed.
+- Inbox, status, closeout readiness, and dashboard derivation must never read
+  GitHub comments as source truth.
+- Do not add a daemon, background reconciler, hidden retry queue, automatic
+  archive, label automation, or GitHub issue body rewrite in this phase.
+
+Acceptance:
+
+- `RESULT_READY` or closeout readiness rejects missing, placeholder, or
+  low-information decision-ready summaries.
+- Dry-run renders a deterministic final Work Card summary comment without
+  GitHub mutation.
+- Publish with a GitHub Work Card and summary mode `required` creates or updates
+  exactly one marker-managed comment, reads it back, and records the comment
+  reference in source closeout proof.
+- Retrying the same closeout updates or no-ops the managed comment without
+  duplicate summary comments.
+- Required mode with a non-GitHub Work Card, missing Work Card URL, GitHub auth
+  failure, or readback mismatch fails as `work-card-summary-needed` or an
+  equivalent explicit state instead of silently reporting completion.
+- Disabled mode reports `not_configured` or an owner-approved no-go, not `ok`.
+- Smoke fixtures cover accept, revise, and blocked comment rendering.
+- Smoke fixtures prove comments are never consumed by status, inbox, Project
+  sync, result-ready, or closeout decision derivation.
+- Active-path scans show no legacy or fallback comment formats.
+
 ## Phase 6 Blocker Rule
 
-Reopened by the Phase 5.8.6 live gate and implemented by Phase 5.8.7. Phase 6
+Reopened by the Phase 5.8.6 live gate, implemented through Phase 5.8.7, and
+extended by the Phase 5.8.8 Work Card final-result visibility blocker. Phase 6
 packaging must not begin until the owner accepts the 5.8.7
-boundary/convergence implementation or explicitly records a no-go/defer
-decision with rationale for each P0 boundary.
+boundary/convergence implementation and the 5.8.8 GitHub Work Card visibility
+boundary, or explicitly records a no-go/defer decision with rationale for each
+P0 boundary.
 
 Historical rule:
 

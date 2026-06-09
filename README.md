@@ -57,7 +57,8 @@ complete.
 
 Phase 5.7 Packaging Readiness Decision is complete: the Phase 6 included
 surfaces, deferred surfaces, and no-go surfaces are locked. Phase 5.8
-Stabilization Gate includes the distribution-critical 5.8.7 follow-up.
+Stabilization Gate includes the distribution-critical 5.8.7 follow-up and the
+5.8.8 GitHub Work Card final-result visibility blocker.
 Phases 5.8.1 through 5.8.7 are implemented in the repo-local and controlled
 smoke model: canonical start/result-ready guards, final closeout lifecycle
 convergence, fresh-session detached dispatch, capacity policy, result-ready
@@ -66,7 +67,8 @@ visibility publish, duplicate RESULT_READY suppression, closeout delegate
 replay-safe idempotency, delegated closeout authority, verify/fix authority
 boundaries, final Project readback convergence, and minimal public-install
 preflight are all present. Phase 6 Packaging / Public v1 can begin after owner
-acceptance of the Phase 5.8.7 boundary/convergence implementation.
+acceptance of the Phase 5.8.7 boundary/convergence implementation and the
+Phase 5.8.8 GitHub Work Card final-result visibility boundary.
 
 Company Ops capacity sizing is a general operating policy, not a phase-local
 patch. See [`docs/capacity-policy.md`](docs/capacity-policy.md) for OpenClaw
@@ -166,9 +168,11 @@ guess targets, or grant permissions on the user's behalf.
 
 ## Planned Work
 
-- Accept Phase 5.8.7, then begin Phase 6 Packaging / Public v1 from the
+- Accept Phase 5.8.7 and implement/accept Phase 5.8.8 GitHub Work Card final
+  result visibility, then begin Phase 6 Packaging / Public v1 from the
   stabilized verify-only boundary, goal/fix mutation authority, final GitHub
-  Project live readback, and distribution preflight readiness contract.
+  Project live readback, final Work Card summary visibility, and distribution
+  preflight readiness contract.
 - Treat GitHub Project or equivalent dashboard visibility as part of final
   completion unless the owner explicitly records a no-go decision with
   rationale.

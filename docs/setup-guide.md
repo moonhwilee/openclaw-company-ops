@@ -677,6 +677,8 @@ exists as `scripts/discord_ops.py`. The first dashboard snapshot CLI exists as
 runner exists as `scripts/pulse_daemon.py`.
 
 Phases 5.1 through 5.7 have either accepted, implemented, deferred, or rejected
-their activation and package-boundary decisions. Continue with Phase 6
-packaging/public v1 from the included, deferred, and no-go surfaces locked in
-`docs/post-setup-plan.md`.
+their activation and package-boundary decisions. Phase 6 packaging/public v1
+must wait for owner acceptance of the Phase 5.8.7 boundary/convergence
+implementation and the Phase 5.8.8 GitHub Work Card final-result visibility
+boundary, then continue from the included, deferred, and no-go surfaces locked
+in `docs/post-setup-plan.md`.

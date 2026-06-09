@@ -1274,6 +1274,10 @@ Scope:
   required/disabled state, final GitHub Project desired-vs-live readback,
   narrow command/protocol guards, minimal setup preflight, and a small live
   verify fast-path policy.
+- Add a 5.8.8 GitHub Work Card final-result visibility gate: guarded closeout
+  must publish or update exactly one source-backed Work Card result summary
+  comment, read it back, and record the comment reference before claiming fully
+  converged completion when GitHub Work Card visibility is required.
 
 Acceptance gate:
 
