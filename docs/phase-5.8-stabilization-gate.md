@@ -484,7 +484,7 @@ Acceptance:
 - The implementation still has no hidden orchestrator, daemon, automatic retry,
   automatic reassignment, or automatic completion path.
 
-### Phase 5.8.4.c: Result-Ready Wake / Closeout Visibility Concept
+### Phase 5.8.4.c: Result-Ready Wake / B-Prime Closeout Review
 
 Depends on:
 
@@ -496,6 +496,9 @@ Depends on:
 Current status:
 
 - Concept only. Not implemented.
+- Design baseline settled as B-prime: foreground `result-ready --publish`
+  wakes a fresh Work Unit-scoped closeout reviewer, then final decisions are
+  applied only through the guarded closeout path.
 - This phase is needed because detached dispatch solves Operations Lead
   foreground blocking, but it does not by itself wake the Operations Lead when a
   Team Lead later publishes `result-ready`.
@@ -514,10 +517,13 @@ Goal:
 
 - Preserve the nonblocking Operations Lead model while restoring real-time-ish
   completion visibility for owners.
-- Notify the Operations Lead, and optionally the owner-facing surface, when a
-  valid source-backed `result-ready` appears.
-- Bring the Operations Lead back only for source-backed closeout review, not for
-  Team Lead execution monitoring.
+- Make `result-ready --publish` create source-backed review visibility and
+  enqueue a fresh closeout reviewer session without waiting for final closeout.
+- Let the fresh reviewer perform source-backed review, including deep review for
+  broad code changes or multi-WU dependencies, while preserving fail-closed
+  red-line/manual review boundaries.
+- Apply final `accept`, `revise`, or `blocked` decisions only through a single
+  guarded closeout commit path.
 
 Required boundary:
 
@@ -528,34 +534,125 @@ Required boundary:
 - Goal/convergence internal rounds stay Team Lead-owned before `result-ready`.
   Operations Lead `revise` means post-result-ready replan/amendment, not the
   normal mechanism for Team Lead internal improvement loops.
+- Team Lead waits only for `RESULT_READY` proof/readback and closeout reviewer
+  enqueue proof. It must not wait for reviewer judgment or closeout completion.
+- The fresh reviewer may judge `accept`, `revise`, or `blocked`, but it must
+  not write `decision.md`, Project final status, Discord final review, or
+  owner-facing completion directly.
+- The guarded closeout path must reread source artifacts under a WU-scoped
+  closeout lock, reject existing final decisions, and fail closed on stale,
+  duplicate, conflicting, or hash-mismatched input.
 
-Pre-design information to settle before implementation:
+B-prime implementation baseline:
 
-- Trigger source: local `result-ready` artifact/proof creation, foreground
-  `result-ready --publish` hook, scheduled `pulse check`, or an OpenClaw
-  notification event.
-- Wake target: Operations Lead session, owner-facing review-needed briefing, or
-  both.
-- Delivery guarantee: one-shot notification with recoverable source refs; no
-  queue, retry loop, or hidden workflow runner unless separately approved.
-- Suppression: do not notify again for stale, duplicate, already decided, or
-  conflicting Work Units except as an explicit exception alert.
-- Closeout behavior: wake/review may prepare an inbox item, but it must not
-  auto-decide `accept`, `revise`, `blocked`, or `done`.
+- Trigger source: foreground `work-unit result-ready --publish` after
+  successful pre-gate, live RESULT_READY publish/readback, and post-gate.
+- Wake target: a fresh Work Unit-scoped closeout reviewer session, not the busy
+  Operations Lead foreground session.
+- Reviewer session key: deterministic and Work Unit-scoped, for example
+  `company-ops-closeout-reviewer-<work-unit-id>`.
+- Delivery guarantee: one-shot reviewer enqueue proof with recoverable session,
+  message, or run refs. No background daemon, durable queue, retry worker, DB,
+  hidden workflow runner, or multi-reviewer consensus.
+- Failure behavior: if RESULT_READY publish succeeds but reviewer wake/enqueue
+  fails, do not roll back RESULT_READY and do not fake closeout. Report
+  `review-wake setup-needed` and leave the WU recoverable through
+  `work-unit inbox --result-ready`.
+- Suppression: already-decided, stale, duplicate, hash-mismatched, or
+  conflicting Work Units must not produce a normal reviewer wake. Surface them
+  only as explicit repair-needed or exception states.
 - Visibility mirror: Discord/GitHub Project may show `Result Ready` or
   `Review Needed` from source artifacts, but must not become source truth.
 
+Self-contained wake payload:
+
+- Include `work_unit_id`, title, team, artifact root, Work Card ref,
+  `assignment.md`, `claim.md`, `evidence.md`, `progress.jsonl`,
+  `visibility-proof.jsonl`, result-ready proof id/timestamp/source ref,
+  reviewer session key, guarded closeout command contract, and no-go actions.
+- Include artifact hashes for `assignment.md`, `claim.md`, `evidence.md`,
+  `progress.jsonl`, and the relevant `visibility-proof.jsonl` proof rows so the
+  guarded closeout commit can bind reviewer judgment to the source snapshot the
+  reviewer actually inspected.
+- No-go actions must explicitly forbid direct `decision.md`, Project final
+  state, Discord final review, owner completion, reassignment, archive, or
+  reverse-import mutation outside guarded closeout.
+
+Reviewer autonomy classes:
+
+- `auto_eligible`: normal verify, docs, and small code Work Units. The fresh
+  reviewer may accept, revise, or block through guarded closeout when evidence
+  is sufficient.
+- `deep_review_auto_eligible`: broad code changes, many changed files, or
+  multi-WU dependencies. Size alone is not a manual-review trigger. The fresh
+  reviewer should increase review depth, inspect diffs/tests/dependency refs,
+  and may use subagents before guarded closeout.
+- `manual_required`: operating-server actions, deployment, DB migration,
+  credential/auth/security boundaries, cost-bearing actions, destructive
+  changes, external public release, unclear owner intent, unresolved
+  dependency, critical reviewer/subagent disagreement, missing evidence, stale
+  source, or hash/proof mismatch.
+
+Guarded closeout commit request:
+
+- Extend existing `work-unit closeout --publish`; do not build a separate
+  commit system.
+- Add a structured `--commit-request <json>` input so the fresh reviewer does
+  not synthesize arbitrary closeout CLI arguments.
+- Minimum commit request fields: `work_unit_id`, `decision`, `reason`,
+  `source_ref`, `result_ready_proof_id`, `artifact_hashes`, reviewer
+  session/run refs, `autonomy_class`, `review_depth`, `red_line_check`, and
+  blocked-only fields such as `blocker_source`, `needed`, and `next_owner`.
+- Before writing final state, closeout must revalidate WU id, result-ready
+  proof, source refs, artifact hashes, final-decision absence, final proof
+  absence, stale/duplicate/conflict status, and manual-required red lines.
+- Closeout should use a small staging/resume/idempotency guard around
+  `decision.md`, card file writes, Discord publishes, and Project sync so a
+  publish failure cannot be mistaken for fully converged closeout.
+
+Implementation slices:
+
+- `5.8.4c-1`: result-ready wake foundation: self-contained wake payload,
+  reviewer enqueue adapter or generalized session-send helper, enqueue proof,
+  `review-needed` visibility, stale/duplicate suppression, and source-inbox
+  recovery after wake failure.
+- `5.8.4c-2`: B-prime guarded closeout: `--commit-request`, artifact hash and
+  result-ready proof revalidation, reviewer autonomy classes, closeout staging
+  or idempotent resume guard, and final visibility/status convergence.
+
 Acceptance, once implemented:
 
-- A detached Team Lead `result-ready` publish creates source-backed review
-  visibility without requiring the Operations Lead to keep a foreground session
-  open.
-- The Operations Lead can recover the Work Unit from the notification and run
-  closeout from source artifacts.
-- No notification path auto-accepts, auto-revises, auto-blocks, archives,
-  reassigns, or rewrites source artifacts.
+- A detached Team Lead `result-ready --publish` creates source-backed review
+  visibility and fresh reviewer enqueue proof without requiring the Operations
+  Lead to keep a foreground session open.
+- The Team Lead returns after enqueue proof only. It does not wait for reviewer
+  judgment or guarded closeout completion.
+- A wake failure leaves the WU visible in `work-unit inbox --result-ready`
+  rather than dropping or rolling back source truth.
+- The fresh reviewer can restore the WU from source artifacts and may accept
+  broad code or multi-WU-dependent work after deep review when no red-line
+  risk or evidence gap exists.
+- Red-line risk, evidence insufficiency, unresolved dependency, critical
+  disagreement, stale source, or hash/proof mismatch produces
+  `manual_required`, `revise`, or `blocked`, not automatic accept.
+- Only guarded closeout writes final `decision.md`, team-detail final review,
+  owner-facing closeout, and Project final status.
+- Duplicate/stale wake attempts cannot overwrite or compete with an existing
+  final decision.
 - Owner-facing status distinguishes `Result Ready / Review Needed` from final
   `Accepted / Needs Revision / Blocked / Done`.
+
+Regression coverage to add:
+
+- Wake payload self-containment and no-go boundary.
+- Reviewer enqueue proof success/failure, including no wake record without
+  current acceptance/readback and enqueue/run refs.
+- Source inbox recovery when RESULT_READY succeeds but reviewer wake fails.
+- `--commit-request` WU mismatch, stale decision, duplicate final proof,
+  missing source ref, artifact hash mismatch, and manual-required red-line
+  fail-closed cases.
+- Accepted, Revise, and Blocked convergence across `decision.md`, status
+  lifecycle, Project dry-run status, and Discord proof rows.
 
 ### Phase 5.8.5: No-Bypass Regression Gate
 
