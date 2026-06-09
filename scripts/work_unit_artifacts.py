@@ -473,15 +473,28 @@ def spec_string_list_value(value: Any, *, key: str) -> list[str]:
 
 def is_verify_output_path(path: str, work_unit_id: str) -> bool:
     normalized = path.strip().strip("`").replace("\\", "/")
-    work_unit_segment = f"/{work_unit_id}/"
-    return (
-        normalized.endswith(f"/{work_unit_id}/evidence.md")
-        or normalized.endswith(f"/{work_unit_id}/verification.md")
-        or f"{work_unit_segment}verification-artifacts/" in normalized
-        or normalized.endswith(f"/{work_unit_id}/verification-artifacts")
-        or f"{work_unit_segment}evidence-artifacts/" in normalized
-        or normalized.endswith(f"/{work_unit_id}/evidence-artifacts")
-    )
+    parts = [part for part in normalized.split("/") if part and part != "."]
+    if not work_unit_id or ".." in parts:
+        return False
+    subtree = ["docs", "work-units", work_unit_id]
+    protected_files = {
+        "assignment.md",
+        "claim.md",
+        "decision.md",
+        DEFAULT_PROOF_LOG_NAME,
+        "progress.jsonl",
+        "dispatch.json",
+    }
+    protected_prefixes = ("ops-", "team-", "closeout-")
+    for index in range(len(parts) - len(subtree) + 1):
+        if parts[index : index + len(subtree)] != subtree:
+            continue
+        remainder = parts[index + len(subtree) :]
+        if not remainder:
+            return False
+        first = remainder[0]
+        return first not in protected_files and not first.startswith(protected_prefixes)
+    return False
 
 
 def normalize_mutation_authority(spec: dict[str, Any], mode: str) -> dict[str, Any]:
@@ -548,9 +561,9 @@ def normalize_mutation_authority(spec: dict[str, Any], mode: str) -> dict[str, A
         )
         if not verify_output_only:
             raise ValueError(
-                "verify mode can only write its own evidence.md, verification.md, "
-                "verification-artifacts, or evidence-artifacts; "
-                "it cannot mutate candidate outputs, git, Project, Discord, or external surfaces"
+                "verify mode can only write verification artifacts inside its own "
+                "docs/work-units/<work-unit-id>/ subtree; it cannot mutate core Work Unit "
+                "control artifacts, candidate outputs, git, Project, Discord, or external surfaces"
             )
 
     return {
@@ -1992,9 +2005,11 @@ Team Lead OpenClaw Agent for a delegated Work Unit.
 Mode boundary:
 
 - `verify` is read-only with respect to the candidate output being checked.
-- `verify` may write its own Work Unit `evidence.md`, `verification.md`,
-  `verification-artifacts/`, or `evidence-artifacts/` when those paths are
-  explicitly allowed.
+- `verify` may write verification records and auxiliary proof artifacts inside
+  its own Work Unit artifact subtree, `docs/work-units/<work-unit-id>/`, when
+  those paths are explicitly allowed. Direct writes to core Work Unit control
+  artifacts such as assignment, claim, decision, progress, proof, dispatch,
+  card, or closeout files are not allowed.
 - `verify` may use official Company Ops lifecycle commands for source-backed
   `CHECKPOINT` or `RESULT_READY` proof after evidence is written; those commands
   may update lifecycle visibility, but they are not permission to change the
@@ -5380,6 +5395,10 @@ Status: Draft
 
 The Ops Claim Ledger records expected responsibility. It is not runtime truth,
 progress history, evidence storage, a dashboard database, or a recovery system.
+
+This is an internal responsibility artifact, not a user-facing UI. Owners and
+packaged users should normally inspect the GitHub Project dashboard, Work Card,
+Discord visibility cards, evidence, and Operations Lead decision instead.
 
 ## Claim Identity
 

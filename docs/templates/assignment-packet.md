@@ -103,11 +103,18 @@ handoff validators use it to fail closed when mode and mutation scope conflict.
 Mode boundary:
 
 - `verify` is read-only with respect to the candidate output being checked.
-- `verify` may write its own Work Unit `evidence.md`, `verification.md`,
-  `verification-artifacts/`, or `evidence-artifacts/` when those paths are
-  explicitly allowed.
-- `verify` must not mutate candidate outputs, git, GitHub Project, Discord, or
-  external systems.
+- `verify` may write verification records and auxiliary proof artifacts inside
+  its own Work Unit artifact subtree, `docs/work-units/<work-unit-id>/`, when
+  those paths are explicitly allowed. Direct writes to core Work Unit control
+  artifacts such as assignment, claim, decision, progress, proof, dispatch,
+  card, or closeout files are not allowed.
+- `verify` may use official Company Ops lifecycle commands for source-backed
+  `CHECKPOINT` or `RESULT_READY` proof after evidence is written; those commands
+  may update lifecycle visibility, but they are not permission to change the
+  candidate output or make closeout decisions.
+- `verify` must not mutate candidate outputs, git, GitHub Project final status,
+  Discord closeout messages, or external systems outside the official Work Unit
+  lifecycle commands.
 
 ## Protocol Capsule
 

@@ -8,9 +8,11 @@ satisfy the Assignment Packet.
 It may run as a standalone verification Work Unit or inside the `goal` loop.
 Standalone `verify` is read-only with respect to the candidate output being
 checked, but it may write its own verification artifact. Allowed verify writes
-must be scoped to the Work Unit's `evidence.md`, `verification.md`,
-`verification-artifacts/`, or `evidence-artifacts/`; verify must not mutate
-candidate outputs, git, GitHub Project, Discord, or external systems.
+must be scoped to its own Work Unit artifact subtree,
+`docs/work-units/<work-unit-id>/`, and must not directly edit core Work Unit
+control artifacts such as assignment, claim, decision, progress, proof,
+dispatch, card, or closeout files. Verify must not mutate candidate outputs,
+git, GitHub Project, Discord, or external systems.
 Official Work Unit lifecycle commands are a narrow exception: a `verify` Team
 Lead may publish source-backed `CHECKPOINT` or `RESULT_READY` proof through the
 foreground Company Ops commands after writing evidence. Those commands may
@@ -53,6 +55,8 @@ Acceptable evidence includes:
 - Test or validation output.
 - Reports or generated artifacts.
 - Review notes tied to the Assignment Packet.
+- Verification-only auxiliary artifacts under the same Work Unit artifact
+  subtree.
 
 Unacceptable evidence includes:
 

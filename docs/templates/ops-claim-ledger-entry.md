@@ -6,6 +6,10 @@ The Ops Claim Ledger records expected responsibility. It is not lifecycle
 truth, progress history, evidence storage, a dashboard database, or a recovery
 system.
 
+This is an internal responsibility artifact, not a user-facing UI. Owners and
+packaged users should normally inspect the GitHub Project dashboard, Work Card,
+Discord visibility cards, evidence, and Operations Lead decision instead.
+
 ## Claim Identity
 
 - Claim ref:

@@ -2682,7 +2682,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     if verify_mutation_result.returncode == 0:
         raise RuntimeError("verify handoff accepted mutation authority")
-    if "verify mode can only write its own evidence.md" not in verify_mutation_result.stderr:
+    if "verify mode can only write verification artifacts inside its own" not in verify_mutation_result.stderr:
         raise RuntimeError("verify mutation authority rejection did not explain the boundary")
 
     verify_evidence_spec = artifact_root.parent / "verify-evidence-handoff-spec.json"
@@ -2693,6 +2693,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "allowed_paths": [
                 "docs/work-units/WU-260606-906/evidence.md",
                 "docs/work-units/WU-260606-906/verification-artifacts/smoke.log",
+                "docs/work-units/WU-260606-906/ad-hoc-review/report.md",
             ],
             "allowed_surfaces": ["source"],
         },
@@ -2714,6 +2715,58 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         ]
     )
     require_success(verify_evidence_result, "verify handoff with scoped evidence artifact write")
+
+    verify_sibling_spec = artifact_root.parent / "verify-sibling-handoff-spec.json"
+    verify_sibling_data = {
+        **handoff_spec_data,
+        "mutation_authority": {
+            "mutation_allowed": True,
+            "allowed_paths": ["docs/work-units/WU-260606-OTHER/evidence.md"],
+            "allowed_surfaces": ["source"],
+        },
+    }
+    write_json(verify_sibling_spec, verify_sibling_data)
+    verify_sibling_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(verify_sibling_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+        ]
+    )
+    if verify_sibling_result.returncode == 0:
+        raise RuntimeError("verify handoff accepted writes to a different Work Unit artifact subtree")
+
+    verify_control_spec = artifact_root.parent / "verify-control-handoff-spec.json"
+    verify_control_data = {
+        **handoff_spec_data,
+        "mutation_authority": {
+            "mutation_allowed": True,
+            "allowed_paths": ["docs/work-units/WU-260606-906/decision.md"],
+            "allowed_surfaces": ["source"],
+        },
+    }
+    write_json(verify_control_spec, verify_control_data)
+    verify_control_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(verify_control_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+        ]
+    )
+    if verify_control_result.returncode == 0:
+        raise RuntimeError("verify handoff accepted direct writes to core Work Unit control artifacts")
 
     goal_mutation_spec = artifact_root.parent / "goal-mutation-handoff-spec.json"
     goal_mutation_data = {
