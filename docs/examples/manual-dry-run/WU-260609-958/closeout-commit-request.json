@@ -1,0 +1,35 @@
+{
+  "artifact_hashes": {
+    "assignment.md": "b246a7648c3bd01322272b4215ccf19e449d4746a9ed431991985fdce6e259b0",
+    "claim.md": "67aed6c96856b718683f5f0e5f6025e7ed19cec61a2cb5eabad7acbbe6e2ab88",
+    "evidence.md": "0e08ad0061f9d41bee49292dba9f0c51db405ae7342f3cc3f2366067007e1bd5",
+    "progress.jsonl": "3e501bb9fb89067eb43446a578173ceb7784b14ec4345543dbd69652cbd14635",
+    "result_ready_proof_rows": [
+      "228fc275198965f671e9b28c2b884ee2be6fe1e4af3ba285fddd5d3dbaa61bd8"
+    ],
+    "visibility-proof.jsonl": "f384e7ac19dd717170d0126a383cf7f3680859a088d78910e73de00ee8fc15d2"
+  },
+  "autonomy_class": "deep_review_auto_eligible",
+  "decision": "accept",
+  "delegate_job_ref": "WU-260609-958:closeout-delegate",
+  "delegate_message_ref": "cli:company-ops-closeout-delegate-wu-260609-958:2026-06-09T12:05Z",
+  "delegate_session_ref": "company-ops-closeout-delegate-wu-260609-958",
+  "reason": "Delegated OL audit accepts the result. The assigned verification evidence maps to all done criteria, reports the non-clean tree as Work Unit artifact state rather than active source/doc edits, confirms canonical closeout delegate/delegate-wake naming on the active path, confirms fresh main OL delegate plus guarded closeout-only authority, and identifies no red-line or manual-required condition. The RESULT_READY proof id is present in visibility-proof.jsonl with readback_ok true, and artifact hashes match the canonical payload values.",
+  "red_line_check": {
+    "cost_bearing": "clear",
+    "critical_disagreement": "clear",
+    "destructive_action": "clear",
+    "evidence_missing_or_stale": "clear",
+    "external_public_customer": "clear",
+    "ops_deploy_db_migration": "clear",
+    "owner_intent_ambiguity": "clear",
+    "proof_or_hash_mismatch": "clear",
+    "security_credential_auth": "clear",
+    "status": "clear",
+    "unresolved_dependency": "clear"
+  },
+  "result_ready_proof_id": "WU-260609-958:team-detail:RESULT_READY:45806dbec7a4bda0",
+  "review_depth": "Read assignment.md, claim.md, evidence.md, progress.jsonl, pending decision.md, and visibility-proof.jsonl from the delegated refs; verified payload file hashes for assignment, claim, evidence, progress, and visibility proof; confirmed the RESULT_READY proof id exists with readback_ok true; assessed done criteria, remaining risks, and red-line categories from the source artifacts before guarded closeout.",
+  "source_ref": "docs/examples/manual-dry-run/WU-260609-958/evidence.md",
+  "work_unit_id": "WU-260609-958"
+}

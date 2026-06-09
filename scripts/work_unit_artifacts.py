@@ -565,12 +565,24 @@ def artifact_hashes_for_closeout_delegate(artifact_dir: Path, work_unit_id: str)
     }
 
 
-def guarded_closeout_contract(work_unit_id: str) -> dict[str, str]:
+def guarded_closeout_contract(
+    work_unit_id: str,
+    *,
+    artifact_root: Path,
+    team_target: str,
+    ops_target: str,
+) -> dict[str, str]:
     return {
         "command": (
             "python3 scripts/openclaw_company_ops.py work-unit closeout "
-            f"--work-unit-id {work_unit_id} --artifact-root <artifact-root> "
-            "--commit-request <json> --authority-role operations-lead-delegate --publish"
+            f"--work-unit-id {work_unit_id} --artifact-root {artifact_root} "
+            "--commit-request <json> --authority-role operations-lead-delegate "
+            f"--team-target {team_target} --ops-target {ops_target} "
+            "--channel discord --account default "
+            f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
+            f"--project-sync-ledger {DEFAULT_PROJECT_LEDGER} "
+            f"--project-sync-audit-log {DEFAULT_PROJECT_AUDIT_LOG} "
+            "--publish"
         ),
         "rule": "Fresh OL delegate may judge and publish only through guarded closeout.",
     }
@@ -629,6 +641,15 @@ def proof_has_event(proof_path: Path, work_unit: str, kind: str) -> bool:
     )
 
 
+def latest_visibility_target(artifact_dir: Path, work_unit: str, surface: str, fallback: str) -> str:
+    proof_log = artifact_dir / DEFAULT_PROOF_LOG_NAME
+    proof_rows, _warnings = proof_rows_for_work_unit(proof_log, work_unit)
+    for row in reversed(proof_rows):
+        if row.get("surface") == surface and row.get("target") and row.get("readback_ok") is not False:
+            return str(row["target"])
+    return fallback
+
+
 def build_closeout_delegate_payload(
     args: argparse.Namespace,
     item: dict[str, Any],
@@ -639,6 +660,8 @@ def build_closeout_delegate_payload(
     session_key = args.closeout_delegate_session_key or closeout_delegate_session_key(args.work_unit_id)
     args.closeout_delegate_session_key = session_key
     source_ref = args.source_ref or item["evidence_path"]
+    team_target = latest_visibility_target(artifact_dir, args.work_unit_id, "team-detail", "<team-detail-target>")
+    ops_target = latest_visibility_target(artifact_dir, args.work_unit_id, "ops-feed", "<ops-feed-target>")
     payload = {
         "protocol": "company_ops_closeout_delegate_wake_v1",
         "work_unit_id": args.work_unit_id,
@@ -670,7 +693,16 @@ def build_closeout_delegate_payload(
             "authority_role": "operations-lead-delegate",
             "allowed_agents": list(CLOSEOUT_DELEGATE_ALLOWED_AGENTS),
         },
-        "guarded_closeout_contract": guarded_closeout_contract(args.work_unit_id),
+        "targets": {
+            "team_detail": team_target,
+            "ops_feed": ops_target,
+        },
+        "guarded_closeout_contract": guarded_closeout_contract(
+            args.work_unit_id,
+            artifact_root=args.artifact_root,
+            team_target=team_target,
+            ops_target=ops_target,
+        ),
         "authority_boundary": CLOSEOUT_DELEGATE_AUTHORITY_BOUNDARY,
         "autonomy_classes": ["auto_eligible", "deep_review_auto_eligible", "manual_required"],
         "red_line_categories": list(CLOSEOUT_RED_LINE_CATEGORIES),

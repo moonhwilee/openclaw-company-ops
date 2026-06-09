@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "Scope is limited to the Assignment Packet and source artifacts.",
+    "criteria": "Evidence states whether active code/docs use canonical closeout delegate naming.; Evidence confirms the delegated closeout authority path is fresh main OL delegate plus guarded closeout.; Evidence confirms no files were edited by the Team Lead.; Team Lead submits RESULT_READY only through the source-backed result-ready command.",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "Verify that RESULT_READY wakes a fresh main closeout delegate and that guarded closeout publishes accept/revise/blocked without returning routine final write work to the foreground main OL.",
+    "kind": "ASSIGNED_DETAIL",
+    "needed": "",
+    "next": "Team Lead starts via canonical STARTED, then fresh dispatch. RESULT_READY should trigger closeout delegate wake.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "Result summary, evidence links, checks performed, remaining risks, blockers.",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "Read README.md, docs/operations-manual.md, docs/phase-5.8-stabilization-gate.md, scripts/work_unit_artifacts.py, and scripts/openclaw_closeout_delegate_sessions_send.py.; Confirm active code and docs use canonical closeout delegate/delegate-wake naming without reviewer fallback on the active path.; Confirm the delegated closeout authority path is fresh main OL delegate plus guarded closeout only.; Do not edit repository files.",
+    "source": "https://github.com/moonhwilee/openclaw-company-ops/issues/37",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260609-958"
+  }
+}

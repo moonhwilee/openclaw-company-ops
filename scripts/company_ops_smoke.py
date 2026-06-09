@@ -3425,7 +3425,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             artifact_dir / "visibility-proof.jsonl",
             proof_rows(
                 work_unit_id,
-                [("team-detail", "RESULT_READY", proof_id, "2026-06-07T01:35:00Z")],
+                [
+                    ("ops-feed", "ASSIGNED", f"{proof_id}-assigned", "2026-06-07T01:33:00Z"),
+                    ("team-detail", "RESULT_READY", proof_id, "2026-06-07T01:35:00Z"),
+                ],
             ),
         )
     write_jsonl(
@@ -3470,6 +3473,18 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout delegate payload did not derive a stable delegate session key")
     if "evidence.md" not in delegate_payload.get("artifact_hashes", {}):
         raise RuntimeError("closeout delegate payload did not bind evidence to an artifact hash")
+    guarded_contract = delegate_payload.get("guarded_closeout_contract", {}).get("command", "")
+    for required_fragment in (
+        "--team-target",
+        "--ops-target",
+        "--project-sync-field-map",
+        "--project-sync-ledger",
+        "--project-sync-audit-log",
+    ):
+        if required_fragment not in guarded_contract:
+            raise RuntimeError(f"closeout delegate guarded contract missing {required_fragment}")
+    if "<team-detail-target>" in guarded_contract or "<ops-feed-target>" in guarded_contract:
+        raise RuntimeError("closeout delegate guarded contract kept a target placeholder")
     if (delegate_wake_dir / "closeout-delegate-wake.json").exists():
         raise RuntimeError("closeout delegate wake dry-run wrote a wake record")
     if (delegate_wake_dir / "progress.jsonl").read_text(encoding="utf-8") != delegate_wake_progress_before:
