@@ -630,6 +630,11 @@ Additional default visibility cost:
 - Long Work Unit `Progress` dashboard cost: one small `progress.jsonl` append
   and changed-only `project-sync` update from source artifacts. This should not
   add a Team Lead, summary LLM call, daemon, or fallback state store.
+- Parallel lifecycle publishes may contend on the single Project sync lock.
+  Foreground lifecycle commands may perform a short bounded retry for that
+  mirror update. If the lock still does not clear, source proof remains valid
+  and the Project mirror is recovered later through foreground `project-sync`
+  apply/reconcile; do not invent fallback dashboard truth.
 - Short Work Unit dashboard display may use proof-derived lifecycle projection
   from local `visibility-proof.jsonl` when no `progress.jsonl` row exists. This
   is a mirror display only, should be a compact lifecycle label, and should not

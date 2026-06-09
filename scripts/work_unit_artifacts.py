@@ -13,6 +13,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -2954,7 +2955,16 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
         command.extend(["--ledger", args.project_sync_ledger])
     else:
         command.append("--no-ledger")
-    code, parsed, output = run_json_command(command)
+    attempts = 3
+    code = 1
+    parsed: dict[str, Any] = {}
+    output = ""
+    for attempt in range(attempts):
+        code, parsed, output = run_json_command(command)
+        if code == 0 or "project sync already running" not in output:
+            break
+        if attempt + 1 < attempts:
+            time.sleep(1.5)
     sync_state = parsed.get("sync_state")
     if not isinstance(sync_state, str) or not sync_state.strip():
         sync_state = "attempted_ok" if code == 0 else "failed"
