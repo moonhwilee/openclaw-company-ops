@@ -192,7 +192,7 @@ Recommended `#team-*` result-ready detail:
 ```text
 📦 [RESULT_READY] WU-YYMMDD-001 · 🧪 build-lab
 Result: Team Lead 결과가 제출되었고 Operations Lead 검토 대기 상태입니다.
-Evidence: docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md
+Evidence: docs/work-units/WU-YYMMDD-001/evidence.md
 Verification: Team Lead가 보고한 smoke와 diff-check가 통과했습니다.
 Risks: 추가 artifact 변경은 보고되지 않았습니다.
 Next: Operations Lead가 결과를 검토하고 ACCEPTED 또는 REVISE를 남깁니다.
@@ -204,7 +204,7 @@ Recommended `#team-*` Operations Lead review detail:
 ✅ [ACCEPTED] WU-YYMMDD-001 · 🧪 build-lab
 Decision: 금비 검토 결과, Team Lead 결과는 요청 범위와 검증 기준을 충족했습니다.
 Reason: evidence, smoke, repo state를 확인했고 추가 수정 요구는 없습니다.
-Evidence: docs/examples/manual-dry-run/WU-YYMMDD-001/decision.md
+Evidence: docs/work-units/WU-YYMMDD-001/decision.md
 Next: ops-feed에 주인님용 completion card를 남깁니다.
 ```
 
@@ -502,7 +502,7 @@ python3 scripts/openclaw_company_ops.py discord card \
   --problem "요청-완료 visibility 흐름이 실제로 보이는지 확인이 필요합니다." \
   --request "build-lab에 card composer smoke를 맡깁니다." \
   --criteria "ops-feed에는 내부 필드 없이 문제, 요청, 기준, 다음 액션이 보여야 합니다." \
-  --evidence "docs/examples/manual-dry-run/WU-260606-002/assignment.md" \
+  --evidence "docs/work-units/WU-260606-002/assignment.md" \
   --next "Team Lead가 실행 후 결과 요약을 보고합니다."
 ```
 
@@ -539,7 +539,7 @@ python3 scripts/openclaw_company_ops.py discord card \
   --work-unit-id WU-YYMMDD-001 \
   --team build-lab \
   --result "Evidence가 제출되었고 Operations Lead 검토 대기 상태입니다." \
-  --evidence "docs/examples/manual-dry-run/WU-YYMMDD-001/evidence.md" \
+  --evidence "docs/work-units/WU-YYMMDD-001/evidence.md" \
   --verification "smoke checks가 통과했습니다." \
   --next "Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다."
 ```
@@ -676,7 +676,7 @@ Recommended `#team-*` detail message:
 ```text
 📦 [RESULT_READY] WU-260606-001 · 🧪 build-lab
 Result: Demo thread handoff evidence가 제출되었고 금비 검토 대기 상태입니다.
-Evidence: docs/examples/manual-dry-run/WU-260606-001/evidence.md
+Evidence: docs/work-units/WU-260606-001/evidence.md
 Verification: Team Lead가 보고한 smoke가 통과했습니다.
 Next: Operations Lead가 ACCEPTED 또는 REVISE를 남깁니다.
 ```

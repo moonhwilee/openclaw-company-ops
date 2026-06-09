@@ -1,0 +1,33 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "docs/work-units/WU-260607-005/team-lead-result.md; docs/work-units/WU-260607-005/evidence.md",
+    "goal": "",
+    "kind": "RESULT_READY",
+    "needed": "",
+    "next": "Operations Lead reviews evidence and records decision.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "Phase 5.3 verify complete. Recommendation: accept.",
+    "risks": "",
+    "scope": "",
+    "source": "docs/work-units/WU-260607-005/team-lead-result.md",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "Compile, smoke, project-sync dry-run, and Project readback checks passed.",
+    "work_unit_id": "WU-260607-005"
+  },
+  "text": "📦 [RESULT_READY] WU-260607-005 · 🧪 build-lab\nResult: Phase 5.3 verify complete. Recommendation: accept.\nEvidence: docs/work-units/WU-260607-005/team-lead-result.md; docs/work-units/WU-260607-005/evidence.md\nVerification: Compile, smoke, project-sync dry-run, and Project readback checks passed.\nNext: Operations Lead reviews evidence and records decision."
+}

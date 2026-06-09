@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "All goal done criteria passed; change is small, documentation-only, and source-boundary preserving.",
+    "current_slice": "",
+    "decision": "ACCEPTED",
+    "elapsed": "",
+    "evidence": "docs/work-units/WU-260608-004/evidence.md",
+    "goal": "",
+    "kind": "COMPLETED",
+    "needed": "",
+    "next": "Keep Work Card visible for owner inspection; continue next workflow test on request.",
+    "next_checkpoint": "",
+    "outcome": "Accepted: result-ready inbox closeout checklist added to docs/operations-manual.md.",
+    "problem": "",
+    "reason": "",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "ops-feed",
+    "team": "revenue",
+    "team_final_review_kind": "ACCEPTED",
+    "verification": "Reviewed docs diff and ran git diff --check; checkpoint and result-ready proof were recorded.",
+    "work_unit_id": "WU-260608-004"
+  }
+}

@@ -323,7 +323,7 @@ note convention for each Work Unit.
 Suggested structure:
 
 ```text
-docs/examples/manual-dry-run/<work-unit-id>/
+docs/work-units/<work-unit-id>/
   assignment.md
   claim.md
   evidence.md
@@ -591,10 +591,10 @@ runtime, database, dashboard, command router, or recovery system.
 
 The first worked manual example lives in:
 
-- `docs/examples/manual-dry-run/WU-20260604-001/`
-- `docs/examples/manual-dry-run/WU-20260604-002/`
-- `docs/examples/manual-dry-run/WU-20260604-003/`
-- `docs/examples/manual-dry-run/WU-20260604-004/`
+- `docs/work-units/WU-20260604-001/`
+- `docs/work-units/WU-20260604-002/`
+- `docs/work-units/WU-20260604-003/`
+- `docs/work-units/WU-20260604-004/`
 
 ## Future Installation Path
 
@@ -653,19 +653,19 @@ The current setup is ready for a manual dry run when:
 
 The first manual dry run is documented at:
 
-- `docs/examples/manual-dry-run/WU-20260604-001/`
+- `docs/work-units/WU-20260604-001/`
 
 The second manual dry run is documented at:
 
-- `docs/examples/manual-dry-run/WU-20260604-002/`
+- `docs/work-units/WU-20260604-002/`
 
 The third manual dry run is documented at:
 
-- `docs/examples/manual-dry-run/WU-20260604-003/`
+- `docs/work-units/WU-20260604-003/`
 
 The fourth manual dry run is documented at:
 
-- `docs/examples/manual-dry-run/WU-20260604-004/`
+- `docs/work-units/WU-20260604-004/`
 
 The first small Work Unit artifact generator exists as
 `scripts/work_unit_artifacts.py`, and the first repo-local Ops Claim Ledger CLI

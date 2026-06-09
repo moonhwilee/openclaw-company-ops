@@ -950,7 +950,7 @@ The first manual dry run is:
 
 - Work Unit: `WU-20260604-001`
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/4
-- Artifacts: `docs/examples/manual-dry-run/WU-20260604-001/`
+- Artifacts: `docs/work-units/WU-20260604-001/`
 
 Use it as a worked example of the manual loop, not as a runtime implementation.
 
@@ -958,21 +958,21 @@ The second manual dry run is:
 
 - Work Unit: `WU-20260604-002`
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/6
-- Artifacts: `docs/examples/manual-dry-run/WU-20260604-002/`
+- Artifacts: `docs/work-units/WU-20260604-002/`
 - Output: `docs/discord-event-visibility.md`
 
 The third manual dry run is:
 
 - Work Unit: `WU-20260604-003`
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/8
-- Artifacts: `docs/examples/manual-dry-run/WU-20260604-003/`
+- Artifacts: `docs/work-units/WU-20260604-003/`
 - Output: `docs/company-dashboard-timing.md`
 
 The fourth manual dry run is:
 
 - Work Unit: `WU-20260604-004`
 - Work Card: https://github.com/moonhwilee/openclaw-company-ops/issues/10
-- Artifacts: `docs/examples/manual-dry-run/WU-20260604-004/`
+- Artifacts: `docs/work-units/WU-20260604-004/`
 - Output: `docs/implementation-setup-guide.md`
 
 The active post-setup plan is:

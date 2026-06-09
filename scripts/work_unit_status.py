@@ -13,7 +13,7 @@ from typing import Any
 from ops_claim_ledger import DEFAULT_LEDGER, get_claims, load_ledger
 
 
-DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
+DEFAULT_ARTIFACT_ROOT = Path("docs/work-units")
 REQUIRED_ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
 PROGRESS_ARTIFACT = "progress.jsonl"
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")

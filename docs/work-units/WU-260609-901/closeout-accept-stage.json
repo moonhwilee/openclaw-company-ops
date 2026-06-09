@@ -1,0 +1,105 @@
+{
+  "card_paths": {
+    "owner_card": "docs/work-units/WU-260609-901/ops-completed-card.json",
+    "team_card": "docs/work-units/WU-260609-901/team-accept-card.json"
+  },
+  "commit_request_present": true,
+  "decided_at": "2026-06-09T02:49:30Z",
+  "decision": "accept",
+  "decision_path": "docs/work-units/WU-260609-901/decision.md",
+  "owner_publish": {
+    "card_id": "b71b4a5f154be6d3",
+    "channel": "discord",
+    "discord_message_id": "1513736806590451843",
+    "discord_timestamp": "2026-06-09T02:49:38.561000+00:00",
+    "dry_run": false,
+    "error": "",
+    "kind": "COMPLETED",
+    "proof_id": "WU-260609-901:ops-feed:COMPLETED:b71b4a5f154be6d3",
+    "proof_version": 1,
+    "readback_at": "2026-06-09T02:49:41Z",
+    "readback_ok": true,
+    "readback_result": {
+      "action": "read",
+      "dry_run": false,
+      "handled_by": "plugin",
+      "matched": true,
+      "matched_message_id": "1513736806590451843",
+      "message_id_candidates": [
+        "1513736806590451843",
+        "1512415385528307864",
+        "1513733195399434340",
+        "1512415385528307864",
+        "1513733032333279284"
+      ]
+    },
+    "send_result": {
+      "action": "send",
+      "dry_run": false,
+      "handled_by": "core",
+      "message_id_candidates": [
+        "1513736806590451843",
+        "1513736806590451843",
+        "1513736806590451843",
+        "1513736806590451843"
+      ]
+    },
+    "sent_at": "2026-06-09T02:49:38Z",
+    "surface": "ops-feed",
+    "target": "channel:1512413593142956153",
+    "team": "build-lab",
+    "thread_id": "",
+    "transition_at": "2026-06-09T02:49:30Z",
+    "work_unit_id": "WU-260609-901"
+  },
+  "project_sync_ok": true,
+  "recorded_by": "operations-lead",
+  "status": "published",
+  "team_publish": {
+    "card_id": "5986e70451981b1b",
+    "channel": "discord",
+    "discord_message_id": "1513736783370653797",
+    "discord_timestamp": "2026-06-09T02:49:33.025000+00:00",
+    "dry_run": false,
+    "error": "",
+    "kind": "ACCEPTED",
+    "proof_id": "WU-260609-901:team-detail:ACCEPTED:5986e70451981b1b",
+    "proof_version": 1,
+    "readback_at": "2026-06-09T02:49:35Z",
+    "readback_ok": true,
+    "readback_result": {
+      "action": "read",
+      "dry_run": false,
+      "handled_by": "plugin",
+      "matched": true,
+      "matched_message_id": "1513736783370653797",
+      "message_id_candidates": [
+        "1513736783370653797",
+        "1512415385528307864",
+        "1513734920315342869",
+        "1512415385528307864",
+        "1513733362135859318"
+      ]
+    },
+    "send_result": {
+      "action": "send",
+      "dry_run": false,
+      "handled_by": "core",
+      "message_id_candidates": [
+        "1513736783370653797",
+        "1513736783370653797",
+        "1513736783370653797",
+        "1513736783370653797"
+      ]
+    },
+    "sent_at": "2026-06-09T02:49:33Z",
+    "surface": "team-detail",
+    "target": "channel:1512413731752116335",
+    "team": "build-lab",
+    "thread_id": "",
+    "transition_at": "2026-06-09T02:49:30Z",
+    "work_unit_id": "WU-260609-901"
+  },
+  "version": 1,
+  "work_unit_id": "WU-260609-901"
+}

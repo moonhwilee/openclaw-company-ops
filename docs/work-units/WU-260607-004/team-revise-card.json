@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "revise",
+    "elapsed": "",
+    "evidence": "docs/work-units/WU-260607-004/evidence.md; docs/work-units/WU-260607-004/decision.md",
+    "goal": "",
+    "kind": "REVISE",
+    "needed": "",
+    "next": "Keep Work Card open and add formal revise closeout behavior before rerun",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "Core live path works, but current card/proof model lacks a valid owner-facing closeout for REVISE, so the workflow cannot be accepted without semantic workaround.",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "Assignment order, Progress, and Project sync passed; full proof validation still cannot pass for REVISE because owner closeout event is undefined.",
+    "work_unit_id": "WU-260607-004"
+  }
+}

@@ -19,7 +19,7 @@ from typing import Any
 
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = SCRIPT_PATH.parents[2]
-DEFAULT_WORK_UNIT_ROOT = REPO_ROOT / "docs" / "examples" / "manual-dry-run"
+DEFAULT_WORK_UNIT_ROOT = REPO_ROOT / "docs" / "work-units"
 WORK_UNIT_RE = re.compile(r"\bWU-[A-Z0-9]+(?:-[A-Z0-9]+)+\b")
 
 
@@ -289,7 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--work-unit-root",
         type=Path,
         default=DEFAULT_WORK_UNIT_ROOT,
-        help="Work Unit artifact root; default: docs/examples/manual-dry-run",
+        help="Work Unit artifact root; default: docs/work-units",
     )
     return parser
 

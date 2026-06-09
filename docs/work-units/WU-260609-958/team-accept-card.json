@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "ACCEPTED",
+    "elapsed": "",
+    "evidence": "docs/work-units/WU-260609-958/evidence.md",
+    "goal": "",
+    "kind": "ACCEPTED",
+    "needed": "",
+    "next": "Owner may inspect the accepted Work Unit.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "Delegated OL audit accepts the result. The assigned verification evidence maps to all done criteria, reports the non-clean tree as Work Unit artifact state rather than active source/doc edits, confirms canonical closeout delegate/delegate-wake naming on the active path, confirms fresh main OL delegate plus guarded closeout-only authority, and identifies no red-line or manual-required condition. The RESULT_READY proof id is present in visibility-proof.jsonl with readback_ok true, and artifact hashes match the canonical payload values.",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260609-958"
+  }
+}

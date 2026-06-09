@@ -112,7 +112,7 @@ openclaw-company-ops/
   .github/ISSUE_TEMPLATE/
   docs/
   docs/templates/
-  docs/examples/manual-dry-run/
+  docs/work-units/
 ```
 
 Recommended private runtime root:
@@ -376,7 +376,7 @@ Every Work Unit needs four artifact classes:
 For public-safe examples, use:
 
 ```text
-docs/examples/manual-dry-run/<work-unit-id>/
+docs/work-units/<work-unit-id>/
   assignment.md
   claim.md
   evidence.md

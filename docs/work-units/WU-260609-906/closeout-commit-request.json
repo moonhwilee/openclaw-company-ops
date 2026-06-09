@@ -1,0 +1,23 @@
+{
+  "artifact_hashes": {
+    "assignment.md": "cd0c726f64369c05ccaeb289cb159542b73295034d59337f364ab1767dba2907",
+    "claim.md": "0906abe14f2a25795ca84b2e17b483aa01acb873211dc7b2265fc92ff79fd2b4",
+    "evidence.md": "0e8ca19fcdfb77e35e30f2dd074c9a3519af24513721dea64dc43f352d06c420",
+    "progress.jsonl": "d734a3e2370266d03bcc5c91ff25f89da910e981e56e6765af9c6e15369f7cc7",
+    "result_ready_proof_rows": [
+      "ea7996518bb76a9027f98e5a2f51a3f9519e97e412618b011d219dde8d708458"
+    ],
+    "visibility-proof.jsonl": "e9be7df4054a0a94c9a054fbd2d66d81fd02c317a610d967fb45cace7b14df3d"
+  },
+  "autonomy_class": "manual_required",
+  "decision": "blocked",
+  "reason": "Fail closed. The evidence artifact contains the requested concise Phase 5.8.5 checklist and covers start, fresh dispatch, result-ready reviewer wake, guarded closeout commit-request, partial resume, and negative fail-closed checks. Top-level artifact file hashes matched the review payload. However, the RESULT_READY proof row in visibility-proof.jsonl did not match the payload result_ready_proof_rows hash when hashed from the actual source row, and source artifact chronology is conflicting: assignment.md, evidence.md, decision.md, and claim.md contain 2026-06-09T03:16:00Z created/updated timestamps after the 2026-06-09T03:12:43Z RESULT_READY proof and 2026-06-09T03:12:50Z closeout review payload creation. Manual Operations Lead judgment is required before any final closeout.",
+  "red_line_check": "manual_required",
+  "result_ready_proof_id": "WU-260609-906:team-detail:RESULT_READY:18e41764d91c7772",
+  "review_depth": "Verified payload-listed artifact files and SHA-256 hashes; read assignment.md, claim.md, evidence.md, progress.jsonl, visibility-proof.jsonl, dispatch.json, and pending decision.md; checked evidence against assignment done/verification criteria and Phase 5.8.5/operations manual refs; verified RESULT_READY proof id/readback presence; detected result-ready proof-row hash mismatch and conflicting source artifact timestamps.",
+  "reviewer_job_ref": "WU-260609-906:closeout-review",
+  "reviewer_message_ref": "cli:company-ops-closeout-review-execution:2026-06-09T03:13:00Z",
+  "reviewer_session_ref": "company-ops-closeout-reviewer-wu-260609-906",
+  "source_ref": "docs/work-units/WU-260609-906/evidence.md",
+  "work_unit_id": "WU-260609-906"
+}

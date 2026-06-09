@@ -15,7 +15,7 @@ from result_ready_gate import result_ready_gate
 
 
 DEFAULT_LEDGER = Path("~/.openclaw/state/openclaw-company-ops/claims/ledger.json")
-DEFAULT_ARTIFACT_ROOT = Path("docs/examples/manual-dry-run")
+DEFAULT_ARTIFACT_ROOT = Path("docs/work-units")
 LEDGER_VERSION = 1
 WORK_UNIT_RE = re.compile(r"^WU-\d{6}-\d{3}$")
 CLAIM_RE = re.compile(r"^CLAIM-.+")

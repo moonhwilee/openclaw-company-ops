@@ -152,7 +152,7 @@ guess targets, or grant permissions on the user's behalf.
 - [Visibility Card Implementation Plan](docs/visibility-card-implementation-plan.md)
 - [Company Dashboard Timing](docs/company-dashboard-timing.md)
 - [Post-Setup Realization Plan](docs/post-setup-plan.md)
-- [Manual Dry Run Examples](docs/examples/manual-dry-run/README.md)
+- [Work Unit Artifacts](docs/work-units/README.md)
 
 ## Project Rules
 

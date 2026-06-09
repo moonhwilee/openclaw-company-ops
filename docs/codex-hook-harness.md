@@ -248,7 +248,7 @@ Purpose: stop premature completion reporting.
 The Stop hook should look for active Work Unit context before enforcing.
 Possible signals:
 
-- changed files under `docs/examples/manual-dry-run/WU-*`;
+- changed files under `docs/work-units/WU-*`;
 - an Assignment Packet path in the current task;
 - a Work Unit id in current artifact paths;
 - a known Work Card link in current evidence.

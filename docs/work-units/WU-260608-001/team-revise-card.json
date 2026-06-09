@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "REVISE",
+    "elapsed": "",
+    "evidence": "docs/work-units/WU-260608-001/evidence.md",
+    "goal": "",
+    "kind": "REVISE",
+    "needed": "",
+    "next": "Open a small docs-only follow-up to add explicit doctor/preflight read-only wording to README.md and docs/operations-manual.md.",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "No direct contradiction was found, but README.md and docs/operations-manual.md do not explicitly name doctor/preflight as read-only/non-mutating the way docs/setup-guide.md does.",
+    "report": "",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "",
+    "source": "",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260608-001"
+  }
+}

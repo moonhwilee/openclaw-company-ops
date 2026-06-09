@@ -2298,7 +2298,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         "requested_by": "operations-lead",
         "source_refs": ["local-smoke://phase-5.5b/draft-handoff"],
         "no_go": ["Do not publish from the draft command."],
-        "target_paths": ["docs/examples/manual-dry-run/WU-260607-206/assignment.md"],
+        "target_paths": ["docs/work-units/WU-260607-206/assignment.md"],
     }
     write_json(draft_handoff_spec, draft_handoff_data)
     draft_handoff_result = run_command(
@@ -3498,7 +3498,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             {
                 "work_unit_id": "WU-260607-106",
                 "transition_kind": "result_ready",
-                "source_ref": "docs/examples/manual-dry-run/WU-260607-106/missing-result.md",
+                "source_ref": "docs/work-units/WU-260607-106/missing-result.md",
                 "transition_at": "2026-06-07T01:25:00Z",
             }
         ],
@@ -4049,7 +4049,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--phase",
             "invalid source smoke",
             "--source-ref",
-            "docs/examples/manual-dry-run/WU-260607-107/missing-source.md",
+            "docs/work-units/WU-260607-107/missing-source.md",
             "--transition-at",
             "2026-06-07T01:26:00Z",
         ]

@@ -1430,7 +1430,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_card.add_argument(
         "--project-sync-artifact-root",
-        default="docs/examples/manual-dry-run",
+        default="docs/work-units",
         help="Artifact root passed to project-sync one-shot",
     )
     publish_card.add_argument(
@@ -1485,7 +1485,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_sequence.add_argument(
         "--project-sync-artifact-root",
-        default="docs/examples/manual-dry-run",
+        default="docs/work-units",
         help="Artifact root passed to project-sync one-shot",
     )
     publish_sequence.add_argument(

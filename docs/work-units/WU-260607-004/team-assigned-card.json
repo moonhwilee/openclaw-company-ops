@@ -1,0 +1,32 @@
+{
+  "card": {
+    "cause": "",
+    "caution": "",
+    "criteria": "Recommend accept/revise/hold/reject based only on concrete evidence; no dashboard/Discord/status claim as source truth.",
+    "criteria_result": "",
+    "current_slice": "",
+    "decision": "",
+    "elapsed": "",
+    "evidence": "",
+    "goal": "Verify the current Company Ops live operating path after Progress dashboard updates.",
+    "kind": "ASSIGNED_DETAIL",
+    "needed": "",
+    "next": "Team Lead verify-only execution",
+    "next_checkpoint": "",
+    "outcome": "",
+    "problem": "",
+    "reason": "",
+    "report": "Result summary, checks performed, evidence mapping, risks, recommendation.",
+    "request": "",
+    "result": "",
+    "risks": "",
+    "scope": "Review WU-260607-004 artifacts, Discord proof, Project sync, Progress derivation, deterministic checks, and return criterion-by-criterion evidence mapping. No source edits.",
+    "source": "docs/work-units/WU-260607-004/assignment.md",
+    "status": "",
+    "surface": "team-detail",
+    "team": "build-lab",
+    "team_final_review_kind": "",
+    "verification": "",
+    "work_unit_id": "WU-260607-004"
+  }
+}

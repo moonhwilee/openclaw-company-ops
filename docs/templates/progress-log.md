@@ -23,7 +23,7 @@ Each row is a JSON object:
   "show_round": false,
   "current_slice": "project-sync derivation",
   "next_checkpoint": "2026-06-07T04:00:00+09:00",
-  "source_ref": "docs/examples/manual-dry-run/WU-260607-999/progress.jsonl",
+  "source_ref": "docs/work-units/WU-260607-999/progress.jsonl",
   "proof_ref": "",
   "transition_at": "2026-06-06T18:00:00Z",
   "recorded_by": "operations-lead"
