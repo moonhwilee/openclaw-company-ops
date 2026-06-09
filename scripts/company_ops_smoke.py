@@ -1919,7 +1919,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError(f"project sync dry-run expected Result Ready status, got {fields.get('Status')}")
     if fields.get("Evidence present") != "yes":
         raise RuntimeError("project sync dry-run did not mark evidence present")
-    if fields.get("Progress") != "2/7 · project-sync derivation":
+    if fields.get("Progress") != "P2/7 · project-sync derivation":
         raise RuntimeError(
             f"project sync dry-run did not derive Progress from progress artifact: {fields.get('Progress')}"
         )
@@ -2317,7 +2317,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     require_success(show_round_result, "project sync explicit round progress dry-run")
     show_round_fields = json.loads(show_round_result.stdout)["work_units"][0]["desired_fields"]
-    if show_round_fields.get("Progress") != "R1 · 3/3 · verify operating path":
+    if show_round_fields.get("Progress") != "R1 · P3/3 · verify operating path":
         raise RuntimeError(
             f"project sync dry-run did not format explicit round first: {show_round_fields.get('Progress')}"
         )
@@ -2375,7 +2375,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     require_success(goal_round_result, "project sync automatic goal round progress dry-run")
     goal_round_fields = json.loads(goal_round_result.stdout)["work_units"][0]["desired_fields"]
-    if goal_round_fields.get("Progress") != "R2 · 1/4 · converge implementation":
+    if goal_round_fields.get("Progress") != "R2 · P1/4 · converge implementation":
         raise RuntimeError(
             f"project sync dry-run did not auto-display goal round: {goal_round_fields.get('Progress')}"
         )
@@ -2430,10 +2430,86 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("checkpoint dry-run did not create a CHECKPOINT card")
     if checkpoint_payload.get("card", {}).get("rendered_progress_summary") != goal_round_fields.get("Progress"):
         raise RuntimeError("checkpoint dry-run rendered Progress does not match Project Progress")
-    if "Progress: R2 · 1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
+    if "Progress: R2 · P1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
         raise RuntimeError("checkpoint dry-run did not render Project Progress in the first body line")
     if checkpoint_payload.get("card", {}).get("clamp_version") != "progress-display-v1":
         raise RuntimeError("checkpoint dry-run did not preserve the progress display clamp version")
+    checkpoint_unknown_total = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(checkpoint_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "Goal loop checkpoint with unknown total is ready.",
+            "--current-slice",
+            "converge implementation",
+            "--next",
+            "Continue the next goal slice.",
+            "--mode",
+            "goal",
+            "--round",
+            "2",
+            "--phase-index",
+            "2",
+            "--phase",
+            "converge implementation",
+            "--source-ref",
+            "local-smoke://checkpoint",
+            "--transition-at",
+            "2026-06-06T12:56:00Z",
+            "--format",
+            "json",
+            "--dry-run",
+        ]
+    )
+    require_success(checkpoint_unknown_total, "work-unit checkpoint unknown total phase dry-run")
+    unknown_total_payload = json.loads(checkpoint_unknown_total.stdout)
+    if unknown_total_payload.get("card", {}).get("rendered_progress_summary") != "R2 · P2 · converge implementation":
+        raise RuntimeError("checkpoint dry-run did not render unknown-total phase as P<phase>")
+    checkpoint_missing_round = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(checkpoint_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "Goal loop checkpoint is missing round.",
+            "--current-slice",
+            "converge implementation",
+            "--next",
+            "Continue the next goal slice.",
+            "--mode",
+            "goal",
+            "--phase-index",
+            "2",
+            "--phase",
+            "converge implementation",
+            "--source-ref",
+            "local-smoke://checkpoint",
+            "--transition-at",
+            "2026-06-06T12:56:30Z",
+            "--format",
+            "json",
+            "--dry-run",
+        ]
+    )
+    if checkpoint_missing_round.returncode == 0:
+        raise RuntimeError("goal checkpoint accepted missing round metadata")
+    if "goal progress requires --round" not in checkpoint_missing_round.stderr:
+        raise RuntimeError("goal checkpoint missing-round rejection did not explain the metadata requirement")
     after_checkpoint = checkpoint_progress.read_text(encoding="utf-8") if checkpoint_progress.exists() else ""
     if after_checkpoint != before_checkpoint:
         raise RuntimeError("checkpoint dry-run mutated progress.jsonl")
@@ -2478,9 +2554,9 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     require_success(verify_checkpoint, "work-unit checkpoint verify display dry-run")
     verify_payload = json.loads(verify_checkpoint.stdout)
-    if verify_payload.get("card", {}).get("rendered_progress_summary") != "1/3 · positioning note":
+    if verify_payload.get("card", {}).get("rendered_progress_summary") != "P1/3 · positioning note":
         raise RuntimeError("verify checkpoint should prefer current_slice and suppress round display")
-    if "Progress: 1/3 · positioning note" not in verify_payload.get("text", ""):
+    if "Progress: P1/3 · positioning note" not in verify_payload.get("text", ""):
         raise RuntimeError("verify checkpoint did not render Project Progress in Discord text")
 
     long_phase = "this is a deliberately long progress label that should be clamped for mobile visibility"
@@ -2606,8 +2682,35 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     if verify_mutation_result.returncode == 0:
         raise RuntimeError("verify handoff accepted mutation authority")
-    if "verify mode cannot grant mutation authority" not in verify_mutation_result.stderr:
+    if "verify mode can only write its own evidence.md/verification.md artifact" not in verify_mutation_result.stderr:
         raise RuntimeError("verify mutation authority rejection did not explain the boundary")
+
+    verify_evidence_spec = artifact_root.parent / "verify-evidence-handoff-spec.json"
+    verify_evidence_data = {
+        **handoff_spec_data,
+        "mutation_authority": {
+            "mutation_allowed": True,
+            "allowed_paths": ["docs/work-units/WU-260606-906/evidence.md"],
+            "allowed_surfaces": ["source"],
+        },
+    }
+    write_json(verify_evidence_spec, verify_evidence_data)
+    verify_evidence_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(verify_evidence_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(verify_evidence_result, "verify handoff with scoped evidence artifact write")
 
     goal_mutation_spec = artifact_root.parent / "goal-mutation-handoff-spec.json"
     goal_mutation_data = {
@@ -4610,7 +4713,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "--artifact-root",
             str(artifact_root),
             "--result",
-            "Duplicate RESULT_READY should fail before publish.",
+            "Duplicate RESULT_READY retry should be idempotent.",
             "--evidence",
             str(ready_late / "evidence.md"),
             "--verification",
@@ -4622,12 +4725,14 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "json",
         ]
     )
-    if duplicate_result_ready.returncode == 0:
-        raise RuntimeError("result-ready publish accepted duplicate RESULT_READY without --force")
-    if "RESULT_READY proof already exists" not in duplicate_result_ready.stderr:
-        raise RuntimeError("duplicate RESULT_READY failure did not explain the existing proof guard")
+    require_success(duplicate_result_ready, "result-ready duplicate retry is idempotent")
+    duplicate_payload = json.loads(duplicate_result_ready.stdout)
+    if duplicate_payload.get("status") != "already-result-ready":
+        raise RuntimeError("duplicate RESULT_READY retry did not report already-result-ready")
+    if duplicate_payload.get("would_publish_result_ready") is not False:
+        raise RuntimeError("duplicate RESULT_READY retry reported a publish mutation")
     if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
-        raise RuntimeError("duplicate RESULT_READY guard mutated visibility proof")
+        raise RuntimeError("duplicate RESULT_READY idempotency guard mutated visibility proof")
 
     decision_before = (ready_late / "decision.md").read_text(encoding="utf-8")
     missing_authority_closeout = run_command(

@@ -1156,14 +1156,14 @@ Slice A, two-line progress card layout:
   existing order: optional goal/convergence round, optional phase index/total,
   then `current_slice` or `phase`. Examples:
   - `Progress: positioning note`;
-  - `Progress: 1/3 · positioning note`;
-  - `Progress: R1 · 1/3 · positioning note`.
+  - `Progress: P1/3 · positioning note`;
+  - `Progress: R1 · P1/3 · positioning note`;
 - Do not move round or phase count into the header for this phase. Keep the
   header stable and put the dashboard-style Progress text in the body.
 - Treat `phase`, `current_slice`, round, and phase count as display inputs, not
-  parser inputs. Round and phase count are optional; do not fabricate them when
-  a Work Unit only has a current slice. Round display is suppressed outside
-  round-based `goal` or `convergence` work even if a stale/provided
+  parser inputs. Goal/convergence progress rows must carry round and phase
+  index metadata; phase total remains optional. Round display is suppressed
+  outside round-based `goal` or `convergence` work even if a stale/provided
   `show_round` flag is present.
 
 Slice B, icon and clamping rules:

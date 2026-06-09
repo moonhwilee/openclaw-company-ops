@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from progress_display import render_progress_display, should_show_round
+from progress_display import ROUND_VISIBLE_MODES, render_progress_display, should_show_round
 from result_ready_gate import result_ready_gate
 
 
@@ -222,6 +222,17 @@ def progress_row_from_args(
         "transition_at": transition_at,
         "recorded_by": args.recorded_by,
     }
+
+
+def validate_progress_metadata(row: dict[str, Any]) -> str:
+    mode = normalized_state(row.get("mode"))
+    if mode not in ROUND_VISIBLE_MODES:
+        return ""
+    if not str(row.get("round") or "").strip():
+        return f"{mode} progress requires --round"
+    if not str(row.get("phase_index") or "").strip():
+        return f"{mode} progress requires --phase-index"
+    return ""
 
 
 def append_progress_row(output_dir: Path, row: dict[str, Any]) -> Path:
@@ -460,6 +471,13 @@ def spec_string_list_value(value: Any, *, key: str) -> list[str]:
     return [item for item in items if item]
 
 
+def is_verify_output_path(path: str, work_unit_id: str) -> bool:
+    normalized = path.strip().strip("`").replace("\\", "/")
+    return normalized.endswith(f"/{work_unit_id}/evidence.md") or normalized.endswith(
+        f"/{work_unit_id}/verification.md"
+    )
+
+
 def normalize_mutation_authority(spec: dict[str, Any], mode: str) -> dict[str, Any]:
     raw = spec.get("mutation_authority")
     if raw is None:
@@ -506,14 +524,27 @@ def normalize_mutation_authority(spec: dict[str, Any], mode: str) -> dict[str, A
         or bool(allowed_paths)
         or bool(allowed_surfaces)
     )
-    if mode == "verify" and grants_mutation:
-        raise ValueError("verify mode cannot grant mutation authority")
     if (external_mutation_allowed or commit_push_allowed or allowed_paths or allowed_surfaces) and not mutation_allowed:
         raise ValueError("allowed mutation scope requires mutation_allowed=true")
     if commit_push_allowed and "git" not in allowed_surfaces:
         raise ValueError("commit_push_allowed requires allowed_surfaces to include git")
     if external_mutation_allowed and not ({"project", "discord", "external"} & set(allowed_surfaces)):
         raise ValueError("external_mutation_allowed requires an external allowed surface")
+    if mode == "verify" and grants_mutation:
+        work_unit = optional_spec_text(spec, "work_unit_id")
+        verify_output_only = (
+            mutation_allowed
+            and not external_mutation_allowed
+            and not commit_push_allowed
+            and set(allowed_surfaces) <= {"source"}
+            and bool(allowed_paths)
+            and all(is_verify_output_path(path, work_unit) for path in allowed_paths)
+        )
+        if not verify_output_only:
+            raise ValueError(
+                "verify mode can only write its own evidence.md/verification.md artifact; "
+                "it cannot mutate candidate outputs, git, Project, Discord, or external surfaces"
+            )
 
     return {
         "mutation_allowed": mutation_allowed,
@@ -1953,9 +1984,11 @@ Team Lead OpenClaw Agent for a delegated Work Unit.
 
 Mode boundary:
 
-- `verify` is read-only. Do not grant source mutation authority in verify mode.
-- If the Team Lead must create or update `evidence.md`, use `goal` mode with
-  allowed paths scoped to that Work Unit artifact.
+- `verify` is read-only with respect to the candidate output being checked.
+- `verify` may write its own Work Unit `evidence.md` or `verification.md` when
+  that path is explicitly allowed.
+- `verify` must not mutate candidate outputs, git, GitHub Project, Discord, or
+  external systems.
 
 ## Protocol Capsule
 
@@ -2717,6 +2750,10 @@ def append_progress(args: argparse.Namespace) -> int:
         )
         return 1
     row = progress_row_from_args(args, transition_at=args.transition_at or utc_now_iso())
+    metadata_error = validate_progress_metadata(row)
+    if metadata_error:
+        print(f"error: {metadata_error}", file=sys.stderr)
+        return 1
     source_failures = source_ref_failures_for_row(output_dir, row)
     if source_failures:
         print_gate_failure(
@@ -2935,10 +2972,10 @@ def started_progress_row(args: argparse.Namespace, *, transition_at: str, proof_
         "transition_kind": "started",
         "mode": args.mode.strip().lower(),
         "phase": args.phase,
-        "phase_index": "",
-        "phase_total": "",
-        "round": "",
-        "show_round": False,
+        "phase_index": args.phase_index,
+        "phase_total": args.phase_total,
+        "round": args.round,
+        "show_round": should_show_round(args.mode.strip().lower(), bool(args.round)),
         "current_slice": args.current_slice,
         "next_checkpoint": args.next_checkpoint,
         "source_ref": args.source_ref,
@@ -3120,10 +3157,10 @@ def dispatch_progress_row(
         "transition_kind": "dispatched",
         "mode": mode.strip().lower(),
         "phase": args.phase,
-        "phase_index": "",
-        "phase_total": "",
-        "round": "",
-        "show_round": False,
+        "phase_index": args.phase_index,
+        "phase_total": args.phase_total,
+        "round": args.round,
+        "show_round": should_show_round(mode, bool(args.round)),
         "current_slice": args.current_slice,
         "next_checkpoint": args.next_checkpoint,
         "source_ref": args.source_ref,
@@ -3356,6 +3393,8 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         return 1
     if not args.agent:
         args.agent = args.team
+    if not args.mode:
+        args.mode = clean_markdown_value(str(assignment["fields"].get("mode") or ""))
     default_session_key = normalized_session_key(args.work_unit_id, args.team)
     session_key_provided = bool(args.session_key)
     if not args.session_key:
@@ -3442,6 +3481,10 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
                 return 1
 
     row = dispatch_progress_row(args, transition_at=transition_at, assignment=assignment)
+    metadata_error = validate_progress_metadata(row)
+    if metadata_error:
+        print(f"error: {metadata_error}", file=sys.stderr)
+        return 1
     record = dispatch_record(args, assignment, artifact_dir, transition_at, accepted_proof)
 
     payload = {
@@ -3518,6 +3561,8 @@ def start_work_unit(args: argparse.Namespace) -> int:
     if not args.team:
         print("error: start requires --team when assignment.md does not name a Team Lead", file=sys.stderr)
         return 1
+    if not args.mode:
+        args.mode = clean_markdown_value(str(assignment["fields"].get("mode") or ""))
     if not args.source_ref:
         print("error: start requires --source-ref", file=sys.stderr)
         return 1
@@ -3551,6 +3596,10 @@ def start_work_unit(args: argparse.Namespace) -> int:
         return 1
 
     projected_row = started_progress_row(args, transition_at=transition_at)
+    metadata_error = validate_progress_metadata(projected_row)
+    if metadata_error:
+        print(f"error: {metadata_error}", file=sys.stderr)
+        return 1
     if args.dry_run:
         payload = {
             "dry_run": True,
@@ -3625,6 +3674,10 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
     args.transition_at = transition_at
     proof_log = args.proof_log.expanduser() if args.proof_log else output_dir / DEFAULT_PROOF_LOG_NAME
     projected_row = progress_row_from_args(args, transition_at=transition_at, proof_ref="")
+    metadata_error = validate_progress_metadata(projected_row)
+    if metadata_error:
+        print(f"error: {metadata_error}", file=sys.stderr)
+        return 1
     source_failures = source_ref_failures_for_row(output_dir, projected_row)
     if source_failures:
         print_gate_failure(
@@ -3938,8 +3991,30 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         and row.get("readback_ok") is not False
     ]
     if args.publish and existing_result_ready and not args.force:
-        print("error: RESULT_READY proof already exists; use --force only for intentional duplicate publish", file=sys.stderr)
-        return 1
+        payload = {
+            "dry_run": False,
+            "status": "already-result-ready",
+            "work_unit_id": args.work_unit_id,
+            "pre_publish_gate": pre_gate,
+            "existing_result_ready_count": len(existing_result_ready),
+            "latest_result_ready": existing_result_ready[-1],
+            "would_publish_result_ready": False,
+            "would_mutate_project": False,
+            "delegate_wake": {
+                "mode": "skipped",
+                "reason": "existing RESULT_READY proof makes this retry idempotent",
+            },
+            "next_action": (
+                "Use work-unit inbox --result-ready or work-unit delegate-wake "
+                "to recover closeout delegate setup if closeout has not started."
+            ),
+        }
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(f"already result-ready {args.work_unit_id}: {existing_result_ready[-1].get('proof_id', '')}")
+            print(f"next: {payload['next_action']}")
+        return 0
     if args.dry_run:
         payload = {
             "dry_run": True,
@@ -5669,6 +5744,9 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
     start.add_argument("--mode", default="", help="Progress mode for dashboard sync")
     start.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
+    start.add_argument("--phase-index", default="", help="Current phase number or label for dashboard Progress")
+    start.add_argument("--phase-total", default="", help="Known total phase count, if any")
+    start.add_argument("--round", default="", help="Current goal/convergence round")
     start.add_argument("--source-ref", required=True, help="Source artifact reference for the start decision")
     start.add_argument("--next", default="Publish checkpoint before RESULT_READY if work runs long.", help="Discord next action")
     start.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
@@ -5750,6 +5828,9 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--next-checkpoint", default="Team Lead reports result-ready or blocker.", help="Next expected checkpoint")
     dispatch.add_argument("--mode", default="", help="Progress mode; defaults from assignment.md")
     dispatch.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
+    dispatch.add_argument("--phase-index", default="", help="Current phase number or label for dashboard Progress")
+    dispatch.add_argument("--phase-total", default="", help="Known total phase count, if any")
+    dispatch.add_argument("--round", default="", help="Current goal/convergence round")
     dispatch.add_argument(
         "--capacity-max-concurrent",
         type=int,

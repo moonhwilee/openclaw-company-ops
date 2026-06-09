@@ -63,7 +63,7 @@ def progress_parts(row: dict[str, Any]) -> tuple[str, str, str]:
     index = str(row.get("phase_index") or "").strip()
     total = str(row.get("phase_total") or "").strip()
 
-    prefix = f"{index}/{total}" if index and total else index
+    prefix = f"P{index}/{total}" if index and total else f"P{index}" if index else ""
     round_part = f"R{round_value}" if round_value and should_show_round(mode, row.get("show_round")) else ""
     label = current_slice or phase
     return round_part, prefix, label

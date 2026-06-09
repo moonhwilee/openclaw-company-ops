@@ -56,11 +56,11 @@ happening:
   checkpoint, next expected checkpoint, and source artifact or evidence pointer
   when one exists.
 - If the work is a `goal` or `convergence` loop, include `--mode goal` or
-  `--mode convergence`; round display is automatic when `--round` is present.
+  `--mode convergence`, `--round`, and `--phase-index`. The dashboard renders
+  these as `R<round> · P<phase-index>/<phase-total> · <slice>` when a total is
+  known, or `R<round> · P<phase-index> · <slice>` when the total is not known.
   For one-pass `verify`, keep round metadata out of the dashboard unless the
-  owner explicitly asks for it with `--show-round`. If the work has a known
-  phase count, include `phase_index` and `phase_total`; otherwise record only
-  the current phase or slice without inventing totals.
+  owner explicitly asks for it with `--show-round`.
 - Do not use an LLM call just to make a checkpoint sound polished.
 - Do not claim live visibility from messages generated after the result is
   already ready.

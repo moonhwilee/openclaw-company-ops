@@ -221,13 +221,16 @@ separate dashboard fields. Do not create statuses such as `Round 2` or `Phase
 For v1, source-backed progress is recorded as optional Work Unit
 `progress.jsonl` rows. While work is active, `project-sync` derives the
 dashboard `Progress` field from the latest valid row. A compact value such as
-`2/7 · implementation` is enough for one-pass work. When a Work Unit is `goal`
-or `convergence` mode, display the round first in compact form, for example
-`R1 · 2/7 · implementation`. After final closeout, `project-sync` overrides the
-checkpoint-derived value with `Final: Accepted`, `Final: Revise requested`, or
-`Final: Blocked` so terminal Work Units do not look partially complete. This
-keeps active work distinct from completed work without requiring a new LLM
-summary or expensive progress calculation.
+`P2/7 · implementation` is enough for one-pass work with a known phase total.
+If the total is not known, use `P2 · implementation`. When a Work Unit is
+`goal` or `convergence` mode, source progress rows must include round and phase
+index metadata; display the round first in compact form, for example
+`R1 · P2/7 · implementation` or `R1 · P2 · implementation`. After final
+closeout, `project-sync` overrides the checkpoint-derived value with
+`Final: Accepted`, `Final: Revise requested`, or `Final: Blocked` so terminal
+Work Units do not look partially complete. This keeps active work distinct from
+completed work without requiring a new LLM summary or expensive progress
+calculation.
 
 Short Work Units may not need a checkpoint or explicit `progress.jsonl` row.
 When no valid progress row exists, `project-sync` may display a proof-derived
