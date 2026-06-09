@@ -128,6 +128,11 @@ Select the mode that matches the delegated Work Unit:
   by repeated act-or-improve and verify cycles until a valid stop condition is
   met.
 - `verify`: review existing output or evidence without starting new goal work.
+  For standalone verify Work Units, separate the verification procedure/report
+  verdict from the candidate output verdict. A complete evidence-backed
+  verification report can recommend `accept` for the Work Unit while recording
+  candidate `fail` or `unknown`; make that distinction explicit in evidence and
+  follow-up routing.
 
 Context recovery is not a separate mode. If the Team Lead resumes after long
 work, compaction, or subagent result integration, recover the packet, evidence,

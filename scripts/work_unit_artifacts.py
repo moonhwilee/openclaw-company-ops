@@ -2018,6 +2018,11 @@ Mode boundary:
 - `verify` must not mutate candidate outputs, git, GitHub Project final status,
   Discord closeout messages, or external systems outside the official Work Unit
   lifecycle commands.
+- For standalone `verify`, separate the verification procedure/report verdict
+  from the candidate output verdict. A complete evidence-backed verification
+  report can recommend `accept` for the Work Unit while recording candidate
+  `fail` or `unknown`; make that distinction explicit in evidence and
+  follow-up routing.
 
 ## Protocol Capsule
 
@@ -5581,6 +5586,10 @@ Choose one:
 ## Rationale
 
 Explain the decision using the Assignment Packet and Evidence & Result Record.
+For standalone `verify` Work Units, distinguish the verification procedure
+verdict from the candidate output verdict. If the decision is `accept`, state
+that the verification report is accepted and separately state whether the
+candidate output passed, failed, or remains unknown.
 
 ## Required Follow-up
 

@@ -102,6 +102,12 @@ instead of starting goal work. If `verify` supports an active `goal` Work Unit
 and any criterion is `fail` or `unknown`, return to the `goal` improvement loop
 unless the Work Unit is blocked.
 
+For standalone verify Work Units, separate the verification procedure/report
+verdict from the candidate output verdict. A complete evidence-backed
+verification report can recommend `accept` for the Work Unit while recording
+candidate `fail` or `unknown`; make the candidate verdict explicit in evidence
+and follow-up routing.
+
 ### context recovery
 
 After long execution, compaction, resumed sessions, or subagent result

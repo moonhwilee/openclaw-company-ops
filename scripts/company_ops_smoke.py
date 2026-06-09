@@ -3289,6 +3289,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("dispatch dry-run ignored Assignment Packet subagent_budget_reason")
     if not dispatch_packet.get("repo_root"):
         raise RuntimeError("dispatch dry-run did not include repo_root for fresh sessions")
+    assignment_text = (start_dir / "assignment.md").read_text(encoding="utf-8")
+    if "Mode: `verify`" in assignment_text and "candidate output verdict" not in assignment_text:
+        raise RuntimeError("Assignment Packet does not separate verify WU acceptance from candidate verdict")
     instructions = dispatch_packet.get("instructions") or []
     if not any("Result Ready" in item for item in instructions):
         raise RuntimeError("dispatch dry-run did not remind Team Lead to set evidence status")

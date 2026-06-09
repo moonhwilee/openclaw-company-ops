@@ -240,6 +240,7 @@ def execution_prompt(request: dict[str, Any]) -> str:
             "Do not write decision.md directly, mutate Project final status directly, publish final Discord closeout directly, archive, cleanup, or reassign.",
             "Final decisions must go only through the guarded closeout contract in the payload.",
             "If evidence is missing, stale, conflicting, or red-line/manual-required, fail closed in your review result.",
+            "For standalone verify Work Units, accept means the verification procedure/report is complete and evidence-backed; it does not mean the candidate output passed. If accepting a verify Work Unit with candidate fail/unknown, make that distinction explicit in the commit-request reason.",
             "Use the payload's artifact_hashes exactly in the commit request; they are the Company Ops canonical hashes.",
             "Do not invent a separate proof-row hash algorithm. Confirm the RESULT_READY proof id exists/readback_ok, then let guarded closeout perform canonical hash validation.",
             "If the result is acceptable, set decision to accept and every red_line_check category to clear.",
