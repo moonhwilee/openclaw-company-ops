@@ -189,7 +189,10 @@ Start with a small field set:
   with Company Ops options: `Assigned`, `In Progress`, `Result Ready`,
   `Accepted`, `Revise`, and `Blocked`.
 - Progress.
-- Priority.
+- Priority. Company Ops does not currently derive Priority from source
+  artifacts. Treat it as an owner/operator triage tag; when source priority is
+  empty, Project sync must preserve an existing Project Priority instead of
+  clearing it.
 - Blocker.
 - Evidence present.
 - Decision.

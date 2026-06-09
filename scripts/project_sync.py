@@ -37,6 +37,7 @@ DEFAULT_FIELDS = (
     "Evidence & Result Record reference",
     "Operations Lead Decision reference",
 )
+PRESERVE_WHEN_SOURCE_EMPTY_FIELDS = {"Priority"}
 FIELD_FALLBACKS = {
     # GitHub's built-in Repository field is read-only through the Project item
     # mutation API, so sync our source repository string into the editable
@@ -966,6 +967,17 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
         for field_name in DEFAULT_FIELDS:
             desired = item_plan["desired_fields"].get(field_name, "")
             current = current_value_for_field(current_values, field_map, field_name)
+            if field_name in PRESERVE_WHEN_SOURCE_EMPTY_FIELDS and not desired and current:
+                actions.append(
+                    {
+                        "type": "set_project_field",
+                        "field": field_name,
+                        "result": "preserved",
+                        "current": current,
+                        "reason": "source does not own this field when empty",
+                    }
+                )
+                continue
             if current == desired:
                 actions.append({"type": "set_project_field", "field": field_name, "result": "unchanged"})
                 continue
@@ -1050,6 +1062,8 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
         for field_name in DEFAULT_FIELDS:
             desired = item_plan["desired_fields"].get(field_name, "")
             live = current_value_for_field(readback_values, field_map, field_name)
+            if field_name in PRESERVE_WHEN_SOURCE_EMPTY_FIELDS and not desired and live:
+                continue
             if live != desired:
                 readback_mismatches.append({"field": field_name, "desired": desired, "live": live})
         if readback_mismatches:
