@@ -440,6 +440,16 @@ def append_line(lines: list[str], label: str, value: str | None) -> None:
         lines.append(f"{label}: {value}")
 
 
+def visible_checkpoint_window(value: str | None) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    normalized = text.lower().replace("_", "-").replace(" ", "-")
+    if normalized in {"result-ready", "resultready", "closeout", "done", "complete", "completed"}:
+        return ""
+    return text
+
+
 def team_display(team: str) -> str:
     return f"{TEAM_ICONS.get(team, DEFAULT_TEAM_ICON)} {team}"
 
@@ -697,14 +707,11 @@ def format_team_detail_card(card: dict[str, str]) -> str:
     elif card["kind"] == "CHECKPOINT":
         lines.extend(
             [
-                f"진행: {card['rendered_progress_summary']}",
+                f"Progress: {card['rendered_progress_summary']}",
                 f"Status: {card['status']}",
             ]
         )
-        append_line(lines, "Elapsed", card.get("elapsed"))
-        append_line(lines, "Next checkpoint", card.get("next_checkpoint"))
-        append_line(lines, "Evidence", card.get("evidence"))
-        append_line(lines, "Source", card.get("source"))
+        append_line(lines, "Next checkpoint", visible_checkpoint_window(card.get("next_checkpoint")))
     elif card["kind"] == "RESULT_READY":
         lines.extend(
             [

@@ -1149,13 +1149,13 @@ Slice A, two-line progress card layout:
   `🧭 [PROGRESS] WU-<id> · 🧪 <team>`.
 - Put the actual progress detail in the first body line by reusing the same
   deterministic display string that feeds the dashboard `Progress` field:
-  `진행: <rendered_progress_summary>`.
+  `Progress: <rendered_progress_summary>`.
 - Build `<rendered_progress_summary>` from source progress fields in the
   existing order: optional visible round, optional phase index/total, then
   `phase` or `current_slice`. Examples:
-  - `진행: positioning note`;
-  - `진행: 1/3 · positioning note`;
-  - `진행: R1 · 1/3 · positioning note`.
+  - `Progress: positioning note`;
+  - `Progress: 1/3 · positioning note`;
+  - `Progress: R1 · 1/3 · positioning note`.
 - Do not move round or phase count into the header for this phase. Keep the
   header stable and put the dashboard-style Progress text in the body.
 - Treat `phase`, `current_slice`, round, and phase count as display inputs, not

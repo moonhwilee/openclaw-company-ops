@@ -592,11 +592,14 @@ def run_discord_card_smoke() -> None:
     require_success(checkpoint, "discord team checkpoint card")
     if "🧭 [PROGRESS] WU-260605-903 · 🧱 build-pq" not in checkpoint.stdout:
         raise RuntimeError("checkpoint card did not include expected header")
-    if "진행: Phase 1 data inspection" not in checkpoint.stdout:
+    if "Progress: Phase 1 data inspection" not in checkpoint.stdout:
         raise RuntimeError("checkpoint card did not render the Project Progress summary in the first body line")
-    for expected in ("진행:", "Status:", "Next checkpoint:", "Next:"):
+    for expected in ("Progress:", "Status:", "Next checkpoint:", "Next:"):
         if expected not in checkpoint.stdout:
             raise RuntimeError(f"checkpoint card missing {expected}")
+    for hidden in ("Elapsed:", "Evidence:", "Source:"):
+        if hidden in checkpoint.stdout:
+            raise RuntimeError(f"checkpoint card should keep {hidden} in proof/source artifacts, not visible Discord text")
 
     risk_checkpoint = run_command(
         [
@@ -2335,7 +2338,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("checkpoint dry-run did not create a CHECKPOINT card")
     if checkpoint_payload.get("card", {}).get("rendered_progress_summary") != goal_round_fields.get("Progress"):
         raise RuntimeError("checkpoint dry-run rendered Progress does not match Project Progress")
-    if "진행: R2 · 1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
+    if "Progress: R2 · 1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
         raise RuntimeError("checkpoint dry-run did not render Project Progress in the first body line")
     if checkpoint_payload.get("card", {}).get("clamp_version") != "progress-display-v1":
         raise RuntimeError("checkpoint dry-run did not preserve the progress display clamp version")
