@@ -41,6 +41,15 @@ condition is met.
    The Evidence & Result Record must say `Status: Result Ready`; a draft
    evidence file is not enough for the result-ready command.
 
+If the goal discovers follow-up issues, route each one with severity and one of
+`direct_patch`, `docs_or_preflight`, `owner_decision`, or `observe`. This keeps
+the Operations Lead review cheap without expanding Team Lead authority.
+
+Cross-Work-Unit or parallelism criteria are Operations Lead-owned unless the
+Assignment Packet names the exact peer Work Unit ids and source refs the Team
+Lead may inspect. A Team Lead must not read or mutate unrelated Work Unit
+artifacts just to prove overlap.
+
 ## Live Visibility During Long Work
 
 `goal` is not a separate runtime, so live progress is not automatic. For long

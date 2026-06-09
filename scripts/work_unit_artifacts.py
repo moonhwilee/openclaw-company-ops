@@ -3233,7 +3233,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         subagent_budget,
     )
     team_detail_target = latest_team_detail_target(artifact_dir, args.work_unit_id)
-    result_ready_command = (
+    result_ready_base_command = (
         "python3 scripts/openclaw_company_ops.py work-unit result-ready "
         f"--work-unit-id {args.work_unit_id} --artifact-root {args.artifact_root} "
         f"--team {args.team} --result <result-summary> --evidence {evidence_path} "
@@ -3246,8 +3246,9 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         f"--closeout-delegate-agent {args.closeout_delegate_agent} "
         "--closeout-delegate-adapter command "
         "--closeout-delegate-adapter-command 'python3 scripts/openclaw_closeout_delegate_sessions_send.py' "
-        "--publish --format json"
     )
+    result_ready_dry_run_command = f"{result_ready_base_command}--dry-run --format json"
+    result_ready_command = f"{result_ready_base_command}--publish --format json"
     return {
         "protocol": "company_ops_detached_dispatch_v1",
         "work_unit_id": args.work_unit_id,
@@ -3270,6 +3271,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         },
         "result_ready_contract": {
             "command": result_ready_command,
+            "dry_run_command": result_ready_dry_run_command,
             "rule": "Team Lead submits source-backed evidence and enqueues a fresh OL closeout delegate; the delegate may publish only through guarded closeout.",
             "required_closeout_delegate_wake": True,
             "closeout_delegate_agent": args.closeout_delegate_agent,
@@ -3288,6 +3290,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
             "Do not mutate outside the assigned Work Unit scope.",
             "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
             "Set Evidence & Result Record status to Result Ready before calling the result-ready command.",
+            "Run result_ready_contract.dry_run_command before result_ready_contract.command; if setup is missing, report a source-backed blocker instead of improvising success.",
             "Return result evidence through the result-ready path with a fresh closeout delegate wake.",
             "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
             "For verify mode, the result-ready command is a source-backed lifecycle proof path, not permission to edit the candidate output.",
@@ -5487,6 +5490,17 @@ Link only real artifacts or checks that exist.
 - Screenshots:
 - Generated artifacts:
 - Review notes:
+
+## Findings And Follow-up Routing
+
+For each meaningful finding, include severity and routing so the Operations
+Lead can decide without another broad summarization pass.
+
+- Finding:
+  - Severity: `P0|P1|P2|P3`
+  - Routing: `direct_patch|docs_or_preflight|owner_decision|observe`
+  - Evidence:
+  - Recommended next action:
 
 ## Verification Performed
 

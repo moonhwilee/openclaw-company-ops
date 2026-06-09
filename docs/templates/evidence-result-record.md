@@ -31,6 +31,17 @@ Link only real artifacts or checks that exist.
 - Generated artifacts:
 - Review notes:
 
+## Findings And Follow-up Routing
+
+For each meaningful finding, include severity and routing so the Operations
+Lead can decide without another broad summarization pass.
+
+- Finding:
+  - Severity: `P0|P1|P2|P3`
+  - Routing: `direct_patch|docs_or_preflight|owner_decision|observe`
+  - Evidence:
+  - Recommended next action:
+
 ## Verification Performed
 
 -

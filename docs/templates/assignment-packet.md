@@ -203,6 +203,16 @@ enough to support one Operations Lead composition step for both the owner-facing
 `#ops-feed` result card and the detailed `#team-*` review trail. Do not ask for
 or create a separate LLM summarization call just for visibility.
 
+If the Work Unit discovers issues, route them in the Evidence & Result Record
+with severity and one of `direct_patch`, `docs_or_preflight`, `owner_decision`,
+or `observe`. Use `owner_decision` when the finding changes authority,
+automation scope, cost, destructive behavior, or user-facing policy.
+
+Cross-Work-Unit or parallelism criteria are Operations Lead-owned unless the
+Assignment Packet names the exact peer Work Unit ids and source refs the Team
+Lead may inspect. The Team Lead must not read or mutate unrelated Work Unit
+artifacts just to prove overlap.
+
 Returning this report does not complete the Work Unit. It moves the Work Unit
 to result-ready review. The Operations Lead must reread the source artifacts,
 verify the evidence, and record `accept`, `revise`, or `blocked`.
