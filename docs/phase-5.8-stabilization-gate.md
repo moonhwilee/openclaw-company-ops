@@ -299,7 +299,7 @@ Impact:
 Fix direction:
 
 - Make standalone `verify` read-only except for its own evidence/result
-  artifacts and allowed proof/progress rows.
+  artifacts and official Work Unit lifecycle proof/progress rows.
 - If verify finds a defect, produce `revise`, `blocked`, or explicit finding
   evidence. Do not edit product/source code, commit, push, mutate final Project
   state, or run hardening work under the same verify completion claim.

@@ -11,6 +11,11 @@ checked, but it may write its own verification artifact. Allowed verify writes
 must be scoped to the Work Unit's `evidence.md`, `verification.md`,
 `verification-artifacts/`, or `evidence-artifacts/`; verify must not mutate
 candidate outputs, git, GitHub Project, Discord, or external systems.
+Official Work Unit lifecycle commands are a narrow exception: a `verify` Team
+Lead may publish source-backed `CHECKPOINT` or `RESULT_READY` proof through the
+foreground Company Ops commands after writing evidence. Those commands may
+update lifecycle visibility such as Discord proof or Project `Result Ready`,
+but they must not change the candidate output or make final closeout decisions.
 
 ## Inputs
 
@@ -29,6 +34,9 @@ candidate outputs, git, GitHub Project, Discord, or external systems.
 5. If running inside `goal`, return failures to the improvement loop.
 6. If running as verification-only, recommend `accept`, `revise`, or
    `blocked`.
+7. When evidence is ready, use the official result-ready path rather than
+   writing final decision, GitHub Project final status, or Discord closeout
+   messages directly.
 
 If the Assignment Packet authorizes subagents for verification, use only the
 packet's `subagent_budget`. The budget is a prompt/packet contract, not a

@@ -1995,8 +1995,13 @@ Mode boundary:
 - `verify` may write its own Work Unit `evidence.md`, `verification.md`,
   `verification-artifacts/`, or `evidence-artifacts/` when those paths are
   explicitly allowed.
-- `verify` must not mutate candidate outputs, git, GitHub Project, Discord, or
-  external systems.
+- `verify` may use official Company Ops lifecycle commands for source-backed
+  `CHECKPOINT` or `RESULT_READY` proof after evidence is written; those commands
+  may update lifecycle visibility, but they are not permission to change the
+  candidate output or make closeout decisions.
+- `verify` must not mutate candidate outputs, git, GitHub Project final status,
+  Discord closeout messages, or external systems outside the official Work Unit
+  lifecycle commands.
 
 ## Protocol Capsule
 
@@ -3270,6 +3275,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
             "Set Evidence & Result Record status to Result Ready before calling the result-ready command.",
             "Return result evidence through the result-ready path with a fresh closeout delegate wake.",
             "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
+            "For verify mode, the result-ready command is a source-backed lifecycle proof path, not permission to edit the candidate output.",
             "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch.",
         ],
     }
