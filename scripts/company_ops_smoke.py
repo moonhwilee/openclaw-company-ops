@@ -365,6 +365,11 @@ def mark_artifact_result_ready(artifact_dir: Path, *, recommendation: str | None
     evidence_text = evidence_text.replace("Status: Draft", "Status: Result Ready")
     if recommendation is not None:
         evidence_text = evidence_text.replace(
+            "Recommended decision:\n\n- `<accept|revise|blocked>`\n\n"
+            "Use exactly one recommendation. Do not leave multiple choice options in the\n"
+            "final Evidence & Result Record.",
+            f"Recommended decision:\n\n- {recommendation}",
+        ).replace(
             "Recommended decision:\n\n- `accept`\n- `revise`\n- `blocked`",
             f"Recommended decision:\n\n- {recommendation}",
         )

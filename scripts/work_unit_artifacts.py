@@ -5536,9 +5536,10 @@ For each done criterion, state whether it is met and link evidence.
 
 Recommended decision:
 
-- `accept`
-- `revise`
-- `blocked`
+- `<accept|revise|blocked>`
+
+Use exactly one recommendation. Do not leave multiple choice options in the
+final Evidence & Result Record.
 
 Rationale:
 
