@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -3980,6 +3982,128 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
         raise RuntimeError("hash-mismatched commit-request mutated decision.md")
 
+    partial_root = work_dir / "partial-closeout-artifacts"
+    partial_wu = partial_root / "WU-260607-101"
+    shutil.copytree(ready_late, partial_wu)
+    partial_request = closeout_commit_request(
+        partial_wu,
+        "WU-260607-101",
+        proof_id="late-001",
+        proof_timestamp="2026-06-07T01:20:00Z",
+    )
+    partial_decision_before = (partial_wu / "decision.md").read_text(encoding="utf-8")
+    sys.path.insert(0, str(SCRIPT_DIR))
+    import work_unit_artifacts as work_unit_module  # type: ignore
+
+    partial_parser = work_unit_module.build_parser()
+    publish_calls: list[str] = []
+    original_publish_card = work_unit_module.publish_card
+    original_project_sync = work_unit_module.run_project_sync
+
+    def fake_publish_card(args: argparse.Namespace, card: dict[str, Any], proof_log: Path, *, target: str | None = None, expect_surface: str = "team-detail") -> tuple[int, dict[str, Any], str]:
+        publish_calls.append(expect_surface)
+        failed_owner = expect_surface == "ops-feed" and publish_calls.count("ops-feed") == 1
+        row = {
+            "work_unit_id": args.work_unit_id,
+            "surface": expect_surface,
+            "kind": card["kind"],
+            "target": target or "",
+            "transition_at": args.transition_at,
+            "sent_at": args.transition_at,
+            "readback_at": args.transition_at,
+            "discord_timestamp": args.transition_at,
+            "discord_message_id": f"partial-{expect_surface}-{len(publish_calls)}",
+            "proof_id": f"{args.work_unit_id}:{expect_surface}:{card['kind']}:partial-{len(publish_calls)}",
+            "readback_ok": not failed_owner,
+            "dry_run": False,
+            "error": "owner closeout publish failed for partial smoke" if failed_owner else "",
+            "send_result": {},
+            "readback_result": {},
+        }
+        proof_log.parent.mkdir(parents=True, exist_ok=True)
+        with proof_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        if failed_owner:
+            return 1, {"publish": row}, "owner closeout publish failed for partial smoke"
+        return 0, {"publish": row}, ""
+
+    try:
+        work_unit_module.publish_card = fake_publish_card
+        work_unit_module.run_project_sync = lambda args: {"enabled": False}
+        partial_args = partial_parser.parse_args(
+            [
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-101",
+                "--artifact-root",
+                str(partial_root),
+                "--commit-request",
+                json.dumps(partial_request, sort_keys=True),
+                "--publish",
+                "--team-target",
+                "channel:team",
+                "--ops-target",
+                "channel:ops",
+                "--transition-at",
+                "2026-06-07T02:00:00Z",
+                "--format",
+                "json",
+            ]
+        )
+        first_stdout = io.StringIO()
+        first_stderr = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout), contextlib.redirect_stderr(first_stderr):
+            first_partial = partial_args.func(partial_args)
+        if first_partial == 0:
+            raise RuntimeError("partial closeout smoke unexpectedly succeeded on owner publish failure")
+        if (partial_wu / "decision.md").read_text(encoding="utf-8") != partial_decision_before:
+            raise RuntimeError("partial closeout wrote final decision before owner visibility succeeded")
+        stage_payload = json.loads((partial_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
+        if stage_payload.get("status") != "team-published":
+            raise RuntimeError("partial closeout stage did not record team-published recovery point")
+
+        second_args = partial_parser.parse_args(
+            [
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-101",
+                "--artifact-root",
+                str(partial_root),
+                "--commit-request",
+                json.dumps(partial_request, sort_keys=True),
+                "--publish",
+                "--team-target",
+                "channel:team",
+                "--ops-target",
+                "channel:ops",
+                "--transition-at",
+                "2026-06-07T02:01:00Z",
+                "--format",
+                "json",
+            ]
+        )
+        second_stdout = io.StringIO()
+        second_stderr = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout), contextlib.redirect_stderr(second_stderr):
+            require_code = second_args.func(second_args)
+        if require_code != 0:
+            raise RuntimeError(
+                "partial closeout resume did not complete: "
+                + (second_stderr.getvalue().strip() or second_stdout.getvalue().strip() or "no output")
+            )
+        if publish_calls != ["team-detail", "ops-feed", "ops-feed"]:
+            raise RuntimeError(f"partial closeout resume did not skip duplicate team publish: {publish_calls}")
+        if "Status: Accepted" not in (partial_wu / "decision.md").read_text(encoding="utf-8"):
+            raise RuntimeError("partial closeout resume did not write final decision after visibility succeeded")
+        stage_payload = json.loads((partial_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
+        if stage_payload.get("status") != "published":
+            raise RuntimeError("partial closeout resume did not publish final stage")
+    finally:
+        work_unit_module.publish_card = original_publish_card
+        work_unit_module.run_project_sync = original_project_sync
+
     manual_required_request = json.loads(json.dumps(commit_request))
     manual_required_request["autonomy_class"] = "manual_required"
     closeout_manual_required = run_command(
@@ -4287,7 +4411,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "Project sync dry-run planning without mutation, "
         "dispatch source contract/setup-needed guard, fresh session key guard, fake and command adapter accepted-proof guards, "
         "closeout review wrapper and wake accepted-proof guards, source inbox recovery after missed review wake, "
-        "guarded closeout commit-request proof/hash/manual-required guards, "
+        "guarded closeout commit-request proof/hash/manual-required guards, partial closeout publish resume, "
         "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"
     )

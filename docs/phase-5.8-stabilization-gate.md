@@ -502,7 +502,9 @@ Current status:
 - `5.8.4c-2` guarded closeout commit request is implemented: existing
   `work-unit closeout` accepts structured reviewer `--commit-request` JSON,
   revalidates current RESULT_READY proof/source hashes/manual-required policy,
-  and records a narrow closeout stage file during publish.
+  records a narrow closeout stage file during publish, and can foreground-resume
+  the same guarded closeout after partial visibility publish failure without
+  writing final `decision.md` early.
 - The B-prime design baseline remains: the fresh closeout reviewer may judge
   the Work Unit, but final decisions are applied only through the guarded
   closeout path.
@@ -616,6 +618,10 @@ Guarded closeout commit request:
 - Closeout uses a small staging guard around `decision.md`, card file writes,
   Discord publishes, and Project sync so a publish failure leaves an explicit
   stage artifact instead of silently looking like a clean converged path.
+- Final `decision.md` is written only after team-detail and owner-facing
+  visibility publish succeed. If a same-decision closeout stage is left
+  mid-publish, a foreground rerun may skip matching already-published proofs and
+  continue the guarded closeout instead of requiring manual source edits.
 
 Implementation slices:
 
@@ -627,8 +633,8 @@ Implementation slices:
   auto-closeout.
 - `5.8.4c-2` (implemented): B-prime guarded closeout: `--commit-request`,
   artifact hash and result-ready proof revalidation, reviewer autonomy classes,
-  manual-required/red-line fail-closed checks, closeout staging guard, and
-  final visibility/status convergence regression coverage.
+  manual-required/red-line fail-closed checks, closeout staging/resume guard,
+  and final visibility/status convergence regression coverage.
 
 Acceptance, once implemented:
 

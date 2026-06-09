@@ -858,6 +858,7 @@ def final_review_kinds(proof_rows: list[dict[str, Any]]) -> list[str]:
         str(row.get("kind"))
         for row in proof_rows
         if row.get("surface") == "team-detail" and str(row.get("kind")) in FINAL_REVIEW_KINDS
+        and row.get("readback_ok") is not False
     ]
 
 
@@ -866,6 +867,7 @@ def owner_closeout_kinds(proof_rows: list[dict[str, Any]]) -> list[str]:
         str(row.get("kind"))
         for row in proof_rows
         if row.get("surface") == "ops-feed" and str(row.get("kind")) in set(CLOSEOUT_BY_FINAL_REVIEW.values())
+        and row.get("readback_ok") is not False
     ]
 
 
@@ -3542,6 +3544,8 @@ def validate_closeout_commit_request(
     request: dict[str, Any],
     item: dict[str, Any],
     artifact_dir: Path,
+    *,
+    partial_resume: bool = False,
 ) -> list[str]:
     if not request:
         return []
@@ -3572,6 +3576,8 @@ def validate_closeout_commit_request(
         if key not in supplied_hashes:
             failures.append(f"commit-request artifact_hashes missing {key}")
             continue
+        if partial_resume and key == DEFAULT_PROOF_LOG_NAME:
+            continue
         if supplied_hashes.get(key) != expected_hashes.get(key):
             failures.append(f"commit-request artifact hash mismatch: {key}")
 
@@ -3593,16 +3599,28 @@ def validate_closeout_commit_request(
     return failures
 
 
-def validate_closeout_decision(args: argparse.Namespace, item: dict[str, Any], artifact_dir: Path) -> list[str]:
+def validate_closeout_decision(
+    args: argparse.Namespace,
+    item: dict[str, Any],
+    artifact_dir: Path,
+    *,
+    partial_resume: bool = False,
+) -> list[str]:
     failures: list[str] = []
     decision = args.decision
+    expected_final_review = FINAL_REVIEW_BY_DECISION.get(decision, "")
+    expected_owner_closeout = OWNER_CLOSEOUT_BY_DECISION.get(decision, "")
     if item["decision_final"]:
         failures.append("decision.md already records a final Operations Lead decision")
     if item["conflict_reason"]:
         failures.append(item["conflict_reason"])
-    if item["final_reviews"]:
+    if item["final_reviews"] and not (
+        partial_resume and proof_contains_only_expected(item["final_reviews"], expected_final_review)
+    ):
         failures.append("team final review proof already exists")
-    if item["owner_closeouts"]:
+    if item["owner_closeouts"] and not (
+        partial_resume and proof_contains_only_expected(item["owner_closeouts"], expected_owner_closeout)
+    ):
         failures.append("owner closeout proof already exists")
     if not args.reason:
         failures.append("--reason is required for explicit closeout decisions")
@@ -3830,25 +3848,53 @@ def write_closeout_card_files(
     args: argparse.Namespace,
     team_card: dict[str, Any],
     owner_card: dict[str, Any],
+    *,
+    allow_existing: bool = False,
 ) -> dict[str, Path]:
     suffix = args.decision.replace("_", "-")
     paths = {
         "team_card": artifact_dir / f"team-{suffix}-card.json",
         "owner_card": artifact_dir / f"ops-{OWNER_CLOSEOUT_BY_DECISION[args.decision].lower().replace('_', '-')}-card.json",
     }
-    if not args.force:
+    if not args.force and not allow_existing:
         existing = [str(path) for path in paths.values() if path.exists()]
         if existing:
             raise FileExistsError("closeout card output already exists: " + ", ".join(existing))
-    paths["team_card"].write_text(
-        json.dumps({"card": team_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    paths["owner_card"].write_text(
-        json.dumps({"card": owner_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    if args.force or not paths["team_card"].exists():
+        paths["team_card"].write_text(
+            json.dumps({"card": team_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    if args.force or not paths["owner_card"].exists():
+        paths["owner_card"].write_text(
+            json.dumps({"card": owner_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
     return paths
+
+
+def read_closeout_stage(stage_path: Path) -> dict[str, Any]:
+    if not stage_path.exists():
+        return {}
+    try:
+        parsed = json.loads(stage_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise FileExistsError(f"closeout stage is unreadable: {stage_path}: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise FileExistsError(f"closeout stage is not a JSON object: {stage_path}")
+    return parsed
+
+
+def closeout_stage_allows_resume(stage: dict[str, Any], args: argparse.Namespace, item: dict[str, Any]) -> bool:
+    if not stage or item["decision_final"]:
+        return False
+    if stage.get("work_unit_id") != args.work_unit_id or stage.get("decision") != args.decision:
+        return False
+    return str(stage.get("status") or "") in {"started", "team-published", "visibility-published"}
+
+
+def proof_contains_only_expected(values: list[str], expected: str) -> bool:
+    return bool(values) and set(values) <= {expected}
 
 
 def write_closeout_stage(
@@ -3912,6 +3958,9 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
     try:
         with CloseoutLock(lock_path):
             item = build_work_unit_readiness(artifact_root, args.work_unit_id)
+            stage_path = artifact_dir / f"closeout-{args.decision.replace('_', '-')}-stage.json" if args.decision else None
+            stage_payload = read_closeout_stage(stage_path) if stage_path else {}
+            partial_resume = closeout_stage_allows_resume(stage_payload, args, item)
             status = "ready"
             next_action = "Operations Lead reviews source artifacts before any decision write."
             if item["decision_final"]:
@@ -3937,8 +3986,20 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             decision_preview = ""
             decision_decided_at = ""
             if args.decision:
-                decision_failures = validate_closeout_decision(args, item, artifact_dir)
-                decision_failures.extend(validate_closeout_commit_request(args, commit_request, item, artifact_dir))
+                if stage_payload and not partial_resume and not args.force:
+                    decision_failures.append(f"closeout stage already exists: {stage_path}")
+                decision_failures.extend(
+                    validate_closeout_decision(args, item, artifact_dir, partial_resume=partial_resume)
+                )
+                decision_failures.extend(
+                    validate_closeout_commit_request(
+                        args,
+                        commit_request,
+                        item,
+                        artifact_dir,
+                        partial_resume=partial_resume,
+                    )
+                )
                 if decision_failures:
                     status = "repair-needed"
                     next_action = "Repair closeout decision failures before publishing final review."
@@ -3968,6 +4029,8 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "owner_text": owner_text,
                 "decision_preview": decision_preview,
                 "commit_request": commit_request,
+                "closeout_stage": stage_payload,
+                "partial_resume": partial_resume,
                 "resolved_work_card": item.get("work_card", ""),
                 "work_card_source": item.get("work_card_source", ""),
                 "would_write_decision": bool(args.decision and not decision_failures),
@@ -3989,38 +4052,74 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 args.transition_at = decided_at
                 proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
                 decision_path = artifact_dir / "decision.md"
-                stage_path = artifact_dir / f"closeout-{args.decision.replace('_', '-')}-stage.json"
-                if stage_path.exists() and not args.force:
-                    raise FileExistsError(f"closeout stage already exists: {stage_path}")
+                assert stage_path is not None
+                if not partial_resume:
+                    write_closeout_stage(
+                        stage_path,
+                        args=args,
+                        status="started",
+                        decided_at=decided_at,
+                        extra={"decision_path": str(decision_path)},
+                    )
+                card_paths = write_closeout_card_files(
+                    artifact_dir,
+                    args,
+                    team_card,
+                    owner_card,
+                    allow_existing=partial_resume,
+                )
+                expected_final_review = FINAL_REVIEW_BY_DECISION[args.decision]
+                expected_owner_closeout = OWNER_CLOSEOUT_BY_DECISION[args.decision]
+                if proof_contains_only_expected(item["final_reviews"], expected_final_review):
+                    team_publish = {"publish": {"skipped": True, "reason": "matching team final review proof already exists"}}
+                else:
+                    team_code, team_publish, team_error = publish_card(
+                        args,
+                        team_card,
+                        proof_log,
+                        target=args.team_target,
+                        expect_surface="team-detail",
+                    )
+                    if team_code != 0:
+                        print(team_error or "error: team final review publish failed", file=sys.stderr)
+                        return 1
                 write_closeout_stage(
                     stage_path,
                     args=args,
-                    status="started",
+                    status="team-published",
                     decided_at=decided_at,
-                    extra={"decision_path": str(decision_path)},
+                    extra={
+                        "decision_path": str(decision_path),
+                        "card_paths": {key: str(value) for key, value in card_paths.items()},
+                        "team_publish": team_publish.get("publish", {}),
+                    },
                 )
-                card_paths = write_closeout_card_files(artifact_dir, args, team_card, owner_card)
+                if proof_contains_only_expected(item["owner_closeouts"], expected_owner_closeout):
+                    owner_publish = {"publish": {"skipped": True, "reason": "matching owner closeout proof already exists"}}
+                else:
+                    owner_code, owner_publish, owner_error = publish_card(
+                        args,
+                        owner_card,
+                        proof_log,
+                        target=args.ops_target,
+                        expect_surface="ops-feed",
+                    )
+                    if owner_code != 0:
+                        print(owner_error or "error: owner closeout publish failed", file=sys.stderr)
+                        return 1
+                write_closeout_stage(
+                    stage_path,
+                    args=args,
+                    status="visibility-published",
+                    decided_at=decided_at,
+                    extra={
+                        "decision_path": str(decision_path),
+                        "card_paths": {key: str(value) for key, value in card_paths.items()},
+                        "team_publish": team_publish.get("publish", {}),
+                        "owner_publish": owner_publish.get("publish", {}),
+                    },
+                )
                 decision_path.write_text(decision_preview, encoding="utf-8")
-                team_code, team_publish, team_error = publish_card(
-                    args,
-                    team_card,
-                    proof_log,
-                    target=args.team_target,
-                    expect_surface="team-detail",
-                )
-                if team_code != 0:
-                    print(team_error or "error: team final review publish failed", file=sys.stderr)
-                    return 1
-                owner_code, owner_publish, owner_error = publish_card(
-                    args,
-                    owner_card,
-                    proof_log,
-                    target=args.ops_target,
-                    expect_surface="ops-feed",
-                )
-                if owner_code != 0:
-                    print(owner_error or "error: owner closeout publish failed", file=sys.stderr)
-                    return 1
                 project_sync = run_project_sync(args)
                 if project_sync.get("enabled") and not project_sync.get("ok"):
                     print(f"warning: Project closeout sync failed: {project_sync.get('error')}", file=sys.stderr)
