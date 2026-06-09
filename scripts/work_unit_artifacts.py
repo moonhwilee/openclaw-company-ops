@@ -35,6 +35,15 @@ CLOSEOUT_REVIEW_ADAPTER_CHOICES = ("auto", "fake", "command")
 CLOSEOUT_REVIEW_ADAPTER_COMMAND_ENV = "COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND"
 CLOSEOUT_REVIEW_WAKE_FILENAME = "closeout-review-wake.json"
 CLOSEOUT_REVIEW_AUTHORITY_BOUNDARY = "closeout_reviewer_guarded_commit_only"
+CLOSEOUT_COMMIT_REQUEST_REQUIRED_HASHES = (
+    "assignment.md",
+    "claim.md",
+    "evidence.md",
+    "progress.jsonl",
+    DEFAULT_PROOF_LOG_NAME,
+    "result_ready_proof_rows",
+)
+CLOSEOUT_AUTONOMY_CLASSES = ("auto_eligible", "deep_review_auto_eligible", "manual_required")
 DEFAULT_COMPANY_OPS_AGENT_COUNT = 5
 DEFAULT_CAPACITY_RESERVED_SLOTS = 2
 OPENCLAW_MAX_CONCURRENT_FLOOR = 8
@@ -3424,6 +3433,166 @@ def closeout_decision_source_refs(args: argparse.Namespace) -> list[str]:
     return refs
 
 
+def parse_commit_request_value(value: str) -> dict[str, Any]:
+    raw = value.strip()
+    if not raw:
+        return {}
+    if raw.startswith("@"):
+        raw = Path(raw[1:]).expanduser().read_text(encoding="utf-8")
+    else:
+        candidate_path = Path(raw).expanduser()
+        if raw.endswith(".json") and candidate_path.exists():
+            raw = candidate_path.read_text(encoding="utf-8")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"--commit-request is not valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("--commit-request must be a JSON object")
+    return parsed
+
+
+def commit_request_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def commit_request_hashes(value: dict[str, Any]) -> dict[str, Any]:
+    hashes = value.get("artifact_hashes")
+    if isinstance(hashes, dict):
+        return hashes
+    source_snapshot = value.get("source_snapshot")
+    if isinstance(source_snapshot, dict) and isinstance(source_snapshot.get("artifact_hashes"), dict):
+        return source_snapshot["artifact_hashes"]
+    return {}
+
+
+def commit_request_result_ready_proof_id(value: dict[str, Any]) -> str:
+    for key in ("result_ready_proof_id", "proof_id"):
+        candidate = commit_request_text(value.get(key))
+        if candidate:
+            return candidate
+    result_ready = value.get("result_ready")
+    if isinstance(result_ready, dict):
+        return commit_request_text(result_ready.get("proof_id"))
+    return ""
+
+
+def commit_request_ref(value: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        candidate = commit_request_text(value.get(key))
+        if candidate:
+            return candidate
+    reviewer = value.get("reviewer")
+    if isinstance(reviewer, dict):
+        for key in keys:
+            candidate = commit_request_text(reviewer.get(key))
+            if candidate:
+                return candidate
+    return ""
+
+
+def red_line_check_is_clear(value: Any) -> bool:
+    if isinstance(value, dict):
+        status = commit_request_text(value.get("status") or value.get("result") or value.get("decision")).lower()
+        return status in {"clear", "passed", "pass", "no_red_line", "none"}
+    return commit_request_text(value).lower() in {"clear", "passed", "pass", "no_red_line", "none"}
+
+
+def apply_closeout_commit_request(args: argparse.Namespace) -> tuple[dict[str, Any], list[str]]:
+    if not getattr(args, "commit_request", ""):
+        args.commit_request_payload = {}
+        return {}, []
+    failures: list[str] = []
+    try:
+        request = parse_commit_request_value(args.commit_request)
+    except ValueError as exc:
+        args.commit_request_payload = {}
+        return {}, [str(exc)]
+    request_wu = commit_request_text(request.get("work_unit_id"))
+    if request_wu != args.work_unit_id:
+        failures.append("commit-request work_unit_id mismatch")
+
+    def set_or_reject(attr: str, key: str) -> None:
+        value = commit_request_text(request.get(key))
+        current = commit_request_text(getattr(args, attr, ""))
+        if not value:
+            return
+        if current and current != value:
+            failures.append(f"commit-request {key} conflicts with --{attr.replace('_', '-')}")
+        else:
+            setattr(args, attr, value)
+
+    set_or_reject("decision", "decision")
+    set_or_reject("reason", "reason")
+    set_or_reject("source_ref", "source_ref")
+    set_or_reject("outcome", "outcome")
+    set_or_reject("criteria_result", "criteria_result")
+    set_or_reject("verification", "verification")
+    set_or_reject("needed", "needed")
+    set_or_reject("blocker_source", "blocker_source")
+    set_or_reject("next_owner", "next_owner")
+    set_or_reject("next", "next")
+    set_or_reject("recorded_by", "recorded_by")
+    args.commit_request_payload = request
+    return request, failures
+
+
+def validate_closeout_commit_request(
+    args: argparse.Namespace,
+    request: dict[str, Any],
+    item: dict[str, Any],
+    artifact_dir: Path,
+) -> list[str]:
+    if not request:
+        return []
+    failures: list[str] = []
+    decision = commit_request_text(request.get("decision"))
+    if decision not in FINAL_REVIEW_BY_DECISION:
+        failures.append("commit-request decision must be accept, revise, or blocked")
+    if not commit_request_text(request.get("reason")):
+        failures.append("commit-request reason is required")
+    if not commit_request_text(request.get("source_ref")):
+        failures.append("commit-request source_ref is required")
+
+    proof_id = commit_request_result_ready_proof_id(request)
+    if not proof_id:
+        failures.append("commit-request result_ready_proof_id is required")
+    else:
+        proof_ids = [
+            commit_request_text(row.get("proof_id") or row.get("message_id") or row.get("id"))
+            for row in result_ready_proof_rows(artifact_dir / DEFAULT_PROOF_LOG_NAME, args.work_unit_id)
+        ]
+        result_ready_source = commit_request_text(item.get("result_ready_source"))
+        if proof_id not in proof_ids and not result_ready_source.endswith(f"#{proof_id}"):
+            failures.append("commit-request result_ready_proof_id does not match current RESULT_READY proof")
+
+    expected_hashes = artifact_hashes_for_closeout_review(artifact_dir, args.work_unit_id)
+    supplied_hashes = commit_request_hashes(request)
+    for key in CLOSEOUT_COMMIT_REQUEST_REQUIRED_HASHES:
+        if key not in supplied_hashes:
+            failures.append(f"commit-request artifact_hashes missing {key}")
+            continue
+        if supplied_hashes.get(key) != expected_hashes.get(key):
+            failures.append(f"commit-request artifact hash mismatch: {key}")
+
+    autonomy_class = commit_request_text(request.get("autonomy_class"))
+    if autonomy_class not in CLOSEOUT_AUTONOMY_CLASSES:
+        failures.append("commit-request autonomy_class is invalid or missing")
+    elif autonomy_class == "manual_required":
+        failures.append("commit-request autonomy_class manual_required cannot auto-commit")
+    if not commit_request_text(request.get("review_depth")):
+        failures.append("commit-request review_depth is required")
+    if not red_line_check_is_clear(request.get("red_line_check")):
+        failures.append("commit-request red_line_check must be clear")
+    if not (
+        commit_request_ref(request, "reviewer_session_ref", "session_ref")
+        or commit_request_ref(request, "reviewer_job_ref", "job_ref", "run_ref")
+        or commit_request_ref(request, "reviewer_message_ref", "message_ref")
+    ):
+        failures.append("commit-request requires a reviewer session, job, run, or message ref")
+    return failures
+
+
 def validate_closeout_decision(args: argparse.Namespace, item: dict[str, Any], artifact_dir: Path) -> list[str]:
     failures: list[str] = []
     decision = args.decision
@@ -3587,6 +3756,27 @@ def render_closeout_decision(args: argparse.Namespace, item: dict[str, Any], dec
     status = DECISION_STATUS_BY_DECISION[args.decision]
     source_refs = closeout_decision_source_refs(args) or [item["evidence_path"]]
     follow_up = args.needed if args.decision == "blocked" else (args.next or "None.")
+    commit_request = getattr(args, "commit_request_payload", {}) if isinstance(getattr(args, "commit_request_payload", {}), dict) else {}
+    commit_request_section = ""
+    if commit_request:
+        reviewer_refs = [
+            value
+            for value in (
+                commit_request_ref(commit_request, "reviewer_session_ref", "session_ref"),
+                commit_request_ref(commit_request, "reviewer_job_ref", "job_ref", "run_ref"),
+                commit_request_ref(commit_request, "reviewer_message_ref", "message_ref"),
+            )
+            if value
+        ]
+        commit_request_section = f"""
+## Guarded Commit Request
+
+- Result-ready proof id: `{commit_request_result_ready_proof_id(commit_request)}`
+- Autonomy class: `{commit_request_text(commit_request.get("autonomy_class"))}`
+- Review depth: `{commit_request_text(commit_request.get("review_depth"))}`
+- Reviewer refs: {", ".join(f"`{ref}`" for ref in reviewer_refs) if reviewer_refs else "`missing`"}
+- Artifact snapshot hash: `{canonical_json_hash(commit_request_hashes(commit_request)) if commit_request_hashes(commit_request) else ""}`
+"""
     return f"""# Operations Lead Decision
 
 Status: {status}
@@ -3617,6 +3807,7 @@ Assignment Packet and evidence requirements.
 ## Source Refs
 
 {markdown_bullets(source_refs)}
+{commit_request_section}
 
 ## Required Follow-up
 
@@ -3660,6 +3851,28 @@ def write_closeout_card_files(
     return paths
 
 
+def write_closeout_stage(
+    stage_path: Path,
+    *,
+    args: argparse.Namespace,
+    status: str,
+    decided_at: str,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {
+        "version": 1,
+        "status": status,
+        "work_unit_id": args.work_unit_id,
+        "decision": args.decision,
+        "decided_at": decided_at,
+        "recorded_by": args.recorded_by,
+        "commit_request_present": bool(getattr(args, "commit_request_payload", {})),
+    }
+    if extra:
+        payload.update(extra)
+    stage_path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def closeout_dry_run(args: argparse.Namespace) -> int:
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
@@ -3668,6 +3881,25 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
         return 1
     if not args.dry_run and not args.publish:
         print("error: closeout requires --dry-run or --publish", file=sys.stderr)
+        return 1
+    commit_request, commit_request_failures = apply_closeout_commit_request(args)
+    if commit_request_failures:
+        payload = {
+            "dry_run": bool(args.dry_run),
+            "status": "repair-needed",
+            "work_unit_id": args.work_unit_id,
+            "commit_request": commit_request,
+            "decision_failures": commit_request_failures,
+            "would_write_decision": False,
+            "would_publish_team_final_review": False,
+            "would_publish_owner_closeout": False,
+            "would_mutate_project": False,
+            "next_action": "Repair commit-request before closeout.",
+        }
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(f"error: repair-needed: {commit_request_failures[0]}", file=sys.stderr)
         return 1
     if args.publish and not args.decision:
         print("error: --publish requires --decision", file=sys.stderr)
@@ -3706,6 +3938,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             decision_decided_at = ""
             if args.decision:
                 decision_failures = validate_closeout_decision(args, item, artifact_dir)
+                decision_failures.extend(validate_closeout_commit_request(args, commit_request, item, artifact_dir))
                 if decision_failures:
                     status = "repair-needed"
                     next_action = "Repair closeout decision failures before publishing final review."
@@ -3734,6 +3967,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "team_text": team_text,
                 "owner_text": owner_text,
                 "decision_preview": decision_preview,
+                "commit_request": commit_request,
                 "resolved_work_card": item.get("work_card", ""),
                 "work_card_source": item.get("work_card_source", ""),
                 "would_write_decision": bool(args.decision and not decision_failures),
@@ -3755,6 +3989,16 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 args.transition_at = decided_at
                 proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
                 decision_path = artifact_dir / "decision.md"
+                stage_path = artifact_dir / f"closeout-{args.decision.replace('_', '-')}-stage.json"
+                if stage_path.exists() and not args.force:
+                    raise FileExistsError(f"closeout stage already exists: {stage_path}")
+                write_closeout_stage(
+                    stage_path,
+                    args=args,
+                    status="started",
+                    decided_at=decided_at,
+                    extra={"decision_path": str(decision_path)},
+                )
                 card_paths = write_closeout_card_files(artifact_dir, args, team_card, owner_card)
                 decision_path.write_text(decision_preview, encoding="utf-8")
                 team_code, team_publish, team_error = publish_card(
@@ -3780,11 +4024,25 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 project_sync = run_project_sync(args)
                 if project_sync.get("enabled") and not project_sync.get("ok"):
                     print(f"warning: Project closeout sync failed: {project_sync.get('error')}", file=sys.stderr)
+                write_closeout_stage(
+                    stage_path,
+                    args=args,
+                    status="published",
+                    decided_at=decided_at,
+                    extra={
+                        "decision_path": str(decision_path),
+                        "card_paths": {key: str(value) for key, value in card_paths.items()},
+                        "team_publish": team_publish.get("publish", {}),
+                        "owner_publish": owner_publish.get("publish", {}),
+                        "project_sync_ok": not project_sync.get("enabled") or bool(project_sync.get("ok")),
+                    },
+                )
                 publish_payload = {
                     **payload,
                     "dry_run": False,
                     "status": "published",
                     "decision_path": str(decision_path),
+                    "stage_path": str(stage_path),
                     "card_paths": {key: str(value) for key, value in card_paths.items()},
                     "team_publish": team_publish.get("publish", {}),
                     "owner_publish": owner_publish.get("publish", {}),
@@ -4708,6 +4966,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional WU-scoped atomic lock directory, default: <WU>/.closeout.lock",
     )
     closeout.add_argument("--decision", choices=("accept", "revise", "blocked"), default="")
+    closeout.add_argument(
+        "--commit-request",
+        default="",
+        help="Structured reviewer commit-request JSON or @path; binds closeout to source hashes and RESULT_READY proof",
+    )
     closeout.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
     closeout.add_argument("--reason", default="", help="Operations Lead rationale for an explicit decision")
     closeout.add_argument("--source-ref", default="", help="Decision/evidence source reference")

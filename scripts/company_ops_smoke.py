@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import shutil
@@ -49,6 +50,19 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
         encoding="utf-8",
     )
+
+
+def canonical_json_hash(value: dict[str, Any]) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def expected_dashboard_timestamp(value: str) -> str:
@@ -297,6 +311,41 @@ def proof_rows(work_unit_id: str, events: list[tuple[str, str, str, str]]) -> li
         }
         for surface, kind, card_id, timestamp in events
     ]
+
+
+def closeout_commit_request(
+    artifact_dir: Path,
+    work_unit_id: str,
+    *,
+    proof_id: str,
+    proof_timestamp: str = "2026-06-07T01:35:00Z",
+    decision: str = "accept",
+    autonomy_class: str = "auto_eligible",
+) -> dict[str, Any]:
+    proof_row = proof_rows(
+        work_unit_id,
+        [("team-detail", "RESULT_READY", proof_id, proof_timestamp)],
+    )[0]
+    return {
+        "work_unit_id": work_unit_id,
+        "decision": decision,
+        "reason": "Fresh closeout reviewer accepts the source-backed result.",
+        "source_ref": str(artifact_dir / "evidence.md"),
+        "result_ready_proof_id": f"{work_unit_id}:team-detail:RESULT_READY:{proof_id}",
+        "artifact_hashes": {
+            "assignment.md": file_sha256(artifact_dir / "assignment.md"),
+            "claim.md": file_sha256(artifact_dir / "claim.md"),
+            "evidence.md": file_sha256(artifact_dir / "evidence.md"),
+            "progress.jsonl": file_sha256(artifact_dir / "progress.jsonl"),
+            "visibility-proof.jsonl": file_sha256(artifact_dir / "visibility-proof.jsonl"),
+            "result_ready_proof_rows": [canonical_json_hash(proof_row)],
+        },
+        "reviewer_session_ref": f"session:{work_unit_id}:closeout-review",
+        "reviewer_job_ref": f"job:{work_unit_id}:closeout-review",
+        "autonomy_class": autonomy_class,
+        "review_depth": "source-artifacts-and-smoke-diff",
+        "red_line_check": "clear",
+    }
 
 
 def load_claims(ledger: Path) -> list[dict[str, Any]]:
@@ -3871,7 +3920,139 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout accept dry-run mutated decision.md")
     if (ready_late / "team-accept-card.json").exists() or (ready_late / "ops-completed-card.json").exists():
         raise RuntimeError("closeout accept dry-run wrote card artifacts")
+
+    commit_request = closeout_commit_request(
+        ready_late,
+        "WU-260607-101",
+        proof_id="late-001",
+        proof_timestamp="2026-06-07T01:20:00Z",
+    )
+    closeout_commit_request_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--commit-request",
+            json.dumps(commit_request, sort_keys=True),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(closeout_commit_request_dry_run, "closeout commit-request dry-run")
+    commit_payload = json.loads(closeout_commit_request_dry_run.stdout)
+    if commit_payload.get("status") != "decision-ready":
+        raise RuntimeError("closeout commit-request did not produce decision-ready")
+    if "## Guarded Commit Request" not in commit_payload.get("decision_preview", ""):
+        raise RuntimeError("closeout commit-request decision preview did not record guarded request context")
+    if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
+        raise RuntimeError("closeout commit-request dry-run mutated decision.md")
+
+    mismatched_request = json.loads(json.dumps(commit_request))
+    mismatched_request["artifact_hashes"]["evidence.md"] = "0" * 64
+    closeout_hash_mismatch = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--commit-request",
+            json.dumps(mismatched_request, sort_keys=True),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if closeout_hash_mismatch.returncode == 0:
+        raise RuntimeError("closeout commit-request accepted an artifact hash mismatch")
+    hash_mismatch_payload = json.loads(closeout_hash_mismatch.stdout)
+    if "artifact hash mismatch: evidence.md" not in " ".join(hash_mismatch_payload.get("decision_failures", [])):
+        raise RuntimeError("closeout commit-request hash mismatch failure did not explain evidence.md")
+    if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
+        raise RuntimeError("hash-mismatched commit-request mutated decision.md")
+
+    manual_required_request = json.loads(json.dumps(commit_request))
+    manual_required_request["autonomy_class"] = "manual_required"
+    closeout_manual_required = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--commit-request",
+            json.dumps(manual_required_request, sort_keys=True),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if closeout_manual_required.returncode == 0:
+        raise RuntimeError("closeout commit-request accepted manual_required auto-commit")
+    manual_required_payload = json.loads(closeout_manual_required.stdout)
+    if "manual_required cannot auto-commit" not in " ".join(manual_required_payload.get("decision_failures", [])):
+        raise RuntimeError("manual_required commit-request failure did not fail closed explicitly")
+
+    wrong_wu_request = json.loads(json.dumps(commit_request))
+    wrong_wu_request["work_unit_id"] = "WU-260607-999"
+    closeout_wrong_wu = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--commit-request",
+            json.dumps(wrong_wu_request, sort_keys=True),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if closeout_wrong_wu.returncode == 0:
+        raise RuntimeError("closeout commit-request accepted mismatched Work Unit id")
+    wrong_wu_payload = json.loads(closeout_wrong_wu.stdout)
+    if "work_unit_id mismatch" not in " ".join(wrong_wu_payload.get("decision_failures", [])):
+        raise RuntimeError("commit-request WU mismatch failure did not explain the mismatch")
+
     (ready_late / "decision.md").write_text(accept_payload["decision_preview"], encoding="utf-8")
+    closeout_already_decided_commit = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--commit-request",
+            json.dumps(commit_request, sort_keys=True),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if closeout_already_decided_commit.returncode == 0:
+        raise RuntimeError("closeout commit-request accepted an already-decided Work Unit")
+    already_decided_payload = json.loads(closeout_already_decided_commit.stdout)
+    if "already records a final" not in " ".join(already_decided_payload.get("decision_failures", [])):
+        raise RuntimeError("already-decided commit-request failure did not cite final decision guard")
     assert_status_lifecycle(artifact_root, "WU-260607-101", "accepted")
     assert_project_status(artifact_root, invalid_project_field_map, "WU-260607-101", "Accepted")
 
@@ -4106,6 +4287,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "Project sync dry-run planning without mutation, "
         "dispatch source contract/setup-needed guard, fresh session key guard, fake and command adapter accepted-proof guards, "
         "closeout review wrapper and wake accepted-proof guards, source inbox recovery after missed review wake, "
+        "guarded closeout commit-request proof/hash/manual-required guards, "
         "result-ready publish dry-run and closeout decision safety, "
         "and one result_ready update"
     )

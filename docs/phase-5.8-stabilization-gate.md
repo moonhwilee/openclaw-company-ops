@@ -499,7 +499,10 @@ Current status:
   `result-ready --publish` can request a fresh Work Unit-scoped closeout
   reviewer wake after successful RESULT_READY publish/readback, and
   `work-unit review-wake` provides a source-backed foreground recovery path.
-- `5.8.4c-2` guarded closeout commit request is not implemented yet.
+- `5.8.4c-2` guarded closeout commit request is implemented: existing
+  `work-unit closeout` accepts structured reviewer `--commit-request` JSON,
+  revalidates current RESULT_READY proof/source hashes/manual-required policy,
+  and records a narrow closeout stage file during publish.
 - The B-prime design baseline remains: the fresh closeout reviewer may judge
   the Work Unit, but final decisions are applied only through the guarded
   closeout path.
@@ -610,9 +613,9 @@ Guarded closeout commit request:
 - Before writing final state, closeout must revalidate WU id, result-ready
   proof, source refs, artifact hashes, final-decision absence, final proof
   absence, stale/duplicate/conflict status, and manual-required red lines.
-- Closeout should use a small staging/resume/idempotency guard around
-  `decision.md`, card file writes, Discord publishes, and Project sync so a
-  publish failure cannot be mistaken for fully converged closeout.
+- Closeout uses a small staging guard around `decision.md`, card file writes,
+  Discord publishes, and Project sync so a publish failure leaves an explicit
+  stage artifact instead of silently looking like a clean converged path.
 
 Implementation slices:
 
@@ -622,9 +625,10 @@ Implementation slices:
   source-inbox recovery after wake failure. This slice deliberately does not
   add a daemon, queue, DB, retry worker, reverse-import path, or final
   auto-closeout.
-- `5.8.4c-2` (remaining): B-prime guarded closeout: `--commit-request`, artifact hash and
-  result-ready proof revalidation, reviewer autonomy classes, closeout staging
-  or idempotent resume guard, and final visibility/status convergence.
+- `5.8.4c-2` (implemented): B-prime guarded closeout: `--commit-request`,
+  artifact hash and result-ready proof revalidation, reviewer autonomy classes,
+  manual-required/red-line fail-closed checks, closeout staging guard, and
+  final visibility/status convergence regression coverage.
 
 Acceptance, once implemented:
 
