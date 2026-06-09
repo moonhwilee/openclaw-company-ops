@@ -426,10 +426,12 @@ Current implementation state:
   progress row for active work, from a proof-derived lifecycle display when no
   progress row exists, and from the final decision when the Work Unit is
   terminal.
-- The default sync path performs no GitHub Issue close/open, Discord semantic
-  publish, source artifact, claim, evidence, or decision mutation. The optional
-  `--sync-issue-labels` path mutates only managed queue labels and then
-  readbacks the live label set.
+- The default standalone sync path performs no GitHub Issue close/open,
+  Discord semantic publish, source artifact, claim, evidence, or decision
+  mutation. Final closeout with `--project-sync-mode required` includes
+  GitHub Issue queue-label convergence in the same Project sync gate. The
+  label path mutates only managed queue labels and then readbacks the live label
+  set.
 
 Operational enablement still requires a real GitHub Project, text-compatible
 fields, a local field-id map, and `gh auth refresh -s project` on the runner.

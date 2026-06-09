@@ -65,6 +65,39 @@ with task risk.
 The Discord messages are not commands, source artifacts, state changes,
 approvals, recoveries, or completion truth.
 
+## Channel Targets
+
+Company Ops publishes to explicit Discord targets, not to channel names. A
+publish target is a string such as `channel:<discord-channel-id>` and is passed
+to `discord publish-card` or `discord publish-sequence`.
+
+Recommended target mapping:
+
+- `#ops-feed` -> `channel:<ops-feed-id>` for owner-facing assignment,
+  completion, revision, and blocker cards.
+- `#ops-alerts` -> `channel:<ops-alerts-id>` when exception alerts are enabled.
+- `#team-build-pq` -> `channel:<team-build-pq-id>`.
+- `#team-build-lab` -> `channel:<team-build-lab-id>`.
+- `#team-market` -> `channel:<team-market-id>`.
+- `#team-revenue` -> `channel:<team-revenue-id>`.
+
+`#ops-lead` is the owner and Operations Lead planning channel. It is not a
+normal card-publish surface unless an operating command explicitly targets it.
+
+When setting up a fresh server:
+
+1. Create the Discord server.
+2. Create the recommended channels.
+3. Copy each channel id from Discord developer mode.
+4. Store or pass the corresponding `channel:<id>` target to the foreground
+   Company Ops commands.
+5. Run a harmless publish/readback smoke before the first real Work Unit.
+
+If a channel is deleted, cloned, or recreated, its old id is invalid for future
+publishes even when the visible channel name is unchanged. Refresh the affected
+target strings before the next live run. Old proof-log rows may continue to
+reference the previous ids as historical evidence.
+
 ## Composition Model
 
 Visibility messages should be composed from the same known facts, but they

@@ -957,6 +957,8 @@ Slice B, closeout/dashboard convergence:
 - Implement final desired-vs-live GitHub Project readback in
   `project_sync.py`; closeout consumes that result instead of inferring
   convergence from local stage flags or subprocess success alone.
+- Include managed GitHub Issue queue-label convergence in the same required
+  closeout Project sync gate, without closing, reopening, or archiving Issues.
 - Treat Project item absence during final closeout as `project_item_missing` or
   `project-sync-needed`. Creation of missing Project items belongs to setup,
   handoff, or explicit foreground reconcile, not final completion.

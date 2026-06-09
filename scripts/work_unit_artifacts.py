@@ -2863,6 +2863,8 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
     ]
     if getattr(args, "project_sync_no_create_missing_project_item", False):
         command.append("--no-create-missing-project-item")
+    if required_sync:
+        command.append("--sync-issue-labels")
     if args.project_sync_ledger:
         command.extend(["--ledger", args.project_sync_ledger])
     else:

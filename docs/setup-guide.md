@@ -124,11 +124,13 @@ small:
   show a compact proof-derived lifecycle display from local
   `visibility-proof.jsonl`. Do not manually backfill Progress from Project
   edits or Discord text.
-- `project-sync apply --sync-issue-labels` may also converge GitHub Issue queue
-  labels from the same source-derived status. This is an explicit foreground
-  hygiene step: it removes stale queue labels and adds the one desired queue
-  label set, but it does not close, reopen, archive, or otherwise treat the
-  Issue as source truth.
+- `work-unit closeout --publish --project-sync-mode required` also converges
+  GitHub Issue queue labels as part of the required Project sync readback. The
+  same hygiene can be run explicitly with `project-sync apply
+  --sync-issue-labels` or `project-sync reconcile --sync-issue-labels`. It
+  removes stale queue labels and adds the one desired queue label set, but it
+  does not close, reopen, archive, or otherwise treat the Issue as source
+  truth.
 - `Last proof or last source update` is a dashboard text mirror. Keep source
   artifact timestamps in UTC, but let `project-sync` display the value in the
   runner machine's local timezone. This field should contain timestamps only,
@@ -225,6 +227,30 @@ Recommended channels:
 - `#team-build-lab`: direct questions for the new product/tooling team lead.
 - `#team-market`: direct questions for the market/content team lead.
 - `#team-revenue`: direct questions for the revenue/customer team lead.
+
+Create these channels in the owner's Discord server, then record each channel
+as an explicit target string in the form `channel:<discord-channel-id>`.
+Company Ops does not publish by channel name. Reusing the same visible channel
+name after deleting or cloning a channel is not enough because Discord assigns a
+new channel id.
+
+Minimum target inventory before live dogfood:
+
+- `ops_feed_target`: `channel:<id-for-ops-feed>`.
+- `ops_alerts_target`: `channel:<id-for-ops-alerts>` if alerts are enabled.
+- `team_build_pq_target`: `channel:<id-for-team-build-pq>`.
+- `team_build_lab_target`: `channel:<id-for-team-build-lab>`.
+- `team_market_target`: `channel:<id-for-team-market>`.
+- `team_revenue_target`: `channel:<id-for-team-revenue>`.
+
+`#ops-lead` is primarily a planning and Q&A channel. It only needs a recorded
+target if an operating command will publish cards there; otherwise it is a
+conversation binding, not a required `discord publish-card` target.
+
+If channels are recreated to clear noisy test history, refresh every affected
+`channel:<id>` target before the next live publish. Historical proof rows may
+keep their old message and channel ids as audit history; new publishes must use
+the new channel ids.
 
 Direct team channels are allowed. The owner can ask a Team Lead for status,
 clarification, evidence location, or early thinking in the relevant channel.

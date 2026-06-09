@@ -1062,6 +1062,11 @@ Public-v1 setup/preflight guidance:
 - Discord readiness means: explicit ops-feed/team-detail targets are known,
   `publish-card` can be run with expected target/surface checks, proof-log
   paths are writable, and readback is available.
+- A Discord target is an explicit `channel:<discord-channel-id>` string, not a
+  channel name. Setup instructions should tell the owner to create the Discord
+  server/channels, copy the channel ids from Discord developer mode, and provide
+  or store one target per publish surface. Recreated channels require refreshed
+  ids before the next live run.
 - The setup check must not create or bind external resources automatically.
   Missing readiness should fail only the external mirror/proof action, not the
   source-backed Work Unit flow.

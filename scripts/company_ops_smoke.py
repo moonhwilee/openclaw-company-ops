@@ -4951,6 +4951,44 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     original_publish_card = work_unit_module.publish_card
     original_project_sync = work_unit_module.run_project_sync
     original_run_gh_api = work_unit_module.run_gh_api
+    original_run_json_command = work_unit_module.run_json_command
+
+    project_sync_commands: list[list[str]] = []
+
+    def capture_project_sync_command(command: list[str]) -> tuple[int, dict[str, Any], str]:
+        project_sync_commands.append(command)
+        return 0, {"sync_state": "attempted_ok", "summary": {}, "readback": {}}, ""
+
+    try:
+        work_unit_module.run_json_command = capture_project_sync_command
+        required_sync = work_unit_module.run_project_sync(
+            argparse.Namespace(
+                project_sync_mode="required",
+                project_sync_field_map=str(work_dir / "field-map.json"),
+                artifact_root=partial_root,
+                work_unit_id="WU-260607-101",
+                project_sync_audit_log=str(work_dir / "project-sync-required.jsonl"),
+                project_sync_ledger="",
+                project_sync_no_create_missing_project_item=True,
+            )
+        )
+        if not required_sync.get("ok"):
+            raise RuntimeError("required closeout Project sync command did not report ok")
+        if not project_sync_commands:
+            raise RuntimeError("required closeout Project sync did not invoke project-sync")
+        required_command = project_sync_commands[-1]
+        if "--sync-issue-labels" not in required_command:
+            raise RuntimeError("required closeout Project sync did not enable issue label sync")
+        if "--no-create-missing-project-item" not in required_command:
+            raise RuntimeError("required closeout Project sync lost no-create safety")
+        project_sync_commands.clear()
+        disabled_sync = work_unit_module.run_project_sync(
+            argparse.Namespace(project_sync_mode="disabled", project_sync_field_map="")
+        )
+        if disabled_sync.get("enabled") or project_sync_commands:
+            raise RuntimeError("disabled closeout Project sync attempted issue label sync")
+    finally:
+        work_unit_module.run_json_command = original_run_json_command
 
     summary_publish_root = work_dir / "work-card-summary-publish-artifacts"
     summary_publish_wu = summary_publish_root / "WU-260607-150"
