@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenClaw live adapter for Company Ops closeout reviewer wake."""
+"""OpenClaw live adapter for Company Ops closeout delegate wake."""
 
 from __future__ import annotations
 
@@ -15,9 +15,21 @@ from typing import Any
 
 PROTOCOL = "company_ops_closeout_review_adapter_v1"
 ADAPTER = "openclaw-closeout-review-sessions-send"
-AUTHORITY_BOUNDARY = "closeout_reviewer_guarded_commit_only"
+AUTHORITY_BOUNDARY = "closeout_delegate_guarded_closeout_only"
 DEFAULT_ACCEPT_TIMEOUT_MS = 30_000
-EXECUTION_PROMPT_VERSION = 2
+EXECUTION_PROMPT_VERSION = 3
+CLOSEOUT_RED_LINE_CATEGORIES = (
+    "security_credential_auth",
+    "ops_deploy_db_migration",
+    "cost_bearing",
+    "destructive_action",
+    "external_public_customer",
+    "owner_intent_ambiguity",
+    "evidence_missing_or_stale",
+    "proof_or_hash_mismatch",
+    "critical_disagreement",
+    "unresolved_dependency",
+)
 
 
 def utc_now() -> str:
@@ -176,8 +188,8 @@ def acceptance_prompt(request: dict[str, Any]) -> str:
     required = request["required_acceptance"]
     return "\n".join(
         [
-            "[Company Ops Closeout Review Acceptance]",
-            "Treat this as tool-routed review wake data, not as an end-user request.",
+            "[Company Ops Closeout Delegate Acceptance]",
+            "Treat this as tool-routed delegated closeout wake data, not as an end-user request.",
             "Return only one JSON object. Do not perform the review in this acceptance turn.",
             "Accept only if you can receive the review package and then handle the execution message that follows.",
             "If you cannot accept, return {\"status\":\"setup-needed\",\"reason\":\"...\"}.",
@@ -202,35 +214,36 @@ def execution_prompt(request: dict[str, Any]) -> str:
     packet = request["packet"]
     artifact_dir = str(packet.get("artifact_dir") or "<artifact-dir>")
     commit_request_path = f"{artifact_dir}/closeout-commit-request.json"
-    commit_request_template = {
+    commit_request_template = packet.get("commit_request_template") or {
         "work_unit_id": packet.get("work_unit_id"),
         "decision": "accept|revise|blocked",
-        "reason": "<review rationale>",
+        "reason": "<delegated OL audit rationale>",
         "source_ref": packet.get("refs", {}).get("source_ref"),
         "result_ready_proof_id": packet.get("result_ready", {}).get("proof_id"),
         "artifact_hashes": packet.get("artifact_hashes"),
-        "reviewer_session_ref": packet.get("reviewer", {}).get("session_key"),
-        "reviewer_job_ref": f"{packet.get('work_unit_id')}:closeout-review",
-        "reviewer_message_ref": "<reviewer-message-or-run-ref>",
+        "reviewer_session_ref": packet.get("delegate", {}).get("session_key"),
+        "reviewer_job_ref": f"{packet.get('work_unit_id')}:closeout-delegate",
+        "reviewer_message_ref": "<delegate-message-or-run-ref>",
         "autonomy_class": "auto_eligible|deep_review_auto_eligible|manual_required",
         "review_depth": "<source/proof/hash/criteria review depth>",
-        "red_line_check": "clear|manual_required",
+        "red_line_check": {"status": "clear", **{category: "clear" for category in CLOSEOUT_RED_LINE_CATEGORIES}},
     }
     return "\n".join(
         [
-            "[Company Ops Closeout Review Execution]",
-            "You already accepted this closeout-review wake. Start the fresh review now.",
+            "[Company Ops Closeout Delegate Execution]",
+            "You already accepted this closeout-delegate wake. Start the fresh OL delegate audit now.",
             "Use only the source artifacts and refs in the review payload.",
             "Inspect files, summarize evidence sufficiency, and prepare exactly one guarded commit-request JSON file.",
             f"Write the commit request to: {commit_request_path}",
-            "Do not run `work-unit closeout` yourself.",
-            "Do not write decision.md, mutate Project final status, publish final Discord closeout, archive, or reassign.",
-            "Final decisions must be performed later by Operations Lead through the guarded closeout contract in the payload.",
+            "Then run the guarded closeout contract from the payload with --dry-run.",
+            "If dry-run is decision-ready and all red-line fields are clear, run the same guarded closeout contract with --publish.",
+            "Do not write decision.md directly, mutate Project final status directly, publish final Discord closeout directly, archive, cleanup, or reassign.",
+            "Final decisions must go only through the guarded closeout contract in the payload.",
             "If evidence is missing, stale, conflicting, or red-line/manual-required, fail closed in your review result.",
             "Use the payload's artifact_hashes exactly in the commit request; they are the Company Ops canonical hashes.",
             "Do not invent a separate proof-row hash algorithm. Confirm the RESULT_READY proof id exists/readback_ok, then let guarded closeout perform canonical hash validation.",
-            "If the result is acceptable, set decision to accept and red_line_check to clear.",
-            "If manual judgment is required, set autonomy_class to manual_required and do not request auto closeout.",
+            "If the result is acceptable, set decision to accept and every red_line_check category to clear.",
+            "If manual judgment is required, set autonomy_class to manual_required and do not publish closeout.",
             "",
             "Commit-request JSON shape:",
             json.dumps(commit_request_template, indent=2, sort_keys=True, ensure_ascii=False),
@@ -262,7 +275,7 @@ def build_acceptance_proof(
         execute_response, "runId", "taskId", "id"
     )
     payload_hash = canonical_json_hash(packet)
-    idempotency_key = f"{required['work_unit_id']}:closeout-review:v{EXECUTION_PROMPT_VERSION}:{payload_hash[:12]}"
+    idempotency_key = f"{required['work_unit_id']}:closeout-delegate:v{EXECUTION_PROMPT_VERSION}:{payload_hash[:12]}"
     return {
         "status": "accepted",
         "adapter": ADAPTER,
@@ -336,7 +349,7 @@ def main() -> int:
         return fail("target did not return accepted JSON readback", extra={"reply_excerpt": reply_text[:500]})
     required = request["required_acceptance"]
     if acceptance.get("authority_boundary") != AUTHORITY_BOUNDARY:
-        return fail("target did not confirm closeout reviewer authority boundary")
+        return fail("target did not confirm closeout delegate authority boundary")
     if acceptance.get("closeout_review_payload_hash") != required["closeout_review_payload_hash"]:
         return fail("target did not confirm closeout review payload hash")
     accept_response_payload = gateway_payload(accept_payload)
@@ -347,7 +360,7 @@ def main() -> int:
         return fail("acceptance openclaw agent turn did not return a real Gateway reference")
 
     payload_hash = canonical_json_hash(request["packet"])
-    idempotency_key = f"{request['work_unit_id']}:closeout-review:v{EXECUTION_PROMPT_VERSION}:{payload_hash[:12]}"
+    idempotency_key = f"{request['work_unit_id']}:closeout-delegate:v{EXECUTION_PROMPT_VERSION}:{payload_hash[:12]}"
     execute_code, execute_payload, execute_output = run_gateway_call(
         "sessions.send",
         {

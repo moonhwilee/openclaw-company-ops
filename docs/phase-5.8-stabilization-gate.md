@@ -545,8 +545,8 @@ Goal:
 - Preserve the nonblocking Operations Lead model while restoring real-time-ish
   completion visibility for owners.
 - Make `result-ready --publish` create source-backed review visibility and
-  enqueue a fresh closeout reviewer session without waiting for final closeout.
-- Let the fresh reviewer perform source-backed review, including deep review for
+  enqueue a fresh closeout delegate session without waiting for final closeout.
+- Let the fresh `main` closeout delegate perform source-backed review, including deep review for
   broad code changes or multi-WU dependencies, while preserving fail-closed
   red-line/manual review boundaries.
 - Apply final `accept`, `revise`, or `blocked` decisions only through a single
@@ -555,19 +555,21 @@ Goal:
 Required boundary:
 
 - Team Lead authority may produce `CHECKPOINT` and `RESULT_READY` visibility.
-- Operations Lead authority remains the only path to `ACCEPTED`, `REVISE`,
-  `BLOCKED_DETAIL`, owner-facing `COMPLETED`, `NEEDS_REVISION`, or `BLOCKED`,
-  and Project final-state mutation.
+- Operations Lead authority, including explicit `operations-lead-delegate`
+  authority, remains the only path to `ACCEPTED`, `REVISE`, `BLOCKED_DETAIL`,
+  owner-facing `COMPLETED`, `NEEDS_REVISION`, or `BLOCKED`, and Project
+  final-state mutation.
 - Goal/convergence internal rounds stay Team Lead-owned before `result-ready`.
   Operations Lead `revise` means post-result-ready replan/amendment, not the
   normal mechanism for Team Lead internal improvement loops.
-- Team Lead waits only for `RESULT_READY` proof/readback and closeout reviewer
-  enqueue proof. It must not wait for reviewer judgment or closeout completion.
-- The fresh reviewer may judge `accept`, `revise`, or `blocked`, but it must
-  not run guarded closeout itself and must not write `decision.md`, Project
-  final status, Discord final review, or owner-facing completion directly. It
-  may only prepare the structured `closeout-commit-request.json` for Operations
-  Lead foreground closeout.
+- Team Lead waits only for `RESULT_READY` proof/readback and closeout delegate
+  enqueue proof. It must not wait for delegate judgment or closeout completion.
+- The fresh `main` closeout delegate may judge `accept`, `revise`, or
+  `blocked`, run guarded closeout dry-run, and publish only through
+  `work-unit closeout --authority-role operations-lead-delegate` when every
+  red-line category is clear. It must not write `decision.md` directly, mutate
+  Project final status directly, publish final Discord cards directly, archive,
+  cleanup, or reassign.
 - The guarded closeout path must reread source artifacts under a WU-scoped
   closeout lock, reject existing final decisions, and fail closed on stale,
   duplicate, conflicting, or hash-mismatched input.
@@ -576,17 +578,19 @@ B-prime implementation baseline:
 
 - Trigger source: foreground `work-unit result-ready --publish` after
   successful pre-gate, live RESULT_READY publish/readback, and post-gate.
-- Wake target: a fresh Work Unit-scoped closeout reviewer session, not the busy
+- Wake target: a fresh Work Unit-scoped closeout delegate session, not the busy
   Operations Lead foreground session.
-- Reviewer session key: deterministic and Work Unit-scoped, for example
-  `company-ops-closeout-reviewer-<work-unit-id>`.
-- Reviewer agent: must be a configured independent OpenClaw agent id. If a
-  dedicated `closeout-reviewer` agent is not configured, the operator must pass
-  an explicit configured reviewer agent; unknown agent ids are setup-needed.
-- Delivery guarantee: one-shot reviewer enqueue proof with recoverable session,
+- Delegate session key: deterministic and Work Unit-scoped, for example
+  `company-ops-closeout-delegate-<work-unit-id>`.
+- Delegate agent: v1 allows the configured `main` agent only. Unknown agents
+  and the assigned Team Lead agent are setup-needed, not fallback routes.
+- Delivery guarantee: one-shot delegate enqueue proof with recoverable session,
   message, or run refs. No background daemon, durable queue, retry worker, DB,
   hidden workflow runner, or multi-reviewer consensus.
-- Failure behavior: if RESULT_READY publish succeeds but reviewer wake/enqueue
+- Capacity guard: closeout delegate wake has a small foreground active cap
+  (default 2). Capacity-full leaves the WU recoverable in the result-ready
+  inbox; it does not queue, retry, or fake closeout.
+- Failure behavior: if RESULT_READY publish succeeds but delegate wake/enqueue
   fails, do not roll back RESULT_READY and do not fake closeout. Report
   `review-wake setup-needed` and leave the WU recoverable through
   `work-unit inbox --result-ready`.
@@ -601,39 +605,40 @@ Self-contained wake payload:
 - Include `work_unit_id`, title, team, artifact root, Work Card ref,
   `assignment.md`, `claim.md`, `evidence.md`, `progress.jsonl`,
   `visibility-proof.jsonl`, result-ready proof id/timestamp/source ref,
-  reviewer session key, guarded closeout command contract, and no-go actions.
+  delegate session key, guarded closeout command contract, and no-go actions.
 - Include artifact hashes for `assignment.md`, `claim.md`, `evidence.md`,
   `progress.jsonl`, and the relevant `visibility-proof.jsonl` proof rows so the
-  guarded closeout commit can bind reviewer judgment to the source snapshot the
-  reviewer actually inspected.
+  guarded closeout commit can bind delegate judgment to the source snapshot the
+  delegate actually inspected.
 - No-go actions must explicitly forbid direct `decision.md`, Project final
   state, Discord final review, owner completion, reassignment, archive, or
   reverse-import mutation outside guarded closeout.
 
-Reviewer autonomy classes:
+Delegate autonomy classes:
 
 - `auto_eligible`: normal verify, docs, and small code Work Units. The fresh
-  reviewer may accept, revise, or block through guarded closeout when evidence
+  delegate may accept, revise, or block through guarded closeout when evidence
   is sufficient.
 - `deep_review_auto_eligible`: broad code changes, many changed files, or
   multi-WU dependencies. Size alone is not a manual-review trigger. The fresh
-  reviewer should increase review depth, inspect diffs/tests/dependency refs,
+  delegate should increase review depth, inspect diffs/tests/dependency refs,
   and may use subagents before guarded closeout.
 - `manual_required`: operating-server actions, deployment, DB migration,
   credential/auth/security boundaries, cost-bearing actions, destructive
-  changes, external public release, unclear owner intent, unresolved
-  dependency, critical reviewer/subagent disagreement, missing evidence, stale
+  changes, external public release/customer impact, unclear owner intent,
+  unresolved dependency, critical reviewer/subagent disagreement, missing evidence, stale
   source, or hash/proof mismatch.
 
 Guarded closeout commit request:
 
 - Extend existing `work-unit closeout --publish`; do not build a separate
   commit system.
-- Add a structured `--commit-request <json>` input so the fresh reviewer does
+- Add a structured `--commit-request <json>` input so the fresh delegate does
   not synthesize arbitrary closeout CLI arguments.
 - Minimum commit request fields: `work_unit_id`, `decision`, `reason`,
-  `source_ref`, `result_ready_proof_id`, `artifact_hashes`, reviewer
-  session/run refs, `autonomy_class`, `review_depth`, `red_line_check`, and
+  `source_ref`, `result_ready_proof_id`, `artifact_hashes`, delegate
+  session/run refs, `authority_role`, `delegate_agent`, `autonomy_class`,
+  `review_depth`, structured `red_line_check`, and
   blocked-only fields such as `blocker_source`, `needed`, and `next_owner`.
 - Before writing final state, closeout must revalidate WU id, result-ready
   proof, source refs, artifact hashes, final-decision absence, final proof
@@ -658,24 +663,32 @@ Implementation slices:
   artifact hash and result-ready proof revalidation, reviewer autonomy classes,
   manual-required/red-line fail-closed checks, closeout staging/resume guard,
   and final visibility/status convergence regression coverage.
+- `5.8.6` (implemented in this slice): delegated closeout authority: fresh
+  `main` OL delegate, role-checked guarded publish, structured red-line
+  categories, closeout delegate capacity cap, Project sync recoverable
+  `project-sync-needed` stage, and expanded negative commit-request smoke.
 
 Acceptance, once implemented:
 
-- A detached Team Lead `result-ready --publish` creates source-backed review
-  visibility and fresh reviewer enqueue proof without requiring the Operations
+- A detached Team Lead `result-ready --publish` creates source-backed result
+  visibility and fresh closeout delegate enqueue proof without requiring the Operations
   Lead to keep a foreground session open.
-- The Team Lead returns after enqueue proof only. It does not wait for reviewer
+- The Team Lead returns after enqueue proof only. It does not wait for delegate
   judgment or guarded closeout completion.
 - A wake failure leaves the WU visible in `work-unit inbox --result-ready`
   rather than dropping or rolling back source truth.
-- The fresh reviewer can restore the WU from source artifacts and may accept
+- The fresh `main` closeout delegate can restore the WU from source artifacts and may accept
   broad code or multi-WU-dependent work after deep review when no red-line
   risk or evidence gap exists.
 - Red-line risk, evidence insufficiency, unresolved dependency, critical
   disagreement, stale source, or hash/proof mismatch produces
   `manual_required`, `revise`, or `blocked`, not automatic accept.
 - Only guarded closeout writes final `decision.md`, team-detail final review,
-  owner-facing closeout, and Project final status.
+  owner-facing closeout, and Project final status; direct writes by the
+  delegate remain forbidden.
+- Project sync failure after successful source/Discord closeout leaves an
+  explicit `project-sync-needed` stage and nonzero command result rather than a
+  false fully-converged publish.
 - Duplicate/stale wake attempts cannot overwrite or compete with an existing
   final decision.
 - Owner-facing status distinguishes `Result Ready / Review Needed` from final
@@ -684,12 +697,14 @@ Acceptance, once implemented:
 Regression coverage to add:
 
 - Wake payload self-containment and no-go boundary.
-- Reviewer enqueue proof success/failure, including no wake record without
+- Delegate enqueue proof success/failure, including no wake record without
   current acceptance/readback and enqueue/run refs.
-- Source inbox recovery when RESULT_READY succeeds but reviewer wake fails.
+- Source inbox recovery when RESULT_READY succeeds but delegate wake fails.
+- Delegate wake capacity-full recovery without hidden queue/retry.
 - `--commit-request` WU mismatch, stale decision, duplicate final proof,
-  missing source ref, artifact hash mismatch, and manual-required red-line
-  fail-closed cases.
+  missing source ref, missing proof id, proof mismatch, missing hashes, missing
+  delegate refs, missing review depth, artifact hash mismatch, and structured
+  red-line fail-closed cases.
 - Accepted, Revise, and Blocked convergence across `decision.md`, status
   lifecycle, Project dry-run status, and Discord proof rows.
 
@@ -704,7 +719,8 @@ negative coverage:
 
 - `WU-260609-901`/`902` exposed missing reviewer-agent setup and reviewer
   overreach, leading to explicit configured reviewer agents and reviewer-only
-  commit-request authority.
+  commit-request authority. Phase 5.8.6 supersedes that conservative boundary
+  with role-checked fresh `main` closeout delegation.
 - `WU-260609-903`/`904` exposed duplicate RESULT_READY risk, leading to
   fail-closed duplicate suppression before publish.
 - `WU-260609-905`/`906` exposed timestamp/hash ambiguity and proved
@@ -764,7 +780,7 @@ Acceptance:
 - Work Card references remain present in final decisions.
 - Operations Lead does not hold Team Lead foreground execution for the tested
   detached path.
-- Result-ready reviewer wake either records current enqueue proof or leaves a
+- Result-ready delegate wake either records current enqueue proof or leaves a
   visible recoverable setup-needed state without rollback or fake success.
 - Guarded commit-request closeout revalidates current source proof/hash/red-line
   state and is the only writer of final `decision.md`, team-detail final

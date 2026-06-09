@@ -84,6 +84,14 @@ The active Work Unit count is derived from source artifacts under the configured
 artifact root. OpenClaw sessions, Telegram/Discord messages, GitHub Project
 fields, and GitHub comments are advisory mirrors, not capacity truth.
 
+Closeout delegate wake has a separate small foreground cap because delegated
+audit also consumes fresh OpenClaw execution slots and must leave room for main
+Operations Lead exceptions. The initial cap is 2 active delegate wakes. When
+the cap is full, `work-unit review-wake --publish` must return
+`review-wake capacity-full`, write no wake record, and leave the Work Unit
+recoverable through `work-unit inbox --result-ready`. Do not add a daemon,
+hidden queue, retry worker, or fake closeout to work around this cap.
+
 ## Subagent Budget
 
 The Assignment Packet and package prompt carry the subagent budget. It is a

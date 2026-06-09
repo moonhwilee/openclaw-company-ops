@@ -254,7 +254,7 @@ RESULT_READY proof is required before the command has had a chance to create it,
 while still blocking result-ready submissions for Work Units that never started.
 
 For detached Work Units, `result-ready --publish` may also enqueue a fresh
-Work Unit-scoped closeout reviewer session after successful RESULT_READY
+Work Unit-scoped closeout delegate session after successful RESULT_READY
 publish/readback:
 
 ```bash
@@ -265,35 +265,36 @@ python3 scripts/openclaw_company_ops.py work-unit result-ready \
   --verification "..." \
   --publish \
   --closeout-reviewer-runtime openclaw-agent \
-  --closeout-reviewer-agent <configured-reviewer-agent> \
+  --closeout-reviewer-agent main \
   --closeout-reviewer-adapter command \
   --closeout-reviewer-adapter-command "python3 scripts/openclaw_closeout_review_sessions_send.py"
 ```
 
 The default closeout reviewer runtime is `none`, so existing result-ready
 publication remains unchanged unless the operator requests the wake path. The
-reviewer agent must be an actual configured OpenClaw agent id. If no dedicated
-`closeout-reviewer` agent exists, pass a different configured independent
-reviewer agent explicitly; an unknown reviewer agent is setup-needed, not a
-fallback to Operations Lead closeout. The reviewer adapter must return current
-accepted/enqueued proof, including a recoverable session/job/message reference
-and confirmation that the reviewer is bound to guarded closeout only. The
-reviewer execution turn may prepare `closeout-commit-request.json`, but must
-not run `work-unit closeout`, publish final Discord cards, write `decision.md`,
-or mutate Project final status.
+v1 delegate agent is the allowlisted `main` agent in a fresh Work Unit-scoped
+session, with an injected closeout-delegate prompt. Unknown agents and the
+assigned Team Lead agent are setup-needed, not fallback routes. The delegate
+adapter must return current accepted/enqueued proof, including a recoverable
+session/job/message reference and confirmation that the delegate is bound to
+guarded closeout only. The delegate execution turn prepares
+`closeout-commit-request.json`, runs guarded closeout dry-run, and may publish
+only through the guarded closeout command when all red-line categories are
+clear. It must not write `decision.md` directly, mutate Project final status
+directly, publish final Discord cards directly, archive, cleanup, or reassign.
 `--closeout-reviewer-adapter fake` is a smoke/local contract fixture, not a
 production path. Production wake should use the configured command adapter,
 usually through `COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND`.
-Reviewer execution enqueue keys include the payload hash and prompt version, so
+Delegate execution enqueue keys include the payload hash and prompt version, so
 an intentional foreground `review-wake --force` can replay after a corrected
-payload or reviewer prompt without reusing a stale execution result.
+payload or delegate prompt without reusing a stale execution result.
 
-If RESULT_READY publish succeeds but reviewer wake fails, do not roll back
+If RESULT_READY publish succeeds but delegate wake fails, do not roll back
 RESULT_READY and do not fake closeout. Treat the result as still visible in
 `work-unit inbox --result-ready`, then recover with the foreground
 `work-unit review-wake --dry-run/--publish` path after adapter setup is fixed.
-The Team Lead waits only for RESULT_READY readback and reviewer enqueue proof;
-it must not wait for reviewer judgment or final closeout completion.
+The Team Lead waits only for RESULT_READY readback and delegate enqueue proof;
+it must not wait for delegate judgment or final closeout completion.
 If a readback-ok RESULT_READY proof already exists, `result-ready --publish`
 fails closed unless the operator passes `--force` for an intentional duplicate
 publication. Do not use `--force` to paper over a confused Team Lead rerun.
@@ -330,24 +331,27 @@ Operations Lead result-ready closeout checklist:
    publish only when the planned decision, owner-facing status, and optional
    mirror updates match the source artifacts.
 
-When closeout is initiated by a fresh closeout reviewer, use the structured
+When closeout is initiated by a fresh closeout delegate, use the structured
 guarded path:
 
 ```bash
 python3 scripts/openclaw_company_ops.py work-unit closeout \
   --work-unit-id <id> \
   --commit-request @commit-request.json \
+  --authority-role operations-lead-delegate \
+  --delegate-agent main \
   --dry-run
 ```
 
-The commit request binds the reviewer judgment to the source snapshot it
+The commit request binds the delegate judgment to the source snapshot it
 inspected. It must include the Work Unit id, decision, reason, source ref,
-current RESULT_READY proof id, source artifact hashes, reviewer session/job/run
-or message refs, autonomy class, review depth, and a clear red-line check.
+current RESULT_READY proof id, source artifact hashes, delegate session/job/run
+or message refs, autonomy class, review depth, and a structured red-line check
+whose categories are all clear.
 `manual_required`, stale source, missing proof, hash mismatch, duplicate final
 proof, existing final decision, missing Work Card, or unclear red-line status
-must fail closed as `repair-needed`; the reviewer judgment alone is not enough
-to write final state.
+must fail closed as `repair-needed`; the delegate judgment alone is not enough
+to write final state without the guarded command.
 
 Race control:
 
@@ -500,25 +504,31 @@ The default flow is:
    In the current foreground/manual flow, Operations Lead may post it after
    confirming the Team Lead result. In the detached flow, this is Team
    Lead-owned result submission through `work-unit result-ready`. For detached
-   work, request a fresh closeout reviewer wake when configured; if wake fails,
+   work, request a fresh closeout delegate wake when configured; if wake fails,
    leave the WU in the result-ready inbox and recover through `work-unit
    review-wake`.
-9. A closeout reviewer or Operations Lead performs source-backed verification
-   and prepares either an explicit Operations Lead decision or a guarded
-   `--commit-request`.
-10. Operations Lead publishes final closeout through `work-unit closeout`
-   only. This command writes `decision.md`, posts the detailed `[ACCEPTED]`,
+9. A closeout delegate or Operations Lead performs source-backed verification
+   and prepares a guarded `--commit-request`.
+10. The fresh `main` closeout delegate may publish final closeout through
+   `work-unit closeout --authority-role operations-lead-delegate` when all
+   red-line categories are clear. Security, deployment, DB migration,
+   credential/auth, cost-bearing, destructive, external/public/customer,
+   owner-intent ambiguity, evidence/proof/hash mismatch, critical disagreement,
+   or unresolved-dependency cases must escalate to main Operations Lead with no
+   final write.
+11. `work-unit closeout` writes `decision.md`, posts the detailed `[ACCEPTED]`,
    `[REVISE]`, or `[BLOCKED_DETAIL]` review note in the relevant `#team-*`
    channel, posts one owner-facing `[COMPLETED]`, `[NEEDS_REVISION]`, or
    `[BLOCKED]` summary in `#ops-feed`, and optionally syncs the Project mirror
-   after source/proof revalidation.
+   after source/proof revalidation. It never archives or cleans up Work Cards.
 
 `[RESULT_READY]` is a Team Lead result-submission signal, not an Operations
 Lead decision. A Team Lead delegation is visibility-incomplete if the relevant
 team channel stops at `[RESULT_READY]`. Before reporting completion, the
-Operations Lead must close the team detail trail with `[ACCEPTED]`, `[REVISE]`,
-or `[BLOCKED_DETAIL]`, and then close the owner-facing timeline in `#ops-feed`
-with `[COMPLETED]`, `[NEEDS_REVISION]`, or `[BLOCKED]`.
+Operations Lead or delegated closeout path must close the team detail trail
+with `[ACCEPTED]`, `[REVISE]`, or `[BLOCKED_DETAIL]`, and then close the
+owner-facing timeline in `#ops-feed` with `[COMPLETED]`, `[NEEDS_REVISION]`, or
+`[BLOCKED]`.
 
 The Discord messages are visibility only. They show the owner what was assigned,
 what changed, what result came back, and where to inspect detail, but they do

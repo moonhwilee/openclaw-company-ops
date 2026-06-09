@@ -328,6 +328,19 @@ def closeout_commit_request(
         work_unit_id,
         [("team-detail", "RESULT_READY", proof_id, proof_timestamp)],
     )[0]
+    red_line_check = {
+        "status": "clear",
+        "security_credential_auth": "clear",
+        "ops_deploy_db_migration": "clear",
+        "cost_bearing": "clear",
+        "destructive_action": "clear",
+        "external_public_customer": "clear",
+        "owner_intent_ambiguity": "clear",
+        "evidence_missing_or_stale": "clear",
+        "proof_or_hash_mismatch": "clear",
+        "critical_disagreement": "clear",
+        "unresolved_dependency": "clear",
+    }
     return {
         "work_unit_id": work_unit_id,
         "decision": decision,
@@ -342,11 +355,14 @@ def closeout_commit_request(
             "visibility-proof.jsonl": file_sha256(artifact_dir / "visibility-proof.jsonl"),
             "result_ready_proof_rows": [canonical_json_hash(proof_row)],
         },
-        "reviewer_session_ref": f"session:{work_unit_id}:closeout-review",
-        "reviewer_job_ref": f"job:{work_unit_id}:closeout-review",
+        "reviewer_session_ref": f"session:{work_unit_id}:closeout-delegate",
+        "reviewer_job_ref": f"job:{work_unit_id}:closeout-delegate",
         "autonomy_class": autonomy_class,
         "review_depth": "source-artifacts-and-smoke-diff",
-        "red_line_check": "clear",
+        "red_line_check": red_line_check,
+        "authority_boundary": "closeout_delegate_guarded_closeout_only",
+        "authority_role": "operations-lead-delegate",
+        "delegate_agent": "main",
     }
 
 
@@ -3074,7 +3090,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "        'work_unit_id': 'WU-260607-121',",
                 "        'closeout_review_payload_hash': 'smoke-closeout-review-hash',",
                 "        'guarded_closeout_contract': 'work-unit closeout --commit-request <json> --publish',",
-                "        'authority_boundary': 'closeout_reviewer_guarded_commit_only',",
+                "        'authority_boundary': 'closeout_delegate_guarded_closeout_only',",
                 "    }",
                 "    if mode == 'fallback_acceptance':",
                 "        print(json.dumps({'runId': 'gateway-fallback-run', 'meta': {'transport': 'embedded', 'fallbackFrom': 'gateway', 'fallbackReason': 'gateway_timeout', 'sessionKey': 'gateway-fallback-WU-260607-121'}, 'result': {'payloads': [{'text': json.dumps(readback)}], 'finalAssistantVisibleText': json.dumps(readback)}}))",
@@ -3105,22 +3121,22 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         "adapter_protocol": "company_ops_closeout_review_adapter_v1",
         "work_unit_id": "WU-260607-121",
         "team": "ops",
-        "agent": "closeout-reviewer",
+        "agent": "main",
         "runtime": "openclaw-agent",
-        "session_key": "company-ops-closeout-reviewer-wu-260607-121",
+        "session_key": "company-ops-closeout-delegate-wu-260607-121",
         "artifact_dir": str(work_dir),
         "transition_at": args.created_at,
         "packet": {
             "protocol": "company_ops_closeout_review_wake_v1",
             "work_unit_id": "WU-260607-121",
             "guarded_closeout_contract": {"command": "work-unit closeout --commit-request <json> --publish"},
-            "authority_boundary": "closeout_reviewer_guarded_commit_only",
+            "authority_boundary": "closeout_delegate_guarded_closeout_only",
         },
         "required_acceptance": {
             "work_unit_id": "WU-260607-121",
             "closeout_review_payload_hash": "smoke-closeout-review-hash",
             "guarded_closeout_contract": "work-unit closeout --commit-request <json> --publish",
-            "authority_boundary": "closeout_reviewer_guarded_commit_only",
+            "authority_boundary": "closeout_delegate_guarded_closeout_only",
         },
     }
 
@@ -3147,9 +3163,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout review wrapper did not preserve execution run reference")
     closeout_gateway = closeout_wrapper_payload.get("gateway", {})
     idempotency_key = closeout_gateway.get("idempotency_key", "")
-    if not idempotency_key.startswith("WU-260607-121:closeout-review:"):
+    if not idempotency_key.startswith("WU-260607-121:closeout-delegate:"):
         raise RuntimeError("closeout review wrapper did not persist the review idempotency key")
-    if closeout_wrapper_payload.get("readback", {}).get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
+    if closeout_wrapper_payload.get("readback", {}).get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
         raise RuntimeError("closeout review wrapper did not preserve authority boundary readback")
 
     closeout_fallback_result = run_closeout_wrapper("fallback_acceptance")
@@ -3346,13 +3362,15 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     review_wake_dir = create_artifacts(args, inbox_work_dir, "WU-260607-117", "ops")
     review_command_dir = create_artifacts(args, inbox_work_dir, "WU-260607-118", "ops")
     review_setup_dir = create_artifacts(args, inbox_work_dir, "WU-260607-119", "ops")
-    for artifact_dir in (review_wake_dir, review_command_dir, review_setup_dir):
+    review_capacity_dir = create_artifacts(args, inbox_work_dir, "WU-260607-120", "ops")
+    for artifact_dir in (review_wake_dir, review_command_dir, review_setup_dir, review_capacity_dir):
         mark_artifact_started(artifact_dir)
         mark_artifact_result_ready(artifact_dir, recommendation="accept")
     for work_unit_id, artifact_dir, proof_id in (
         ("WU-260607-117", review_wake_dir, "review-wake-001"),
         ("WU-260607-118", review_command_dir, "review-wake-002"),
         ("WU-260607-119", review_setup_dir, "review-wake-003"),
+        ("WU-260607-120", review_capacity_dir, "review-wake-004"),
     ):
         write_jsonl(
             artifact_dir / "visibility-proof.jsonl",
@@ -3390,9 +3408,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if review_wake_dry_payload.get("status") != "ready-to-review-wake":
         raise RuntimeError("closeout review wake dry-run did not report ready-to-review-wake")
     review_payload = review_wake_dry_payload.get("review_payload", {})
-    if review_payload.get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
+    if review_payload.get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
         raise RuntimeError("closeout review payload did not carry the guarded authority boundary")
-    if review_payload.get("reviewer", {}).get("session_key") != "company-ops-closeout-reviewer-wu-260607-117":
+    if review_payload.get("reviewer", {}).get("session_key") != "company-ops-closeout-delegate-wu-260607-117":
         raise RuntimeError("closeout review payload did not derive a stable reviewer session key")
     if "evidence.md" not in review_payload.get("artifact_hashes", {}):
         raise RuntimeError("closeout review payload did not bind evidence to an artifact hash")
@@ -3429,7 +3447,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if review_wake_publish_payload.get("status") != "review-wake-enqueued":
         raise RuntimeError("closeout review wake publish did not report review-wake-enqueued")
     review_wake_record = json.loads((review_wake_dir / "closeout-review-wake.json").read_text(encoding="utf-8"))
-    if review_wake_record.get("accepted_proof", {}).get("readback", {}).get("authority_boundary") != "closeout_reviewer_guarded_commit_only":
+    if review_wake_record.get("accepted_proof", {}).get("readback", {}).get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
         raise RuntimeError("closeout review wake record did not persist guarded readback")
     if (review_wake_dir / "decision.md").read_text(encoding="utf-8").count("Status: Pending") != 1:
         raise RuntimeError("closeout review wake mutated decision.md")
@@ -3470,8 +3488,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "    'status': 'accepted',",
                 "    'adapter': 'smoke-closeout-review-command',",
                 "    'session_ref': 'session:' + request['session_key'],",
-                "    'job_ref': 'job:' + request['work_unit_id'] + ':closeout-review',",
-                "    'message_ref': 'message:' + request['work_unit_id'] + ':closeout-review-accepted',",
+                "    'job_ref': 'job:' + request['work_unit_id'] + ':closeout-delegate',",
+                "    'message_ref': 'message:' + request['work_unit_id'] + ':closeout-delegate-accepted',",
                 "    'accepted_at': request['transition_at'],",
                 "    'readback': {",
                 "        'work_unit_id': required['work_unit_id'],",
@@ -3515,6 +3533,37 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if review_command_record.get("accepted_proof", {}).get("adapter") != "smoke-closeout-review-command":
         raise RuntimeError("closeout review command adapter proof was not persisted")
 
+    review_capacity_full = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "review-wake",
+            "--work-unit-id",
+            "WU-260607-120",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "ops",
+            "--source-ref",
+            str(review_capacity_dir / "evidence.md"),
+            "--closeout-reviewer-runtime",
+            "openclaw-agent",
+            "--closeout-reviewer-adapter",
+            "fake",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    if review_capacity_full.returncode == 0:
+        raise RuntimeError("closeout delegate wake ignored active delegate capacity cap")
+    review_capacity_payload = json.loads(review_capacity_full.stdout)
+    if review_capacity_payload.get("status") != "review-wake capacity-full":
+        raise RuntimeError("closeout delegate capacity failure did not report capacity-full")
+    if (review_capacity_dir / "closeout-review-wake.json").exists():
+        raise RuntimeError("capacity-full closeout delegate wake wrote a wake record")
+
     review_hanging_adapter = work_dir / "hanging_closeout_review_adapter.py"
     review_hanging_adapter.write_text("import time\ntime.sleep(2)\n", encoding="utf-8")
     setup_progress_before = (review_setup_dir / "progress.jsonl").read_text(encoding="utf-8")
@@ -3540,6 +3589,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             f"{sys.executable} {review_hanging_adapter}",
             "--closeout-reviewer-adapter-timeout-seconds",
             "1",
+            "--closeout-delegate-active-cap",
+            "3",
             "--publish",
             "--format",
             "json",
@@ -3925,6 +3976,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--decision",
             "accept",
+            "--authority-role",
+            "operations-lead",
             "--reason",
             "Operations Lead accepts the source-backed result.",
             "--source-ref",
@@ -4011,6 +4064,57 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout commit-request hash mismatch failure did not explain evidence.md")
     if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
         raise RuntimeError("hash-mismatched commit-request mutated decision.md")
+
+    negative_commit_requests: list[tuple[str, dict[str, Any], str]] = []
+    missing_proof_request = json.loads(json.dumps(commit_request))
+    missing_proof_request.pop("result_ready_proof_id", None)
+    negative_commit_requests.append(("missing proof id", missing_proof_request, "result_ready_proof_id is required"))
+    wrong_proof_request = json.loads(json.dumps(commit_request))
+    wrong_proof_request["result_ready_proof_id"] = "wrong-proof"
+    negative_commit_requests.append(("wrong proof id", wrong_proof_request, "does not match current RESULT_READY proof"))
+    missing_hash_request = json.loads(json.dumps(commit_request))
+    missing_hash_request["artifact_hashes"].pop("claim.md", None)
+    negative_commit_requests.append(("missing artifact hash", missing_hash_request, "artifact_hashes missing claim.md"))
+    missing_ref_request = json.loads(json.dumps(commit_request))
+    missing_ref_request.pop("reviewer_session_ref", None)
+    missing_ref_request.pop("reviewer_job_ref", None)
+    missing_ref_request.pop("reviewer_message_ref", None)
+    negative_commit_requests.append(("missing delegate refs", missing_ref_request, "requires a reviewer session"))
+    missing_depth_request = json.loads(json.dumps(commit_request))
+    missing_depth_request["review_depth"] = ""
+    negative_commit_requests.append(("missing review depth", missing_depth_request, "review_depth is required"))
+    unclear_red_line_request = json.loads(json.dumps(commit_request))
+    unclear_red_line_request["red_line_check"]["security_credential_auth"] = "manual_required"
+    negative_commit_requests.append(("unclear red line", unclear_red_line_request, "red_line_check.security_credential_auth must be clear"))
+    missing_red_line_category_request = json.loads(json.dumps(commit_request))
+    missing_red_line_category_request["red_line_check"].pop("cost_bearing", None)
+    negative_commit_requests.append(("missing red line category", missing_red_line_category_request, "red_line_check.cost_bearing must be clear"))
+
+    for label, bad_request, expected_failure in negative_commit_requests:
+        bad_result = run_command(
+            [
+                sys.executable,
+                str(ARTIFACTS),
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-101",
+                "--artifact-root",
+                str(artifact_root),
+                "--commit-request",
+                json.dumps(bad_request, sort_keys=True),
+                "--dry-run",
+                "--format",
+                "json",
+            ]
+        )
+        if bad_result.returncode == 0:
+            raise RuntimeError(f"closeout commit-request accepted invalid request: {label}")
+        bad_payload = json.loads(bad_result.stdout)
+        if expected_failure not in " ".join(bad_payload.get("decision_failures", [])):
+            raise RuntimeError(f"invalid commit-request failure for {label} did not include {expected_failure}")
+        if (ready_late / "decision.md").read_text(encoding="utf-8") != decision_before:
+            raise RuntimeError(f"invalid commit-request mutated decision.md: {label}")
 
     partial_root = work_dir / "partial-closeout-artifacts"
     partial_wu = partial_root / "WU-260607-101"
@@ -4134,6 +4238,122 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         work_unit_module.publish_card = original_publish_card
         work_unit_module.run_project_sync = original_project_sync
 
+    project_sync_root = work_dir / "project-sync-closeout-artifacts"
+    project_sync_wu = project_sync_root / "WU-260607-101"
+    shutil.copytree(ready_late, project_sync_wu)
+    project_sync_request = closeout_commit_request(
+        project_sync_wu,
+        "WU-260607-101",
+        proof_id="late-001",
+        proof_timestamp="2026-06-07T01:20:00Z",
+    )
+    project_publish_calls: list[str] = []
+
+    def successful_publish_card(args: argparse.Namespace, card: dict[str, Any], proof_log: Path, *, target: str | None = None, expect_surface: str = "team-detail") -> tuple[int, dict[str, Any], str]:
+        project_publish_calls.append(expect_surface)
+        row = {
+            "work_unit_id": args.work_unit_id,
+            "surface": expect_surface,
+            "kind": card["kind"],
+            "target": target or "",
+            "transition_at": args.transition_at,
+            "sent_at": args.transition_at,
+            "readback_at": args.transition_at,
+            "discord_timestamp": args.transition_at,
+            "discord_message_id": f"project-sync-{expect_surface}-{len(project_publish_calls)}",
+            "proof_id": f"{args.work_unit_id}:{expect_surface}:{card['kind']}:project-sync-{len(project_publish_calls)}",
+            "readback_ok": True,
+            "dry_run": False,
+            "error": "",
+            "send_result": {},
+            "readback_result": {},
+        }
+        proof_log.parent.mkdir(parents=True, exist_ok=True)
+        with proof_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        return 0, {"publish": row}, ""
+
+    try:
+        work_unit_module.publish_card = successful_publish_card
+        work_unit_module.run_project_sync = lambda args: {"enabled": True, "ok": False, "error": "project sync unavailable"}
+        project_args = partial_parser.parse_args(
+            [
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-101",
+                "--artifact-root",
+                str(project_sync_root),
+                "--commit-request",
+                json.dumps(project_sync_request, sort_keys=True),
+                "--publish",
+                "--team-target",
+                "channel:team",
+                "--ops-target",
+                "channel:ops",
+                "--project-sync-field-map",
+                str(work_dir / "field-map.json"),
+                "--transition-at",
+                "2026-06-07T02:10:00Z",
+                "--format",
+                "json",
+            ]
+        )
+        project_stdout = io.StringIO()
+        project_stderr = io.StringIO()
+        with contextlib.redirect_stdout(project_stdout), contextlib.redirect_stderr(project_stderr):
+            project_code = project_args.func(project_args)
+        if project_code == 0:
+            raise RuntimeError("Project sync failure closeout reported full success")
+        project_payload = json.loads(project_stdout.getvalue())
+        if project_payload.get("status") != "project-sync-needed":
+            raise RuntimeError("Project sync failure did not leave project-sync-needed status")
+        stage_payload = json.loads((project_sync_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
+        if stage_payload.get("status") != "project-sync-needed" or stage_payload.get("project_sync_ok") is not False:
+            raise RuntimeError("Project sync failure stage did not remain recoverable")
+        if "Status: Accepted" not in (project_sync_wu / "decision.md").read_text(encoding="utf-8"):
+            raise RuntimeError("Project sync failure did not preserve source decision after visibility success")
+
+        work_unit_module.run_project_sync = lambda args: {"enabled": True, "ok": True}
+        resume_args = partial_parser.parse_args(
+            [
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-101",
+                "--artifact-root",
+                str(project_sync_root),
+                "--commit-request",
+                json.dumps(project_sync_request, sort_keys=True),
+                "--publish",
+                "--team-target",
+                "channel:team",
+                "--ops-target",
+                "channel:ops",
+                "--project-sync-field-map",
+                str(work_dir / "field-map.json"),
+                "--transition-at",
+                "2026-06-07T02:11:00Z",
+                "--format",
+                "json",
+            ]
+        )
+        resume_stdout = io.StringIO()
+        resume_stderr = io.StringIO()
+        with contextlib.redirect_stdout(resume_stdout), contextlib.redirect_stderr(resume_stderr):
+            resume_code = resume_args.func(resume_args)
+        if resume_code != 0:
+            raise RuntimeError(
+                "Project sync recovery did not complete: "
+                + (resume_stderr.getvalue().strip() or resume_stdout.getvalue().strip() or "no output")
+            )
+        resume_payload = json.loads(resume_stdout.getvalue())
+        if resume_payload.get("status") != "published":
+            raise RuntimeError("Project sync recovery did not publish final stage")
+    finally:
+        work_unit_module.publish_card = original_publish_card
+        work_unit_module.run_project_sync = original_project_sync
+
     manual_required_request = json.loads(json.dumps(commit_request))
     manual_required_request["autonomy_class"] = "manual_required"
     closeout_manual_required = run_command(
@@ -4222,6 +4442,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--decision",
             "revise",
+            "--authority-role",
+            "operations-lead",
             "--reason",
             "Operations Lead needs one more source-backed correction.",
             "--source-ref",
@@ -4256,6 +4478,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--decision",
             "blocked",
+            "--authority-role",
+            "operations-lead",
             "--reason",
             "Required owner input is missing.",
             "--blocker-source",
@@ -4301,6 +4525,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--decision",
             "accept",
+            "--authority-role",
+            "operations-lead",
             "--reason",
             "Operations Lead accepts the source-backed result.",
             "--source-ref",
