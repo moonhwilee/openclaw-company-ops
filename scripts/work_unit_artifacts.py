@@ -473,8 +473,14 @@ def spec_string_list_value(value: Any, *, key: str) -> list[str]:
 
 def is_verify_output_path(path: str, work_unit_id: str) -> bool:
     normalized = path.strip().strip("`").replace("\\", "/")
-    return normalized.endswith(f"/{work_unit_id}/evidence.md") or normalized.endswith(
-        f"/{work_unit_id}/verification.md"
+    work_unit_segment = f"/{work_unit_id}/"
+    return (
+        normalized.endswith(f"/{work_unit_id}/evidence.md")
+        or normalized.endswith(f"/{work_unit_id}/verification.md")
+        or f"{work_unit_segment}verification-artifacts/" in normalized
+        or normalized.endswith(f"/{work_unit_id}/verification-artifacts")
+        or f"{work_unit_segment}evidence-artifacts/" in normalized
+        or normalized.endswith(f"/{work_unit_id}/evidence-artifacts")
     )
 
 
@@ -542,7 +548,8 @@ def normalize_mutation_authority(spec: dict[str, Any], mode: str) -> dict[str, A
         )
         if not verify_output_only:
             raise ValueError(
-                "verify mode can only write its own evidence.md/verification.md artifact; "
+                "verify mode can only write its own evidence.md, verification.md, "
+                "verification-artifacts, or evidence-artifacts; "
                 "it cannot mutate candidate outputs, git, Project, Discord, or external surfaces"
             )
 
@@ -1985,8 +1992,9 @@ Team Lead OpenClaw Agent for a delegated Work Unit.
 Mode boundary:
 
 - `verify` is read-only with respect to the candidate output being checked.
-- `verify` may write its own Work Unit `evidence.md` or `verification.md` when
-  that path is explicitly allowed.
+- `verify` may write its own Work Unit `evidence.md`, `verification.md`,
+  `verification-artifacts/`, or `evidence-artifacts/` when those paths are
+  explicitly allowed.
 - `verify` must not mutate candidate outputs, git, GitHub Project, Discord, or
   external systems.
 

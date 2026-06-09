@@ -103,8 +103,9 @@ handoff validators use it to fail closed when mode and mutation scope conflict.
 Mode boundary:
 
 - `verify` is read-only with respect to the candidate output being checked.
-- `verify` may write its own Work Unit `evidence.md` or `verification.md` when
-  that path is explicitly allowed.
+- `verify` may write its own Work Unit `evidence.md`, `verification.md`,
+  `verification-artifacts/`, or `evidence-artifacts/` when those paths are
+  explicitly allowed.
 - `verify` must not mutate candidate outputs, git, GitHub Project, Discord, or
   external systems.
 

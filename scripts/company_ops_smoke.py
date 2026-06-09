@@ -2682,7 +2682,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     )
     if verify_mutation_result.returncode == 0:
         raise RuntimeError("verify handoff accepted mutation authority")
-    if "verify mode can only write its own evidence.md/verification.md artifact" not in verify_mutation_result.stderr:
+    if "verify mode can only write its own evidence.md" not in verify_mutation_result.stderr:
         raise RuntimeError("verify mutation authority rejection did not explain the boundary")
 
     verify_evidence_spec = artifact_root.parent / "verify-evidence-handoff-spec.json"
@@ -2690,7 +2690,10 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         **handoff_spec_data,
         "mutation_authority": {
             "mutation_allowed": True,
-            "allowed_paths": ["docs/work-units/WU-260606-906/evidence.md"],
+            "allowed_paths": [
+                "docs/work-units/WU-260606-906/evidence.md",
+                "docs/work-units/WU-260606-906/verification-artifacts/smoke.log",
+            ],
             "allowed_surfaces": ["source"],
         },
     }
