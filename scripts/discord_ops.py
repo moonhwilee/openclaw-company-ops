@@ -61,7 +61,7 @@ OPS_FEED_CARD_STATUS_ICONS = {
 TEAM_DETAIL_STATUS_ICONS = {
     "ASSIGNED_DETAIL": "📋",
     "STARTED": "▶️",
-    "CHECKPOINT": "⏱️",
+    "CHECKPOINT": "🧭",
     "RESULT_READY": "📦",
     "ACCEPTED": "✅",
     "REVISE": "🔁",
@@ -575,6 +575,7 @@ def card_from_args(args: argparse.Namespace) -> dict[str, str]:
         "reason": args.reason,
         "status": args.status,
         "current_slice": args.current_slice,
+        "progress_summary": args.progress_summary,
         "elapsed": args.elapsed,
         "next_checkpoint": args.next_checkpoint,
         "source": args.source,
@@ -663,7 +664,8 @@ def format_ops_feed_card(card: dict[str, str]) -> str:
 
 def format_team_detail_card(card: dict[str, str]) -> str:
     status_icon = TEAM_DETAIL_STATUS_ICONS[card["kind"]]
-    lines = [f"{status_icon} [{card['kind']}] {card['work_unit_id']} · {team_display(card['team'])}"]
+    display_kind = "PROGRESS" if card["kind"] == "CHECKPOINT" else card["kind"]
+    lines = [f"{status_icon} [{display_kind}] {card['work_unit_id']} · {team_display(card['team'])}"]
 
     if card["kind"] == "ASSIGNED_DETAIL":
         lines.extend(
@@ -678,9 +680,10 @@ def format_team_detail_card(card: dict[str, str]) -> str:
     elif card["kind"] == "STARTED":
         lines.append(f"Status: {card['status']}")
     elif card["kind"] == "CHECKPOINT":
+        progress_summary = card.get("progress_summary") or card["current_slice"]
         lines.extend(
             [
-                f"Slice: {card['current_slice']}",
+                f"진행: {progress_summary}",
                 f"Status: {card['status']}",
             ]
         )
@@ -1360,6 +1363,7 @@ def build_parser() -> argparse.ArgumentParser:
     card.add_argument("--reason", default="", help="Operations Lead review reason")
     card.add_argument("--status", default="", help="Team execution status")
     card.add_argument("--current-slice", default="", help="Current long-running slice for CHECKPOINT")
+    card.add_argument("--progress-summary", default="", help="Rendered dashboard Progress text for user-facing CHECKPOINT display")
     card.add_argument("--elapsed", default="", help="Elapsed time or progress age for CHECKPOINT")
     card.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
     card.add_argument("--source", default="", help="Source artifact or local proof reference")

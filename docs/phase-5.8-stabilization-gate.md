@@ -1,10 +1,10 @@
 # Phase 5.8 Stabilization Gate
 
-Status: distribution-critical Phase 5.8.7 implemented in repo-local and
-controlled smoke. Phase 5.8.8 is open as a final GitHub Work Card visibility
-blocker before Phase 6 packaging. Phase 5.8.9 is planned after 5.8.8 as a
-Discord progress display cleanup; it improves long-work readability without
-changing source/proof semantics.
+Status: distribution-critical Phases 5.8.7 through 5.8.9 implemented in
+repo-local and controlled smoke. Phase 5.8.8 adds final GitHub Work Card
+summary visibility before Phase 6 packaging. Phase 5.8.9 adds Discord
+Progress display cleanup; it improves long-work readability without changing
+source/proof semantics.
 Phases 5.8.1 through 5.8.6 are implemented and live-verified, but the
 `WU-260609-958` live gate exposed a final packaging blocker: verify/fix
 authority boundaries and live dashboard convergence must be enforced as
@@ -20,7 +20,9 @@ negative smoke coverage. Phase 5.8.7 closes the verify-only boundary, Project
 readback, and public-install preflight gaps as repo-local command/protocol
 guards. Phase 5.8.8 closes the remaining GitHub Work Card inspection gap: a
 maintainer must be able to read the final result summary from the Work Card
-itself without following every source artifact link. Live OpenClaw delivery still requires configured adapter
+itself without following every source artifact link. Phase 5.8.9 makes
+long-running checkpoint visibility read as Progress to operators while keeping
+the internal proof event contract stable. Live OpenClaw delivery still requires configured adapter
 commands for dispatch and closeout delegate wake; if a required adapter is
 missing or cannot return current proof, the command returns `setup-needed` or
 `repair-needed` and writes no false source success.
@@ -30,7 +32,7 @@ Phase 5.8 captures the live workflow issues found during the
 gate, and the 5.8.6 delegated closeout live gate. Phase 6 Packaging /
 Public v1 must wait for owner acceptance of the Phase 5.8.7
 boundary/convergence implementation and the Phase 5.8.8 GitHub Work Card final
-result visibility blocker, unless a no-go/defer decision is explicitly
+result visibility boundary, unless a no-go/defer decision is explicitly
 recorded.
 
 This gate is not a feature expansion. It stabilizes the Work Unit runtime
@@ -1032,7 +1034,8 @@ Acceptance:
 
 ### Phase 5.8.8: GitHub Work Card Final Result Visibility
 
-Status: open; GitHub visibility blocker before Phase 6 packaging.
+Status: implemented in repo-local and controlled smoke; awaiting owner
+acceptance before Phase 6 packaging.
 
 Depends on:
 
@@ -1124,7 +1127,8 @@ Acceptance:
 
 ### Phase 5.8.9: Discord Progress Update Display
 
-Status: planned after Phase 5.8.8; P1 visibility/readability cleanup.
+Status: implemented in repo-local and controlled smoke; P1
+visibility/readability cleanup.
 
 Depends on:
 
@@ -1216,7 +1220,7 @@ Acceptance:
 ## Phase 6 Blocker Rule
 
 Reopened by the Phase 5.8.6 live gate, implemented through Phase 5.8.7, and
-extended by the Phase 5.8.8 Work Card final-result visibility blocker. Phase 6
+extended by the Phase 5.8.8 Work Card final-result visibility boundary. Phase 6
 packaging must not begin until the owner accepts the 5.8.7
 boundary/convergence implementation and the 5.8.8 GitHub Work Card visibility
 boundary, or explicitly records a no-go/defer decision with rationale for each

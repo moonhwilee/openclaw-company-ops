@@ -681,5 +681,5 @@ their activation and package-boundary decisions. Phase 6 packaging/public v1
 must wait for owner acceptance of the Phase 5.8.7 boundary/convergence
 implementation and the Phase 5.8.8 GitHub Work Card final-result visibility
 boundary, then continue from the included, deferred, and no-go surfaces locked
-in `docs/post-setup-plan.md`. Phase 5.8.9 is planned after 5.8.8 as a P1
-Discord Progress display cleanup, not a checkpoint proof-contract rename.
+in `docs/post-setup-plan.md`. Phase 5.8.9 is implemented as a P1 Discord
+Progress display cleanup, not a checkpoint proof-contract rename.

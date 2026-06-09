@@ -57,18 +57,20 @@ complete.
 
 Phase 5.7 Packaging Readiness Decision is complete: the Phase 6 included
 surfaces, deferred surfaces, and no-go surfaces are locked. Phase 5.8
-Stabilization Gate includes the distribution-critical 5.8.7 follow-up and the
-5.8.8 GitHub Work Card final-result visibility blocker.
-Phases 5.8.1 through 5.8.7 are implemented in the repo-local and controlled
+Stabilization Gate includes the distribution-critical 5.8.7 follow-up, the
+5.8.8 GitHub Work Card final-result visibility blocker, and the 5.8.9
+Discord Progress display cleanup.
+Phases 5.8.1 through 5.8.9 are implemented in the repo-local and controlled
 smoke model: canonical start/result-ready guards, final closeout lifecycle
 convergence, fresh-session detached dispatch, capacity policy, result-ready
 closeout delegate wake, guarded `--commit-request` closeout, resumable closeout
 visibility publish, duplicate RESULT_READY suppression, closeout delegate
 replay-safe idempotency, delegated closeout authority, verify/fix authority
 boundaries, final Project readback convergence, and minimal public-install
-preflight are all present. Phase 6 Packaging / Public v1 can begin after owner
-acceptance of the Phase 5.8.7 boundary/convergence implementation and the
-Phase 5.8.8 GitHub Work Card final-result visibility boundary.
+preflight, final Work Card summary comments, and user-facing Progress display
+are all present. Phase 6 Packaging / Public v1 can begin after owner acceptance
+of the Phase 5.8.7 boundary/convergence implementation and the Phase 5.8.8
+GitHub Work Card final-result visibility boundary.
 
 Company Ops capacity sizing is a general operating policy, not a phase-local
 patch. See [`docs/capacity-policy.md`](docs/capacity-policy.md) for OpenClaw
@@ -168,10 +170,11 @@ guess targets, or grant permissions on the user's behalf.
 
 ## Planned Work
 
-- Accept Phase 5.8.7 and implement/accept Phase 5.8.8 GitHub Work Card final
-  result visibility, then run the Phase 5.8.9 Discord Progress display cleanup
-  as a P1 readability slice without changing internal checkpoint proof
-  semantics. Phase 6 Packaging / Public v1 begins from the stabilized
+- Accept Phase 5.8.7 and Phase 5.8.8 owner-facing visibility, then run the
+  optional Phase 5.8.7/5.8.8 verify-only live gate before Phase 6 packaging.
+  Phase 5.8.9 Discord Progress display cleanup is implemented as a P1
+  readability slice without changing internal checkpoint proof semantics.
+  Phase 6 Packaging / Public v1 begins from the stabilized
   verify-only boundary, goal/fix mutation authority, final GitHub Project live
   readback, final Work Card summary visibility, and distribution preflight
   readiness contract.

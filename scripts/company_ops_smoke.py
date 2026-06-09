@@ -56,6 +56,7 @@ LEGACY_CLOSEOUT_DELEGATE_TOKENS = (
     "rev" + "iewer_runtime",
     "rev" + "iewer_session",
 )
+WORK_CARD_SUMMARY_DISABLED_ARGS = ["--work-card-summary-mode", "disabled"]
 
 
 def run_command(command: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -217,6 +218,38 @@ def remove_work_card_fields(artifact_dir: Path) -> None:
         text = path.read_text(encoding="utf-8")
         lines = [line for line in text.splitlines() if not line.startswith("- Work Card:")]
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def set_work_card_fields(artifact_dir: Path, work_card: str) -> None:
+    for filename in ("assignment.md", "claim.md", "evidence.md", "decision.md"):
+        path = artifact_dir / filename
+        text = path.read_text(encoding="utf-8")
+        lines = [
+            f"- Work Card: {work_card}" if line.startswith("- Work Card:") else line
+            for line in text.splitlines()
+        ]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_valid_decision_ready_summary(artifact_dir: Path) -> None:
+    evidence = artifact_dir / "evidence.md"
+    evidence_text = evidence.read_text(encoding="utf-8")
+    evidence_text = evidence_text.replace(
+        "Summarize what was completed.",
+        "The Team Lead verified the bounded Company Ops visibility flow and produced source-backed evidence.",
+    )
+    evidence_text = evidence_text.replace(
+        "## Verification Performed\n\n-",
+        "## Verification Performed\n\n"
+        "- Confirmed source artifacts are present.\n"
+        "- Confirmed result-ready proof is ordered before closeout.\n"
+        "- Confirmed no external mutation is required for this smoke fixture.",
+    )
+    evidence_text = evidence_text.replace(
+        "## Remaining Risks\n\n-",
+        "## Remaining Risks\n\n- No live GitHub mutation was performed in this smoke fixture.",
+    )
+    evidence.write_text(evidence_text, encoding="utf-8")
 
 
 def assert_status_lifecycle(artifact_root: Path, work_unit_id: str, expected_lifecycle: str) -> None:
@@ -555,9 +588,9 @@ def run_discord_card_smoke() -> None:
         ]
     )
     require_success(checkpoint, "discord team checkpoint card")
-    if "⏱️ [CHECKPOINT] WU-260605-903 · 🧱 build-pq" not in checkpoint.stdout:
+    if "🧭 [PROGRESS] WU-260605-903 · 🧱 build-pq" not in checkpoint.stdout:
         raise RuntimeError("checkpoint card did not include expected header")
-    for expected in ("Slice:", "Status:", "Next checkpoint:", "Next:"):
+    for expected in ("진행:", "Status:", "Next checkpoint:", "Next:"):
         if expected not in checkpoint.stdout:
             raise RuntimeError(f"checkpoint card missing {expected}")
 
@@ -3910,6 +3943,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "WU-260607-106",
             "--artifact-root",
             str(artifact_root),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4161,6 +4195,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "WU-260607-101",
             "--artifact-root",
             str(artifact_root),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4258,6 +4293,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "Operations Lead accepts the source-backed result.",
             "--source-ref",
             str(ready_late / "evidence.md"),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4267,6 +4303,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     accept_payload = json.loads(closeout_accept.stdout)
     if accept_payload.get("status") != "decision-ready":
         raise RuntimeError(f"closeout accept dry-run expected decision-ready, got {accept_payload.get('status')}")
+    disabled_summary = accept_payload.get("work_card_summary") or {}
+    if disabled_summary.get("sync_state") != "not_configured" or disabled_summary.get("ok") is not False:
+        raise RuntimeError("disabled Work Card summary mode did not report not_configured without ok")
     if accept_payload.get("team_card", {}).get("kind") != "ACCEPTED":
         raise RuntimeError("closeout accept dry-run did not compose ACCEPTED team card")
     if accept_payload.get("owner_card", {}).get("kind") != "COMPLETED":
@@ -4281,6 +4320,135 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout accept dry-run mutated decision.md")
     if (ready_late / "team-accept-card.json").exists() or (ready_late / "ops-completed-card.json").exists():
         raise RuntimeError("closeout accept dry-run wrote card artifacts")
+
+    github_summary_dir = create_artifacts(args, inbox_work_dir, "WU-260607-150", "build-lab")
+    mark_artifact_started(github_summary_dir)
+    mark_artifact_result_ready(github_summary_dir, recommendation="accept")
+    write_valid_decision_ready_summary(github_summary_dir)
+    set_work_card_fields(github_summary_dir, "https://github.com/acme/company-ops/issues/37")
+    write_jsonl(
+        github_summary_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-150",
+            [("team-detail", "RESULT_READY", "summary-001", "2026-06-07T01:40:00Z")],
+        ),
+    )
+    github_summary_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-150",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--authority-role",
+            "operations-lead",
+            "--reason",
+            "Operations Lead accepts the source-backed GitHub summary fixture.",
+            "--source-ref",
+            str(github_summary_dir / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(github_summary_dry_run, "GitHub Work Card summary required dry-run")
+    github_summary_payload = json.loads(github_summary_dry_run.stdout)
+    summary_preview = github_summary_payload.get("work_card_summary") or {}
+    planned_body = summary_preview.get("planned_body", "")
+    if summary_preview.get("sync_state") != "dry_run_rendered":
+        raise RuntimeError("GitHub Work Card summary dry-run did not render a planned comment")
+    if "company-ops-work-card-summary:WU-260607-150:v1" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment missing stable marker")
+    if "Source of truth" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not declare source-truth boundary")
+    if "The Team Lead verified the bounded Company Ops visibility flow" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not use evidence Result Summary")
+
+    nongithub_summary_dir = create_artifacts(args, inbox_work_dir, "WU-260607-151", "build-lab")
+    mark_artifact_started(nongithub_summary_dir)
+    mark_artifact_result_ready(nongithub_summary_dir, recommendation="accept")
+    write_valid_decision_ready_summary(nongithub_summary_dir)
+    write_jsonl(
+        nongithub_summary_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-151",
+            [("team-detail", "RESULT_READY", "summary-002", "2026-06-07T01:41:00Z")],
+        ),
+    )
+    nongithub_summary_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-151",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--authority-role",
+            "operations-lead",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(nongithub_summary_dir / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if nongithub_summary_dry_run.returncode == 0:
+        raise RuntimeError("Work Card summary required mode accepted a non-GitHub Work Card")
+    nongithub_summary_payload = json.loads(nongithub_summary_dry_run.stdout)
+    if "not a GitHub issue or pull request URL" not in " ".join(nongithub_summary_payload.get("decision_failures", [])):
+        raise RuntimeError("non-GitHub Work Card summary failure did not explain the GitHub URL requirement")
+
+    placeholder_summary_dir = create_artifacts(args, inbox_work_dir, "WU-260607-152", "build-lab")
+    mark_artifact_started(placeholder_summary_dir)
+    mark_artifact_result_ready(placeholder_summary_dir, recommendation="accept")
+    set_work_card_fields(placeholder_summary_dir, "https://github.com/acme/company-ops/issues/38")
+    write_jsonl(
+        placeholder_summary_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-152",
+            [("team-detail", "RESULT_READY", "summary-003", "2026-06-07T01:42:00Z")],
+        ),
+    )
+    placeholder_summary_dry_run = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-152",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--authority-role",
+            "operations-lead",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(placeholder_summary_dir / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if placeholder_summary_dry_run.returncode == 0:
+        raise RuntimeError("Work Card summary accepted placeholder evidence sections")
+    placeholder_summary_payload = json.loads(placeholder_summary_dry_run.stdout)
+    placeholder_failures = " ".join(placeholder_summary_payload.get("decision_failures", []))
+    if "Evidence Result Summary" not in placeholder_failures or "Evidence Verification Performed" not in placeholder_failures:
+        raise RuntimeError("placeholder Work Card summary failure did not enforce source summary quality")
 
     commit_request = closeout_commit_request(
         ready_late,
@@ -4300,6 +4468,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--commit-request",
             json.dumps(commit_request, sort_keys=True),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4328,6 +4497,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--commit-request",
             json.dumps(mismatched_request, sort_keys=True),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4379,6 +4549,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 str(artifact_root),
                 "--commit-request",
                 json.dumps(bad_request, sort_keys=True),
+                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--dry-run",
                 "--format",
                 "json",
@@ -4409,6 +4580,166 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     publish_calls: list[str] = []
     original_publish_card = work_unit_module.publish_card
     original_project_sync = work_unit_module.run_project_sync
+    original_run_gh_api = work_unit_module.run_gh_api
+
+    summary_publish_root = work_dir / "work-card-summary-publish-artifacts"
+    summary_publish_wu = summary_publish_root / "WU-260607-150"
+    shutil.copytree(github_summary_dir, summary_publish_wu)
+    summary_mismatch_work_dir = work_dir / "work-card-summary-mismatch"
+    summary_mismatch_root = summary_mismatch_work_dir / "artifacts"
+    summary_mismatch_wu = create_artifacts(args, summary_mismatch_work_dir, "WU-260607-153", "build-lab")
+    mark_artifact_started(summary_mismatch_wu)
+    mark_artifact_result_ready(summary_mismatch_wu, recommendation="accept")
+    write_valid_decision_ready_summary(summary_mismatch_wu)
+    set_work_card_fields(summary_mismatch_wu, "https://github.com/acme/company-ops/issues/39")
+    write_jsonl(
+        summary_mismatch_wu / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-153",
+            [("team-detail", "RESULT_READY", "summary-004", "2026-06-07T01:43:00Z")],
+        ),
+    )
+    summary_comments: list[dict[str, Any]] = []
+
+    def fake_summary_publish_card(args: argparse.Namespace, card: dict[str, Any], proof_log: Path, *, target: str | None = None, expect_surface: str = "team-detail") -> tuple[int, dict[str, Any], str]:
+        row = {
+            "work_unit_id": args.work_unit_id,
+            "surface": expect_surface,
+            "kind": card["kind"],
+            "target": target or "",
+            "transition_at": args.transition_at,
+            "sent_at": args.transition_at,
+            "readback_at": args.transition_at,
+            "discord_timestamp": args.transition_at,
+            "discord_message_id": f"summary-{expect_surface}",
+            "proof_id": f"{args.work_unit_id}:{expect_surface}:{card['kind']}:summary",
+            "readback_ok": True,
+            "dry_run": False,
+            "error": "",
+            "send_result": {},
+            "readback_result": {},
+        }
+        proof_log.parent.mkdir(parents=True, exist_ok=True)
+        with proof_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        return 0, {"publish": row}, ""
+
+    def fake_summary_gh_api(endpoint: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
+        if endpoint == "repos/acme/company-ops/issues/37/comments" and method == "GET":
+            return 0, list(summary_comments), ""
+        if endpoint == "repos/acme/company-ops/issues/37/comments" and method == "POST":
+            comment = {
+                "id": 37,
+                "html_url": "https://github.com/acme/company-ops/issues/37#issuecomment-37",
+                "body": (payload or {}).get("body", ""),
+            }
+            summary_comments.append(comment)
+            return 0, comment, ""
+        if endpoint == "repos/acme/company-ops/issues/comments/37" and method == "PATCH":
+            summary_comments[0]["body"] = (payload or {}).get("body", "")
+            return 0, dict(summary_comments[0]), ""
+        if endpoint == "repos/acme/company-ops/issues/39/comments" and method == "GET":
+            return 0, [], ""
+        if endpoint == "repos/acme/company-ops/issues/39/comments" and method == "POST":
+            return 0, {
+                "id": 39,
+                "html_url": "https://github.com/acme/company-ops/issues/39#issuecomment-39",
+                "body": "marker stripped by fake readback",
+            }, ""
+        raise RuntimeError(f"unexpected fake gh api call: {method} {endpoint}")
+
+    try:
+        work_unit_module.publish_card = fake_summary_publish_card
+        work_unit_module.run_project_sync = lambda args: {"enabled": False}
+        work_unit_module.run_gh_api = fake_summary_gh_api
+        summary_args = partial_parser.parse_args(
+            [
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-150",
+                "--artifact-root",
+                str(summary_publish_root),
+                "--decision",
+                "accept",
+                "--authority-role",
+                "operations-lead",
+                "--reason",
+                "Operations Lead accepts the source-backed GitHub summary fixture.",
+                "--source-ref",
+                str(summary_publish_wu / "evidence.md"),
+                "--publish",
+                "--team-target",
+                "channel:team",
+                "--ops-target",
+                "channel:ops",
+                "--transition-at",
+                "2026-06-07T02:20:00Z",
+                "--format",
+                "json",
+            ]
+        )
+        summary_stdout = io.StringIO()
+        summary_stderr = io.StringIO()
+        with contextlib.redirect_stdout(summary_stdout), contextlib.redirect_stderr(summary_stderr):
+            summary_code = summary_args.func(summary_args)
+        if summary_code != 0:
+            raise RuntimeError(
+                "GitHub Work Card summary publish did not complete: "
+                + (summary_stderr.getvalue().strip() or summary_stdout.getvalue().strip() or "no output")
+            )
+        summary_payload = json.loads(summary_stdout.getvalue())
+        summary_result = summary_payload.get("work_card_summary") or {}
+        if summary_payload.get("status") != "published" or summary_result.get("sync_state") != "attempted_ok":
+            raise RuntimeError("GitHub Work Card summary publish did not report attempted_ok")
+        if len(summary_comments) != 1:
+            raise RuntimeError("GitHub Work Card summary publish did not create exactly one comment")
+        if "company-ops-work-card-summary:WU-260607-150:v1" not in summary_comments[0].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish comment missing stable marker")
+
+        mismatch_args = partial_parser.parse_args(
+            [
+                "work-unit",
+                "closeout",
+                "--work-unit-id",
+                "WU-260607-153",
+                "--artifact-root",
+                str(summary_mismatch_root),
+                "--decision",
+                "accept",
+                "--authority-role",
+                "operations-lead",
+                "--reason",
+                "Operations Lead accepts the source-backed GitHub summary mismatch fixture.",
+                "--source-ref",
+                str(summary_mismatch_wu / "evidence.md"),
+                "--publish",
+                "--team-target",
+                "channel:team",
+                "--ops-target",
+                "channel:ops",
+                "--transition-at",
+                "2026-06-07T02:21:00Z",
+                "--format",
+                "json",
+            ]
+        )
+        mismatch_stdout = io.StringIO()
+        mismatch_stderr = io.StringIO()
+        with contextlib.redirect_stdout(mismatch_stdout), contextlib.redirect_stderr(mismatch_stderr):
+            mismatch_code = mismatch_args.func(mismatch_args)
+        if mismatch_code == 0:
+            raise RuntimeError("GitHub Work Card summary readback mismatch did not fail closeout")
+        mismatch_payload = json.loads(mismatch_stdout.getvalue())
+        if mismatch_payload.get("status") != "work-card-summary-needed":
+            raise RuntimeError("GitHub Work Card summary mismatch did not leave work-card-summary-needed status")
+        mismatch_stage = json.loads((summary_mismatch_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
+        if mismatch_stage.get("status") != "work-card-summary-needed":
+            raise RuntimeError("GitHub Work Card summary mismatch stage did not remain recoverable")
+    finally:
+        work_unit_module.publish_card = original_publish_card
+        work_unit_module.run_project_sync = original_project_sync
+        work_unit_module.run_gh_api = original_run_gh_api
 
     def fake_publish_card(args: argparse.Namespace, card: dict[str, Any], proof_log: Path, *, target: str | None = None, expect_surface: str = "team-detail") -> tuple[int, dict[str, Any], str]:
         publish_calls.append(expect_surface)
@@ -4450,6 +4781,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 str(partial_root),
                 "--commit-request",
                 json.dumps(partial_request, sort_keys=True),
+                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--publish",
                 "--team-target",
                 "channel:team",
@@ -4483,6 +4815,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 str(partial_root),
                 "--commit-request",
                 json.dumps(partial_request, sort_keys=True),
+                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--publish",
                 "--team-target",
                 "channel:team",
@@ -4568,6 +4901,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 str(project_sync_root),
                 "--commit-request",
                 json.dumps(project_sync_request, sort_keys=True),
+                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--publish",
                 "--team-target",
                 "channel:team",
@@ -4618,6 +4952,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 str(project_sync_root),
                 "--commit-request",
                 json.dumps(project_sync_request, sort_keys=True),
+                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--publish",
                 "--team-target",
                 "channel:team",
@@ -4663,6 +4998,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--commit-request",
             json.dumps(manual_required_request, sort_keys=True),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4688,6 +5024,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--commit-request",
             json.dumps(wrong_wu_request, sort_keys=True),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4712,6 +5049,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             str(artifact_root),
             "--commit-request",
             json.dumps(commit_request, sort_keys=True),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4743,6 +5081,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "Operations Lead needs one more source-backed correction.",
             "--source-ref",
             str(ready_early / "evidence.md"),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4783,6 +5122,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "Owner provides the missing source input.",
             "--next-owner",
             "operations-lead",
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4826,6 +5166,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "Operations Lead accepts the source-backed result.",
             "--source-ref",
             str(missing_work_card_dir / "evidence.md"),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4854,6 +5195,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 "WU-260607-101",
                 "--artifact-root",
                 str(artifact_root),
+                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--dry-run",
                 "--format",
                 "json",
@@ -4876,6 +5218,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "WU-260607-103",
             "--artifact-root",
             str(artifact_root),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",
@@ -4896,6 +5239,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "WU-260607-105",
             "--artifact-root",
             str(artifact_root),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
             "--dry-run",
             "--format",
             "json",

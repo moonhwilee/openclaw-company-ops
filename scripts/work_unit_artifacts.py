@@ -27,6 +27,23 @@ ROUND_VISIBLE_MODES = {"goal", "convergence"}
 HANDOFF_MODE_CHOICES = {"goal", "verify"}
 MUTATION_SURFACE_CHOICES = {"source", "project", "discord", "git", "external"}
 PROJECT_SYNC_MODE_CHOICES = ("disabled", "required")
+WORK_CARD_SUMMARY_MODE_CHOICES = ("disabled", "required")
+GITHUB_WORK_CARD_RE = re.compile(
+    r"^https://github\.com/(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+)/(?:issues|pull)/(?P<number>\d+)(?:[?#].*)?$"
+)
+WORK_CARD_SUMMARY_MARKER_TEMPLATE = "<!-- company-ops-work-card-summary:{work_unit_id}:v1 -->"
+WORK_CARD_SUMMARY_MIN_CHARS = 20
+WORK_CARD_SUMMARY_MAX_CHARS = 700
+WORK_CARD_SUMMARY_PLACEHOLDERS = {
+    "summarize what was completed.",
+    "summarize what was completed",
+    "result summary",
+    "n/a",
+    "none",
+    "todo",
+    "tbd",
+    "-",
+}
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 DEFAULT_ARTIFACT_ROOT = Path("docs/work-units")
@@ -182,6 +199,24 @@ def utc_now_iso() -> str:
 
 def should_show_round(mode: str, explicit_show_round: bool) -> bool:
     return explicit_show_round or mode.strip().lower() in ROUND_VISIBLE_MODES
+
+
+def render_progress_summary(row: dict[str, Any]) -> str:
+    phase = str(row.get("phase") or "").strip()
+    current_slice = str(row.get("current_slice") or "").strip()
+    round_value = str(row.get("round") or "").strip()
+    mode = str(row.get("mode") or "").strip().lower()
+    show_round = row.get("show_round") is True or str(row.get("show_round") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    } or mode in ROUND_VISIBLE_MODES
+    index = str(row.get("phase_index") or "").strip()
+    total = str(row.get("phase_total") or "").strip()
+    prefix = f"{index}/{total}" if index and total else index
+    round_part = f"R{round_value}" if round_value and show_round else ""
+    label = phase or current_slice
+    return " · ".join(part for part in (round_part, prefix, label) if part)
 
 
 def progress_row_from_args(
@@ -565,6 +600,62 @@ def parse_markdown_source(path: Path) -> dict[str, Any]:
         "fields": fields,
         "text": text,
     }
+
+
+def markdown_section(text: str, heading: str) -> str:
+    heading_key = heading.strip().lower()
+    lines = text.splitlines()
+    capture = False
+    captured: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            current = stripped.lstrip("#").strip().lower()
+            if capture:
+                break
+            capture = current == heading_key
+            continue
+        if capture:
+            captured.append(line.rstrip())
+    return "\n".join(captured).strip()
+
+
+def compact_summary_text(value: str, *, limit: int = WORK_CARD_SUMMARY_MAX_CHARS) -> str:
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    cleaned = " ".join(lines).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    home = str(Path.home())
+    if home and home in cleaned:
+        cleaned = cleaned.replace(home, "~")
+    token_patterns = (
+        r"ghp_[A-Za-z0-9_]+",
+        r"github_pat_[A-Za-z0-9_]+",
+        r"sk-[A-Za-z0-9_-]+",
+    )
+    for pattern in token_patterns:
+        cleaned = re.sub(pattern, "[redacted]", cleaned)
+    if len(cleaned) > limit:
+        return cleaned[: max(0, limit - 1)].rstrip() + "…"
+    return cleaned
+
+
+def low_information_summary(value: str) -> bool:
+    cleaned = compact_summary_text(value, limit=10_000).strip()
+    lowered = cleaned.lower()
+    if len(cleaned) < WORK_CARD_SUMMARY_MIN_CHARS:
+        return True
+    if lowered in WORK_CARD_SUMMARY_PLACEHOLDERS:
+        return True
+    if lowered.startswith("summarize ") or lowered.startswith("todo"):
+        return True
+    return False
+
+
+def github_work_card_parts(work_card: str) -> dict[str, str]:
+    match = GITHUB_WORK_CARD_RE.match(work_card.strip())
+    if not match:
+        return {}
+    return match.groupdict()
 
 
 def source_field_value(
@@ -2615,6 +2706,9 @@ def append_progress(args: argparse.Namespace) -> int:
 
 
 def checkpoint_card_args(args: argparse.Namespace) -> list[str]:
+    progress_summary = render_progress_summary(
+        progress_row_from_args(args, transition_at=args.transition_at or utc_now_iso(), proof_ref=args.proof_ref)
+    )
     command = [
         sys.executable,
         str(SCRIPT_DIR / "discord_ops.py"),
@@ -2629,6 +2723,8 @@ def checkpoint_card_args(args: argparse.Namespace) -> list[str]:
         args.team,
         "--current-slice",
         args.current_slice,
+        "--progress-summary",
+        progress_summary,
         "--status",
         args.status,
         "--next",
@@ -4129,6 +4225,202 @@ def validate_closeout_commit_request(
     return failures
 
 
+def decision_ready_summary(item: dict[str, Any], decision: str, reason: str) -> tuple[dict[str, str], list[str]]:
+    evidence_path = Path(str(item.get("evidence_path") or ""))
+    failures: list[str] = []
+    evidence_text = ""
+    if evidence_path.exists():
+        evidence_text = evidence_path.read_text(encoding="utf-8")
+    elif decision in {"accept", "revise"}:
+        failures.append(f"Evidence & Result Record not found: {evidence_path}")
+
+    result_summary = markdown_section(evidence_text, "Result Summary") if evidence_text else ""
+    verification = markdown_section(evidence_text, "Verification Performed") if evidence_text else ""
+    risks = markdown_section(evidence_text, "Remaining Risks") if evidence_text else ""
+    done_mapping = markdown_section(evidence_text, "Done Criteria Mapping") if evidence_text else ""
+
+    if decision in {"accept", "revise"} and low_information_summary(result_summary):
+        failures.append("Evidence Result Summary is missing, placeholder, or too low-information for Work Card summary")
+    if decision in {"accept", "revise"} and low_information_summary(verification):
+        failures.append("Evidence Verification Performed is missing, placeholder, or too low-information for Work Card summary")
+    if decision == "blocked" and low_information_summary(reason):
+        failures.append("blocked closeout requires a concrete reason for Work Card summary")
+
+    return {
+        "result_summary": compact_summary_text(result_summary or reason),
+        "verification": compact_summary_text(verification or "Operations Lead reviewed source artifacts."),
+        "remaining_risks": compact_summary_text(risks or "None recorded."),
+        "done_criteria_mapping": compact_summary_text(done_mapping, limit=500),
+    }, failures
+
+
+def work_card_summary_state(args: argparse.Namespace, item: dict[str, Any]) -> dict[str, Any]:
+    mode = getattr(args, "work_card_summary_mode", "required")
+    work_card = str(item.get("work_card") or "")
+    parts = github_work_card_parts(work_card)
+    state = {
+        "mode": mode,
+        "required": mode == "required",
+        "sync_state": "not_configured" if mode == "disabled" else "not_attempted",
+        "work_card": work_card,
+        "github_issue": parts,
+        "ok": False,
+        "error": "",
+    }
+    if mode == "disabled":
+        return state
+    if not work_card:
+        state.update({"sync_state": "work_card_missing", "error": "Work Card summary required but source Work Card is missing"})
+    elif not parts:
+        state.update({"sync_state": "non_github_work_card", "error": "Work Card summary required but Work Card is not a GitHub issue or pull request URL"})
+    return state
+
+
+def validate_work_card_summary(args: argparse.Namespace, item: dict[str, Any]) -> list[str]:
+    failures: list[str] = []
+    state = work_card_summary_state(args, item)
+    if state["required"] and state["error"]:
+        failures.append(state["error"])
+    if state["required"] and getattr(args, "decision", ""):
+        _, summary_failures = decision_ready_summary(item, args.decision, args.reason)
+        failures.extend(summary_failures)
+    return failures
+
+
+def render_work_card_summary_comment(
+    args: argparse.Namespace,
+    item: dict[str, Any],
+    *,
+    decided_at: str,
+    decision_path: Path,
+) -> dict[str, Any]:
+    summary, failures = decision_ready_summary(item, args.decision, args.reason)
+    if failures:
+        return {"ok": False, "error": "; ".join(failures), "body": ""}
+    status = DECISION_STATUS_BY_DECISION[args.decision]
+    marker = WORK_CARD_SUMMARY_MARKER_TEMPLATE.format(work_unit_id=args.work_unit_id)
+    evidence_ref = args.source_ref or item["evidence_path"]
+    next_action = args.next or args.next_owner or ("Owner may inspect the accepted Work Unit." if args.decision == "accept" else "See source decision for next action.")
+    body = f"""{marker}
+## Company Ops Result Summary
+
+Work Unit: `{args.work_unit_id}`
+Decision: `{status}`
+Source of truth: source artifacts, not this GitHub comment.
+
+### Result
+{summary["result_summary"]}
+
+### Verification
+{summary["verification"]}
+
+### Remaining Risks
+{summary["remaining_risks"]}
+
+### Next Action
+{compact_summary_text(next_action, limit=300)}
+
+### Source Artifacts
+- Evidence: `{evidence_ref}`
+- Decision: `{decision_path}`
+- Work Card: {item.get("work_card") or "missing"}
+
+Published by guarded Company Ops closeout at `{decided_at}`.
+"""
+    return {
+        "ok": True,
+        "marker": marker,
+        "body": body.strip() + "\n",
+        "summary": summary,
+    }
+
+
+def run_gh_api(endpoint: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> tuple[int, Any, str]:
+    command = ["gh", "api", endpoint]
+    if method != "GET":
+        command.extend(["-X", method])
+    tmp_path: Path | None = None
+    try:
+        if payload is not None:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
+                json.dump(payload, handle, ensure_ascii=False)
+                tmp_path = Path(handle.name)
+            command.extend(["--input", str(tmp_path)])
+        result = subprocess.run(command, check=False, text=True, capture_output=True)
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+    if result.returncode != 0:
+        return result.returncode, None, result.stderr.strip() or result.stdout.strip()
+    if not result.stdout.strip():
+        return 0, None, ""
+    try:
+        return 0, json.loads(result.stdout), ""
+    except json.JSONDecodeError as exc:
+        return 1, None, f"gh api returned invalid JSON: {exc}"
+
+
+def publish_work_card_summary_comment(
+    args: argparse.Namespace,
+    item: dict[str, Any],
+    *,
+    decided_at: str,
+    decision_path: Path,
+) -> dict[str, Any]:
+    state = work_card_summary_state(args, item)
+    if not state["required"]:
+        return state
+    if state["error"]:
+        state["ok"] = False
+        return state
+    rendered = render_work_card_summary_comment(args, item, decided_at=decided_at, decision_path=decision_path)
+    if not rendered.get("ok"):
+        state.update({"ok": False, "sync_state": "source_summary_invalid", "error": rendered.get("error", "")})
+        return state
+    body = rendered["body"]
+    parts = state["github_issue"]
+    issue_comments_endpoint = f"repos/{parts['owner']}/{parts['repo']}/issues/{parts['number']}/comments"
+    code, comments, error = run_gh_api(issue_comments_endpoint)
+    if code != 0:
+        state.update({"ok": False, "sync_state": "readback_failed", "error": error})
+        return state
+    existing = None
+    if isinstance(comments, list):
+        for comment in comments:
+            if isinstance(comment, dict) and rendered["marker"] in str(comment.get("body") or ""):
+                existing = comment
+                break
+    if existing:
+        comment_id = existing.get("id")
+        code, response, error = run_gh_api(
+            f"repos/{parts['owner']}/{parts['repo']}/issues/comments/{comment_id}",
+            method="PATCH",
+            payload={"body": body},
+        )
+    else:
+        code, response, error = run_gh_api(issue_comments_endpoint, method="POST", payload={"body": body})
+    if code != 0:
+        state.update({"ok": False, "sync_state": "comment_write_failed", "error": error})
+        return state
+    if not isinstance(response, dict) or rendered["marker"] not in str(response.get("body") or ""):
+        state.update({"ok": False, "sync_state": "readback_mismatch", "error": "created/updated comment readback did not contain managed marker"})
+        return state
+    state.update(
+        {
+            "ok": True,
+            "sync_state": "attempted_ok",
+            "comment_id": response.get("id"),
+            "comment_url": response.get("html_url") or response.get("url") or "",
+            "marker": rendered["marker"],
+            "rendered_summary": rendered["summary"],
+        }
+    )
+    return state
+
+
 def validate_closeout_decision(
     args: argparse.Namespace,
     item: dict[str, Any],
@@ -4156,6 +4448,7 @@ def validate_closeout_decision(
         failures.append("--reason is required for explicit closeout decisions")
     if not item.get("work_card"):
         failures.append("closeout decision requires a source Work Card in assignment.md, claim.md, evidence.md, or decision.md")
+    failures.extend(validate_work_card_summary(args, item))
     for source_ref in closeout_decision_source_refs(args):
         if not local_source_ref_exists(source_ref, artifact_dir):
             failures.append(f"missing source_ref: {source_ref}")
@@ -4421,9 +4714,9 @@ def closeout_stage_allows_resume(stage: dict[str, Any], args: argparse.Namespace
     if stage.get("work_unit_id") != args.work_unit_id or stage.get("decision") != args.decision:
         return False
     status = str(stage.get("status") or "")
-    if item["decision_final"] and status != "project-sync-needed":
+    if item["decision_final"] and status not in {"project-sync-needed", "work-card-summary-needed"}:
         return False
-    return status in {"started", "team-published", "visibility-published", "project-sync-needed"}
+    return status in {"started", "team-published", "visibility-published", "project-sync-needed", "work-card-summary-needed"}
 
 
 def proof_contains_only_expected(values: list[str], expected: str) -> bool:
@@ -4519,6 +4812,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             owner_text = ""
             decision_preview = ""
             decision_decided_at = ""
+            work_card_summary_preview: dict[str, Any] = {}
             if args.decision:
                 if stage_payload and not partial_resume and not args.force:
                     decision_failures.append(f"closeout stage already exists: {stage_path}")
@@ -4546,6 +4840,23 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         return 1
                     decision_decided_at = args.transition_at or utc_now_iso()
                     decision_preview = render_closeout_decision(args, item, decision_decided_at)
+                    summary_state = work_card_summary_state(args, item)
+                    if summary_state["required"] and not summary_state["error"]:
+                        rendered_summary = render_work_card_summary_comment(
+                            args,
+                            item,
+                            decided_at=decision_decided_at,
+                            decision_path=artifact_dir / "decision.md",
+                        )
+                        work_card_summary_preview = {
+                            **summary_state,
+                            "sync_state": "dry_run_rendered",
+                            "ok": True,
+                            "planned_body": rendered_summary.get("body", ""),
+                            "render_error": rendered_summary.get("error", ""),
+                        }
+                    else:
+                        work_card_summary_preview = summary_state
                     status = "decision-ready"
                     next_action = "Publish records decision.md, team final review, and owner closeout."
 
@@ -4563,6 +4874,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "team_text": team_text,
                 "owner_text": owner_text,
                 "decision_preview": decision_preview,
+                "work_card_summary": work_card_summary_preview,
                 "commit_request": commit_request,
                 "closeout_stage": stage_payload,
                 "partial_resume": partial_resume,
@@ -4666,6 +4978,21 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     closeout_exit_code = 1
                 else:
                     stage_status = "published"
+                work_card_summary = work_card_summary_state(args, item)
+                if stage_status == "published":
+                    work_card_summary = publish_work_card_summary_comment(
+                        args,
+                        item,
+                        decided_at=decided_at,
+                        decision_path=decision_path,
+                    )
+                    if work_card_summary.get("required") and not work_card_summary.get("ok"):
+                        print(
+                            f"error: Work Card summary failed: {work_card_summary.get('error')}",
+                            file=sys.stderr,
+                        )
+                        stage_status = "work-card-summary-needed"
+                        closeout_exit_code = 1
                 write_closeout_stage(
                     stage_path,
                     args=args,
@@ -4678,6 +5005,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         "owner_publish": owner_publish.get("publish", {}),
                         "project_sync_state": project_sync.get("sync_state", "not_configured"),
                         "project_sync_required": bool(project_sync.get("required")),
+                        "work_card_summary": work_card_summary,
                     },
                 )
                 publish_payload = {
@@ -4690,6 +5018,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     "team_publish": team_publish.get("publish", {}),
                     "owner_publish": owner_publish.get("publish", {}),
                     "project_sync": project_sync,
+                    "work_card_summary": work_card_summary,
                 }
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -5682,6 +6011,15 @@ def build_parser() -> argparse.ArgumentParser:
         choices=PROJECT_SYNC_MODE_CHOICES,
         default="disabled",
         help="Final closeout Project mirror policy. required fails closed unless live readback matches.",
+    )
+    closeout.add_argument(
+        "--work-card-summary-mode",
+        choices=WORK_CARD_SUMMARY_MODE_CHOICES,
+        default="required",
+        help=(
+            "Final GitHub Work Card summary comment policy. required is the live default; "
+            "disabled is for local smoke, non-GitHub cards, or owner-approved no-go."
+        ),
     )
     closeout.add_argument(
         "--project-sync-ledger",
