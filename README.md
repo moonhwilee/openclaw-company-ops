@@ -57,9 +57,13 @@ complete.
 
 Phase 5.7 Packaging Readiness Decision is complete: the Phase 6 included
 surfaces, deferred surfaces, and no-go surfaces are locked. Phase 5.8
-Stabilization Gate is now the required pre-Phase-6 gate for live workflow
-lifecycle, proof, closeout, and detached dispatch issues found during real
-testing.
+Stabilization Gate is active. Phases 5.8.1 through 5.8.4 are implemented in
+the repo-local model: canonical start/result-ready guards, final closeout
+lifecycle convergence, fresh-session detached dispatch, capacity policy,
+result-ready closeout reviewer wake, guarded `--commit-request` closeout, and
+resumable closeout visibility publish are all present. The remaining
+pre-Phase-6 gate is Phase 5.8.5: a no-bypass live regression batch that proves
+the implemented path works end to end without manual lifecycle/proof repair.
 
 Company Ops capacity sizing is a general operating policy, not a phase-local
 patch. See [`docs/capacity-policy.md`](docs/capacity-policy.md) for OpenClaw
@@ -159,8 +163,8 @@ guess targets, or grant permissions on the user's behalf.
 
 ## Planned Work
 
-- Complete Phase 5.8 Stabilization Gate before beginning Phase 6 Packaging /
-  Public v1.
+- Complete Phase 5.8.5 no-bypass live regression before beginning Phase 6
+  Packaging / Public v1.
 - Begin Phase 6 Packaging / Public v1 only after the accepted Phase 5.7 package
   boundary and Phase 5.8 live workflow stabilization gate are both satisfied.
 - Treat GitHub Project or equivalent dashboard visibility as part of final

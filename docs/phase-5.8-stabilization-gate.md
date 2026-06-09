@@ -1,12 +1,15 @@
 # Phase 5.8 Stabilization Gate
 
-Status: active stabilization gate before Phase 6. Phases 5.8.1 through 5.8.3
-are implemented. Phase 5.8.4 currently has the source-backed dispatch contract
-implemented and a fail-closed runtime adapter contract for detached Team Lead
-handoff. Live OpenClaw delivery must use a configured adapter command that
-wraps OpenClaw's agent turn plus Gateway `sessions.send`; without that
-configured live path, automatic dispatch still returns `setup-needed` and
-writes no source artifact.
+Status: active stabilization gate before Phase 6. Phases 5.8.1 through 5.8.4
+are implemented in the repo-local model. The current code includes canonical
+start/result-ready guards, closeout lifecycle convergence, source-backed
+detached dispatch, fail-closed OpenClaw runtime adapter delivery, fresh
+Work Unit-specific Team Lead sessions, conservative capacity policy,
+result-ready closeout reviewer wake, guarded closeout `--commit-request`, and
+resumable closeout publish staging. Live OpenClaw delivery still requires
+configured adapter commands for dispatch and closeout reviewer wake; if a
+required adapter is missing or cannot return current proof, the command returns
+`setup-needed` or `repair-needed` and writes no false source success.
 
 Phase 5.8 captures the live workflow issues found during the
 `WU-260608-001` through `WU-260608-004` test batch. Phase 6 Packaging /
@@ -23,9 +26,11 @@ than a Phase 5.8-only decision.
 
 ## Why This Gate Exists
 
-The live test batch showed that the current repository has strong source
-artifact, visibility, result-ready, and closeout tooling, but it still lacks a
-complete runtime path for detached Team Lead execution.
+The live test batch showed that the repository had strong source artifact,
+visibility, result-ready, and closeout tooling, but lacked a complete runtime
+path for detached Team Lead execution and post-result-ready closeout wake. The
+5.8.1-5.8.4 implementation now covers those repo-local gaps. What remains is
+to prove the full path with a no-bypass live regression gate before packaging.
 
 Observed mismatch:
 
@@ -33,13 +38,13 @@ Observed mismatch:
   detached Work Unit.
 - The current repo-local workflow can create Work Cards, Assignment Packets,
   claims, visibility cards, result-ready records, and closeout decisions.
-- The current workflow does not yet provide a standard detached dispatch path
-  where the Operations Lead assigns the Work Unit, records the handoff, starts
-  the Team Lead execution, and then returns idle while a Team Lead session owns
-  execution.
+- The workflow must prove that the Operations Lead can assign the Work Unit,
+  record the handoff/start/dispatch, return idle while a fresh Team Lead
+  session owns execution, then rely on result-ready reviewer wake and guarded
+  closeout for final convergence.
 
-Until that missing layer is resolved, Phase 6 packaging would ship a protocol
-that still requires expert manual correction during real operation.
+Until the no-bypass live gate passes, Phase 6 packaging would risk shipping a
+protocol that only passed local smoke and expert-assisted repair paths.
 
 ## Evidence From Live Tests
 
@@ -88,12 +93,14 @@ that still requires expert manual correction during real operation.
 
 ### P0: Detached Work Unit Dispatch Is Missing
 
-Problem:
+Status: resolved in code; pending Phase 5.8.5 live no-bypass proof.
 
-The Operations Lead can prepare a Work Unit and call a Team Lead, but the repo
-does not yet provide a standard detached dispatch path. In the live tests, the
-Operations Lead effectively held the Team Lead execution foreground session and
-processed each request sequentially.
+Original problem:
+
+The Operations Lead could prepare a Work Unit and call a Team Lead, but the
+repo did not yet provide a standard detached dispatch path. In the live tests,
+the Operations Lead effectively held the Team Lead execution foreground session
+and processed each request sequentially.
 
 Impact:
 
@@ -102,22 +109,24 @@ Impact:
 - Phase 6 packaging would expose a protocol that still depends on manual
   operator discipline instead of a deterministic dispatch surface.
 
-Fix direction:
+Implemented direction:
 
-Define and implement a minimal detached dispatch or run surface that:
+The repo now implements a minimal detached dispatch surface that:
 
 - creates or validates the source-backed Work Unit handoff;
 - records a canonical execution start;
-- records the Team Lead session or job reference;
+- records the Team Lead session/job/message reference and dispatch proof;
 - returns control to the Operations Lead without waiting for Team Lead result;
 - leaves result submission to result-ready inbox / closeout processing.
 
 ### P0: `STARTED` Is Required But Not Standardized
 
-Problem:
+Status: resolved in code; pending Phase 5.8.5 live no-bypass proof.
 
-Docs and proof validation require a team-detail `STARTED` event, but the
-canonical handoff/result-ready path does not generate or enforce it.
+Original problem:
+
+Docs and proof validation required a team-detail `STARTED` event, but the
+canonical handoff/result-ready path did not generate or enforce it.
 
 Impact:
 
@@ -127,7 +136,7 @@ Impact:
 - Packaged users would have to know an internal lifecycle event that should be
   handled by tooling.
 
-Fix direction:
+Implemented direction:
 
 Introduce a canonical start transition as:
 
@@ -139,10 +148,12 @@ Work Unit has not started.
 
 ### P0: Closeout Does Not Finalize Lifecycle State
 
-Problem:
+Status: resolved in code; pending Phase 5.8.5 live no-bypass proof.
 
-Closeout writes `decision.md` and publishes review/completion visibility, but
-status continues to derive current state from `claim.md` as `result_ready`.
+Original problem:
+
+Closeout wrote `decision.md` and published review/completion visibility, but
+status continued to derive current state from `claim.md` as `result_ready`.
 
 Impact:
 
@@ -150,7 +161,7 @@ Impact:
 - Source artifacts disagree about lifecycle state.
 - Dashboard/status output can mislead Operations Lead review.
 
-Fix direction:
+Implemented direction:
 
 Clarify and implement final lifecycle semantics:
 
@@ -168,7 +179,9 @@ Also separate two concepts in status output:
 
 ### P1: Closeout Decision Loses Work Card Reference
 
-Problem:
+Status: resolved in code; keep in Phase 5.8.5 regression coverage.
+
+Original problem:
 
 Closeout-generated `decision.md` can render an empty Work Card field even when
 the Assignment Packet, claim, and evidence records contain the Work Card URL.
@@ -179,7 +192,7 @@ Impact:
 - Project/dashboard reconciliation and owner inspection become harder.
 - A Work Card could be accepted without a complete decision backlink.
 
-Fix direction:
+Implemented direction:
 
 Make closeout rehydrate Work Card from canonical source artifacts in this
 order:
@@ -194,7 +207,9 @@ publishing an accepted decision.
 
 ### P1: Status Model Mixes Lifecycle And Responsibility
 
-Problem:
+Status: resolved in code; keep in Phase 5.8.5 regression coverage.
+
+Original problem:
 
 Current status output treats claim expected state as the Work Unit current
 state. That conflates a Team Lead's last responsibility claim with the final
@@ -205,12 +220,14 @@ Impact:
 - Accepted or Revise decisions can look unfinished.
 - Pulse, dashboard, and owner inspection can read the wrong operating signal.
 
-Fix direction:
+Implemented direction:
 
 Expose lifecycle and responsibility separately. At minimum, final decision
 state must override claim state in user-facing status.
 
 ### P2: Live Test Mode Allowed Manual Bypass
+
+Status: unresolved until Phase 5.8.5 passes; this is now the remaining gate.
 
 Problem:
 
@@ -676,17 +693,45 @@ Depends on:
 
 - Phase 5.8.2.
 - Phase 5.8.3.
-- Phase 5.8.4, if detached dispatch is implemented in this stabilization pass.
+- Phase 5.8.4.
 - Phase 5.8.4d.
-- Phase 5.8.4.c, if result-ready wake/closeout visibility is implemented in
-  this stabilization pass.
+- Phase 5.8.4.c.
 
 Scope:
 
-- Rerun a small live workflow batch with manual bypass prohibited.
-- Include at least one verify Work Unit and one 1-round goal Work Unit.
+- Rerun a small live workflow batch with manual bypass prohibited. Include at
+  least one verify Work Unit and one 1-round goal Work Unit.
+- Start each Work Unit only through `work-unit start --publish`; do not insert
+  `STARTED` proof rows, proof-log entries, claim state, or status fields by
+  hand.
+- Dispatch through the fresh Work Unit-specific Team Lead path. The
+  Operations Lead must return after accepted/readback plus execution enqueue
+  proof, not after Team Lead result completion. Shared/custom session dispatch
+  must be either rejected or explicitly marked `operator-specified`.
+- Publish Team Lead `RESULT_READY` through the canonical command and request
+  closeout reviewer wake with the configured command adapter. If wake fails,
+  record the `review-wake setup-needed` outcome and recover only through
+  foreground `work-unit review-wake`; do not fake closeout.
+- Close final decisions through guarded `work-unit closeout --commit-request`
+  only. Cover Accepted, Revise, and Blocked or record an explicit rationale for
+  any decision not exercised live.
 - Verify source artifacts, Discord proof, status output, decision records, and
-  Project dry-run output.
+  Project dry-run output after each closeout.
+- Include at least one partial closeout publish/resume simulation in local
+  smoke or controlled fixture: team final review published, owner closeout
+  initially failed, rerun skips matching team proof, publishes owner closeout,
+  writes final `decision.md`, and marks the closeout stage `published`.
+- Include negative cases for guarded closeout: WU mismatch, stale/existing
+  decision, duplicate final proof, missing source ref, RESULT_READY proof id
+  mismatch, artifact hash mismatch, `manual_required`, unclear red-line check,
+  and missing reviewer refs must fail closed.
+- Include dispatch/wake negative cases: missing adapter command, adapter
+  timeout/failure, missing accepted/readback proof, missing execution enqueue
+  reference, busy/shared session timeout, and late acceptance after timeout
+  must not mutate source success.
+- Verify no hidden daemon, queue, DB, retry worker, Project/Discord
+  reverse-import, automatic reassignment, or automatic closeout path appears in
+  the tested flow.
 
 Acceptance:
 
@@ -695,6 +740,13 @@ Acceptance:
 - Work Card references remain present in final decisions.
 - Operations Lead does not hold Team Lead foreground execution for the tested
   detached path.
+- Result-ready reviewer wake either records current enqueue proof or leaves a
+  visible recoverable setup-needed state without rollback or fake success.
+- Guarded commit-request closeout revalidates current source proof/hash/red-line
+  state and is the only writer of final `decision.md`, team-detail final
+  review, owner-facing closeout, and final Project status.
+- Partial publish failure is explicit and foreground-resumable with the same
+  guarded request.
 - Phase 6 may begin only after this gate passes or an explicit no-go/defer
   decision is recorded with rationale.
 

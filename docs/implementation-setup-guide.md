@@ -938,7 +938,11 @@ scheduled activation deferred with trigger; daemon install no-go for now. Phase
 `pulse check` is implemented and included; scheduled Pulse and daemon
 installation remain deferred/no-go; Project and Discord live mutation tools
 remain configured foreground-only; hooks remain optional guardrails, not
-required runtime state.
+required runtime state. Phase 5.8.1 through 5.8.4 are implemented in the
+repo-local model, including canonical start/result-ready guards, detached
+fresh-session dispatch, closeout reviewer wake, guarded commit-request
+closeout, and foreground-resumable closeout publish staging. Phase 5.8.5
+remains the live no-bypass regression gate before Phase 6 packaging begins.
 
 For packaged users, `pulse check` remains a foreground operating command. The
 package should expose it through the installed CLI, read the user's local
@@ -1003,11 +1007,12 @@ Recommended replacement order:
    `discord publish-card`; keep publisher proof explicit in
    `visibility-proof.jsonl` and do not add a hidden bridge.
 7. Use the implemented `work-unit inbox --result-ready`,
-   `work-unit result-ready --dry-run/--publish`, and
-   `work-unit closeout --dry-run/--publish` commands before scaling
-   multi-Work Unit result recovery. The implementation scans only local Work
-   Unit source artifacts and treats Project/chat surfaces as mirrors, not inbox
-   sources.
+   `work-unit result-ready --dry-run/--publish`, optional
+   `work-unit review-wake --dry-run/--publish`, and guarded
+   `work-unit closeout --dry-run/--publish --commit-request <json|@path>`
+   commands before scaling multi-Work Unit result recovery. The implementation
+   scans only local Work Unit source artifacts and treats Project/chat surfaces
+   as mirrors, not inbox sources.
 8. Add the accepted `work-unit draft-handoff --spec draft-input.json --dry-run`
    helper only as a review-only Operations Lead drafting surface. It must expose
    missing judgment fields as `needs-ops-decision` and validate completed output

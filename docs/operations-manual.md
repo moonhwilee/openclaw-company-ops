@@ -253,6 +253,36 @@ live `RESULT_READY` readback proof. This prevents the circular failure where
 RESULT_READY proof is required before the command has had a chance to create it,
 while still blocking result-ready submissions for Work Units that never started.
 
+For detached Work Units, `result-ready --publish` may also enqueue a fresh
+Work Unit-scoped closeout reviewer session after successful RESULT_READY
+publish/readback:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit result-ready \
+  --work-unit-id <id> \
+  --result "..." \
+  --evidence <source-ref> \
+  --verification "..." \
+  --publish \
+  --closeout-reviewer-runtime openclaw-agent
+```
+
+The default closeout reviewer runtime is `none`, so existing result-ready
+publication remains unchanged unless the operator requests the wake path. The
+reviewer adapter must return current accepted/enqueued proof, including a
+recoverable session/job/message reference and confirmation that the reviewer is
+bound to guarded closeout only. `--closeout-reviewer-adapter fake` is a
+smoke/local contract fixture, not a production path. Production wake should use
+the configured command adapter, usually through
+`COMPANY_OPS_CLOSEOUT_REVIEW_ADAPTER_COMMAND`.
+
+If RESULT_READY publish succeeds but reviewer wake fails, do not roll back
+RESULT_READY and do not fake closeout. Treat the result as still visible in
+`work-unit inbox --result-ready`, then recover with the foreground
+`work-unit review-wake --dry-run/--publish` path after adapter setup is fixed.
+The Team Lead waits only for RESULT_READY readback and reviewer enqueue proof;
+it must not wait for reviewer judgment or final closeout completion.
+
 Process pending Team Lead results one at a time in a deterministic order:
 
 1. Earliest valid `RESULT_READY` proof timestamp.
@@ -285,6 +315,25 @@ Operations Lead result-ready closeout checklist:
    publish only when the planned decision, owner-facing status, and optional
    mirror updates match the source artifacts.
 
+When closeout is initiated by a fresh closeout reviewer, use the structured
+guarded path:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit closeout \
+  --work-unit-id <id> \
+  --commit-request @commit-request.json \
+  --dry-run
+```
+
+The commit request binds the reviewer judgment to the source snapshot it
+inspected. It must include the Work Unit id, decision, reason, source ref,
+current RESULT_READY proof id, source artifact hashes, reviewer session/job/run
+or message refs, autonomy class, review depth, and a clear red-line check.
+`manual_required`, stale source, missing proof, hash mismatch, duplicate final
+proof, existing final decision, missing Work Card, or unclear red-line status
+must fail closed as `repair-needed`; the reviewer judgment alone is not enough
+to write final state.
+
 Race control:
 
 - Only the Operations Lead may record `ACCEPTED`, `REVISE`, or
@@ -316,6 +365,14 @@ Race control:
   deterministic inbox order. If two results race for the same Work Unit, the
   first valid Operations Lead decision wins until the owner explicitly asks for
   a revision or reopen.
+- Guarded closeout publish records a narrow stage file named
+  `closeout-<decision>-stage.json`. The stage progresses through `started`,
+  `team-published`, `visibility-published`, and `published`. Final
+  `decision.md` is written only after team-detail final review and owner-facing
+  ops-feed closeout publish both succeed. If publish fails mid-way, rerun the
+  same Work Unit/decision/commit request in foreground; the command may skip
+  matching already-published proof rows and continue instead of duplicating
+  visibility or requiring manual source edits.
 
 Goal/convergence revision boundary:
 
@@ -427,13 +484,19 @@ The default flow is:
 8. Publish `[RESULT_READY]` when the Team Lead result is actually available.
    In the current foreground/manual flow, Operations Lead may post it after
    confirming the Team Lead result. In the detached flow, this is Team
-   Lead-owned result submission through `work-unit result-ready`; Operations
-   Lead later consumes it from the result-ready inbox.
-9. Operations Lead performs lightweight verification before final reporting.
-10. Operations Lead posts the detailed `[ACCEPTED]`, `[REVISE]`, or
-   `[BLOCKED_DETAIL]` review note in the relevant `#team-*` channel.
-11. Operations Lead posts one owner-facing `[COMPLETED]`, `[NEEDS_REVISION]`,
-   or `[BLOCKED]` summary in `#ops-feed`.
+   Lead-owned result submission through `work-unit result-ready`. For detached
+   work, request a fresh closeout reviewer wake when configured; if wake fails,
+   leave the WU in the result-ready inbox and recover through `work-unit
+   review-wake`.
+9. A closeout reviewer or Operations Lead performs source-backed verification
+   and prepares either an explicit Operations Lead decision or a guarded
+   `--commit-request`.
+10. Operations Lead publishes final closeout through `work-unit closeout`
+   only. This command writes `decision.md`, posts the detailed `[ACCEPTED]`,
+   `[REVISE]`, or `[BLOCKED_DETAIL]` review note in the relevant `#team-*`
+   channel, posts one owner-facing `[COMPLETED]`, `[NEEDS_REVISION]`, or
+   `[BLOCKED]` summary in `#ops-feed`, and optionally syncs the Project mirror
+   after source/proof revalidation.
 
 `[RESULT_READY]` is a Team Lead result-submission signal, not an Operations
 Lead decision. A Team Lead delegation is visibility-incomplete if the relevant
