@@ -148,6 +148,9 @@ and Team Lead agents:
 - Company Ops skill or routing instructions.
 - Protocol docs.
 - Assignment Packet templates.
+- The context-recovery core prompt and Company Ops source-record overlay from
+  `docs/protocols/context-recovery.md`, installed into Team Lead and
+  closeout-delegate setup prompts.
 - CLI tools needed for source-backed claim, progress, evidence, result-ready,
   and local verification work.
 - Installed role persona package definitions accepted during setup.

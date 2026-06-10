@@ -582,10 +582,12 @@ approval. When it does, it should install role instructions into each Team Lead
 workspace rather than relying on hidden conversation memory. The installed
 instructions should be generated from Company Ops templates and should stay
 small: role scope, Work Unit authority, evidence requirements, subagent budget
-rules, and the rule that Team Leads should actively consider subagents for
-non-trivial `goal` and `verify` Work Units. Work Unit-specific details still
-belong in the Assignment Packet; permanent operating rules belong in the Team
-Lead workspace instructions.
+rules, the context-recovery package prompt from
+[`docs/protocols/context-recovery.md`](protocols/context-recovery.md#package-prompt),
+and the rule that Team Leads should actively consider subagents for non-trivial
+`goal` and `verify` Work Units. Work Unit-specific details still belong in the
+Assignment Packet; permanent operating rules belong in the Team Lead workspace
+instructions.
 
 Do not copy the Operations Lead's private memory, chat history, credentials,
 tokens, or broad personal bootstrap files into Team Lead agents. Public agent
@@ -608,8 +610,10 @@ The shared distribution surface must be visible to both Operations Lead and
 Team Lead agents. If Team Leads run in separate OpenClaw runtimes or
 workspaces, Phase 6 must install or expose the same package, skill, docs,
 templates, and CLI there too, or return a setup-needed checklist before
-delegated Work Units start. Copying all rules through chat text is not a stable
-distribution model.
+detached work starts. Context recovery is part of that installed prompt surface:
+`docs/protocols/context-recovery.md` is the source reference, but the Team Lead
+and closeout-delegate setup prompts are the actual enforcement location.
+Copying all rules through chat text is not a stable distribution model.
 
 Shared access does not mean shared authority. Operations Lead-only commands
 such as Pulse review, result-ready inbox, closeout decision, Project mutation,

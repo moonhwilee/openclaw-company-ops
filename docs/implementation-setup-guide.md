@@ -221,6 +221,10 @@ repeatable, and inspectable. The instructions should include:
 - Team role and scope.
 - Work Unit authority boundaries.
 - Evidence and result-ready obligations.
+- The context-recovery core prompt from
+  [`docs/protocols/context-recovery.md`](protocols/context-recovery.md#package-prompt),
+  plus the Company Ops source-record overlay. This belongs in Team Lead and
+  closeout-delegate role instructions, not only in documentation.
 - Subagent budget rules.
 - A standing rule to actively consider subagents for non-trivial `goal` and
   `verify` Work Units, while keeping Work Unit ownership with the Team Lead.
@@ -1030,6 +1034,12 @@ Lead owns route, `pulse check`, inbox/closeout, configured Project/Discord
 mutation, and owner-facing completion; Team Leads may use shared tools only
 within their assigned Work Unit for claim refresh, progress/evidence/result
 writing, local verification, and blocker reporting.
+
+Phase 6 packaging must install the context-recovery package prompt into the
+actual Team Lead and closeout-delegate setup prompts. Keeping the text only in
+`docs/protocols/context-recovery.md` is not enough; that file is the source
+reference and audit target, while the agent setup prompt is the execution
+surface.
 
 Practical role assignment is possible at command/protocol level. Phase 6 should
 add CLI guards that require an Operations Lead role context for `pulse check`,
