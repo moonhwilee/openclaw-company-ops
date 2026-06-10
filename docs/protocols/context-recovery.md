@@ -32,6 +32,19 @@ done criteria.
 - Do not drop unresolved verification gaps.
 - Do not replace the Assignment Packet with chat history.
 - Do not continue a delegated goal loop if the Assignment Packet is missing.
+- After compaction, continue normally unless the task touches Work Unit
+  recovery, closeout, result-ready, terminal proof, or source/proof conflict.
+- For those sensitive cases, read source artifacts and proof before acting:
+  assignment, dispatch, evidence, decision, progress, visibility proof, and
+  closeout stage when present.
+- If a final decision plus `ACCEPTED`/`COMPLETED` proof exists, treat the Work
+  Unit as terminal. Do not rewrite evidence, decision, proof, or closeout
+  artifacts; report from source artifacts only.
+- If `RESULT_READY` exists without a final decision, recover closeout review.
+  If dispatch exists without `RESULT_READY`, treat the Work Unit as in-flight
+  unless an explicit stale/timeout rule applies.
+- If source artifacts and proof conflict, use a separate repair or follow-up
+  path instead of mutating the closed Work Unit.
 
 ## Output
 

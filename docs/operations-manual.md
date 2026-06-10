@@ -797,6 +797,20 @@ derives desired labels from source status and only changes managed queue labels.
 It does not close Accepted issues; Accepted remains an owner-inspection
 lifecycle until a separate cleanup/archive action is approved.
 
+Project sync is a derived mirror update, not source truth. The foreground sync
+path uses changed-only Project field updates, bounded retry/backoff for
+transient `gh`/GitHub failures, final desired-vs-live readback, and diagnostic
+details for auth/scope/rate-limit failures. If a Project field update fails,
+the sync records the failed field and leaves an explicit `project-sync-needed`
+state instead of treating the dashboard as converged.
+
+During guarded closeout, Project sync failure must not block publication of the
+final marker-managed Work Card summary comment when the source-backed decision
+and GitHub Work Card are otherwise valid. In that case, the source artifacts and
+summary comment remain inspectable, while the dashboard mirror is repaired later
+through foreground `project-sync apply` or `project-sync reconcile`. Do not
+reverse-import GitHub Project values into Work Unit source artifacts.
+
 ## Assignment Packet Rules
 
 The Assignment Packet is required before execution starts.
