@@ -288,14 +288,14 @@ Target date available but hidden in the primary owner view unless they are
 actively used for a specific Work Unit. Keep source artifact reference fields
 hidden in the primary view; they are audit drill-down fields.
 
-Accepted Work Units are terminal unless the source record explicitly marks an
-owner-review hold. After guarded closeout has published the accepted
-decision/evidence trail and the required visibility mirrors have read back, a
-GitHub Work Card should be closed as completed. The Project item may remain
-visible as `Accepted` for audit/review, but the GitHub Issue state should not
-stay open merely because it is accepted. If owner inspection is required before
-closure, record that as an explicit hold/follow-up instead of relying on an
-open Issue as an implicit queue.
+Accepted Work Units are terminal by default. After guarded closeout has
+published the accepted decision/evidence trail and the required visibility
+mirrors have read back, a GitHub Work Card should be closed as completed. The
+Project item may remain visible as `Accepted` for audit/review, but the GitHub
+Issue state should not stay open merely because it is accepted. If owner
+inspection is required before closure, do not treat the Work Unit as finally
+accepted yet; record a follow-up/hold explicitly instead of relying on an open
+Issue as an implicit queue.
 
 ## Auto-Sync Rules
 

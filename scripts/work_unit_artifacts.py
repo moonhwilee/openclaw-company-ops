@@ -35,6 +35,8 @@ GITHUB_WORK_CARD_RE = re.compile(
 WORK_CARD_SUMMARY_MARKER_TEMPLATE = "<!-- company-ops-work-card-summary:{work_unit_id}:v1 -->"
 WORK_CARD_SUMMARY_MIN_CHARS = 20
 WORK_CARD_SUMMARY_MAX_CHARS = 700
+WORK_CARD_SUMMARY_FINDINGS_MAX_CHARS = 1600
+WORK_CARD_SUMMARY_CRITERIA_MAX_CHARS = 1000
 WORK_CARD_SUMMARY_PLACEHOLDERS = {
     "summarize what was completed.",
     "summarize what was completed",
@@ -4664,9 +4666,9 @@ def decision_ready_summary(item: dict[str, Any], decision: str, reason: str) -> 
     return {
         "result_summary": compact_summary_text(result_summary or reason),
         "verification": compact_summary_text(verification or "Operations Lead reviewed source artifacts."),
-        "findings": compact_summary_text(findings),
+        "findings": compact_summary_text(findings, limit=WORK_CARD_SUMMARY_FINDINGS_MAX_CHARS),
         "remaining_risks": compact_summary_text(risks or "None recorded."),
-        "done_criteria_mapping": compact_summary_text(done_mapping, limit=500),
+        "done_criteria_mapping": compact_summary_text(done_mapping, limit=WORK_CARD_SUMMARY_CRITERIA_MAX_CHARS),
     }, failures
 
 

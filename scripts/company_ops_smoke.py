@@ -255,10 +255,30 @@ def write_valid_decision_ready_summary(artifact_dir: Path) -> None:
         "  - Evidence:\n"
         "  - Recommended next action:",
         "## Findings And Follow-up Routing\n\n"
-        "- Finding: No follow-up defect remains in this smoke fixture.\n"
+        "- Finding: Fixture source summary is present.\n"
         "  - Severity: `P3`\n"
         "  - Routing: `observe`\n"
         "  - Evidence: Source artifacts and result-ready proof fixture are complete.\n"
+        "  - Recommended next action: Continue smoke validation.\n"
+        "- Finding: Fixture verification steps are present.\n"
+        "  - Severity: `P3`\n"
+        "  - Routing: `observe`\n"
+        "  - Evidence: Verification Performed is populated.\n"
+        "  - Recommended next action: Continue smoke validation.\n"
+        "- Finding: Fixture risk section is present.\n"
+        "  - Severity: `P3`\n"
+        "  - Routing: `observe`\n"
+        "  - Evidence: Remaining Risks is populated.\n"
+        "  - Recommended next action: Continue smoke validation.\n"
+        "- Finding: Fixture done criteria mapping is present.\n"
+        "  - Severity: `P3`\n"
+        "  - Routing: `observe`\n"
+        "  - Evidence: Done Criteria Mapping is populated.\n"
+        "  - Recommended next action: Continue smoke validation.\n"
+        "- Finding: Fixture fifth finding remains visible in the Work Card summary.\n"
+        "  - Severity: `P3`\n"
+        "  - Routing: `observe`\n"
+        "  - Evidence: Summary rendering preserves a five-finding source section.\n"
         "  - Recommended next action: Continue smoke validation.",
     )
     evidence_text = evidence_text.replace(
@@ -5023,7 +5043,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("GitHub Work Card summary comment did not declare source-truth boundary")
     if "The Team Lead verified the bounded Company Ops visibility flow" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not use evidence Result Summary")
-    if "### Key Findings" not in planned_body or "No follow-up defect remains in this smoke fixture" not in planned_body:
+    if "### Key Findings" not in planned_body or "Fixture fifth finding remains visible" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not include source findings")
     if "### Criteria / Evidence" not in planned_body or "Evidence is source-backed and decision-ready" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not include done criteria mapping")
@@ -5426,6 +5446,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             raise RuntimeError("GitHub Work Card summary publish did not patch the paginated managed comment")
         if "### Key Findings" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not include Key Findings")
+        if "Fixture fifth finding remains visible" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish truncated source findings too aggressively")
         if "### Criteria / Evidence" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not include Criteria / Evidence")
         if str(summary_publish_wu) in summary_comments[-1].get("body", "") or str(work_dir) in summary_comments[-1].get("body", ""):
