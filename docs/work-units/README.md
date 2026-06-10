@@ -53,7 +53,8 @@ Project sync audit is intentionally separate from repo-local Work Unit artifacts
 Release/package exports include this guide and the empty artifact root, but
 exclude concrete `WU-*` evidence files. Source clones should keep only current
 active Work Unit artifacts; removed historical records are not active protocol
-contracts.
+contracts. The broader package boundary is recorded in
+[`../package-boundary.md`](../package-boundary.md).
 
 ## Rules
 

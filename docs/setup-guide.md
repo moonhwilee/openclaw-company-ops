@@ -9,6 +9,9 @@ move from repo-local scripts into an installable package, this same guide should
 be updated in place from manual setup notes into installation, connection, and
 usage instructions.
 
+For the current development-workspace/package-export boundary, see
+`docs/package-boundary.md`.
+
 For a detailed follow-along guide that a user can use to manually implement
 the full structure before CLI automation exists, see
 `docs/implementation-setup-guide.md`.

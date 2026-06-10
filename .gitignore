@@ -10,3 +10,5 @@ tmp/
 logs/
 runtime/
 state/
+docs/work-units/WU-*/
+docs/work-units/*-handoff-spec.json

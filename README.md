@@ -100,6 +100,11 @@ Repo-local tooling is available through:
 python3 scripts/openclaw_company_ops.py --help
 ```
 
+This repository is the development workspace, not the installable package root.
+Use [`docs/package-boundary.md`](docs/package-boundary.md) as the current
+boundary contract for what may enter the future package and what must remain
+local state.
+
 The target distributable shape is not a memory edit, standalone skill, or
 standalone CLI. Public v1 should be a Company Ops plugin or package that
 includes a small Company Ops skill for natural-language routing plus foreground
@@ -149,6 +154,7 @@ guess targets, or grant permissions on the user's behalf.
 - [Team Lead Protocols](docs/protocols/README.md)
 - [Role Persona Packages](docs/role-persona-packages.md)
 - [Setup Guide](docs/setup-guide.md)
+- [Package Boundary](docs/package-boundary.md)
 - [Implementation Setup Guide](docs/implementation-setup-guide.md)
 - [Manual Day-0 Templates](docs/templates/README.md)
 - [Operations Manual](docs/operations-manual.md)
