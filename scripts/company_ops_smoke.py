@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import datetime as dt
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -70,6 +71,15 @@ def require_success(result: subprocess.CompletedProcess[str], label: str) -> Non
     raise RuntimeError(f"{label} failed: {message}")
 
 
+def load_work_unit_artifacts_module() -> Any:
+    spec = importlib.util.spec_from_file_location("work_unit_artifacts_smoke", ARTIFACTS)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load work_unit_artifacts module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def assert_no_legacy_closeout_delegate_names() -> None:
     hits: list[str] = []
     for relative_path in ACTIVE_CLOSEOUT_DELEGATE_FILES:
@@ -82,6 +92,52 @@ def assert_no_legacy_closeout_delegate_names() -> None:
                 hits.append(f"{relative_path}: {token}")
     if hits:
         raise RuntimeError("legacy closeout delegate names remain in active paths: " + "; ".join(hits))
+
+
+def run_work_card_body_collapsible_smoke(work_dir: Path) -> None:
+    module = load_work_unit_artifacts_module()
+    spec = module.validate_handoff_spec(
+        {
+            "work_unit_id": "WU-260607-199",
+            "title": "Work Card collapsible smoke",
+            "team": "build-lab",
+            "mode": "goal",
+            "goal": "Render a Work Card body with collapsible operational sections.",
+            "scope": ["Render only."],
+            "done_criteria": ["Work Card body keeps all required fields."],
+            "verification_criteria": ["Smoke checks generated markdown."],
+            "targets": {"ops_feed": "channel:ops", "team_detail": "channel:team"},
+            "work_card": "https://github.com/acme/company-ops/issues/99",
+            "source_refs": ["docs/operations-manual.md", "telegram:343580315#1"],
+            "mutation_authority": {
+                "mutation_allowed": True,
+                "allowed_paths": ["docs/work-units/WU-260607-199/evidence.md"],
+                "allowed_surfaces": ["source"],
+                "external_mutation_allowed": False,
+                "commit_push_allowed": False,
+            },
+        }
+    )
+    spec["mutation_authority"]["review_required"] = True
+    body = module.work_card_body(spec, work_dir / "docs" / "work-units" / "WU-260607-199")
+    if "<summary>Show mutation authority: 6 fields</summary>" not in body:
+        raise RuntimeError("Work Card body did not collapse Mutation Authority")
+    if "- Mutation allowed: `true`" not in body or "- Review required: `true`" not in body:
+        raise RuntimeError("Work Card body did not preserve Mutation Authority fields")
+    if "<summary>Show source refs: 2 refs</summary>" not in body:
+        raise RuntimeError("Work Card body did not collapse Source Refs")
+    if "- docs/operations-manual.md" not in body or "- telegram:343580315#1" not in body:
+        raise RuntimeError("Work Card body did not preserve Source Refs")
+    source_artifacts = module.source_artifacts_details(
+        evidence_ref="docs/work-units/WU-260607-199/evidence.md",
+        decision_ref="docs/work-units/WU-260607-199/decision.md",
+        work_card="https://github.com/acme/company-ops/issues/99",
+        additional_refs=[("Run Log", "docs/work-units/WU-260607-199/run.log")],
+    )
+    if "<summary>Show source artifacts: 4 refs</summary>" not in source_artifacts:
+        raise RuntimeError("Source Artifacts details did not adapt to additional refs")
+    if "- Run Log: docs/work-units/WU-260607-199/run.log" not in source_artifacts:
+        raise RuntimeError("Source Artifacts details did not preserve additional refs")
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -5047,6 +5103,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("GitHub Work Card summary comment did not include source findings")
     if "### Criteria / Evidence" not in planned_body or "Evidence is source-backed and decision-ready" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not include done criteria mapping")
+    if "<summary>Show criteria evidence: 1/1 met</summary>" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not collapse Criteria / Evidence with a deterministic summary")
+    if "<summary>Show source artifacts: 3 refs</summary>" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not collapse Source Artifacts with a deterministic summary")
     if str(github_summary_dir) in planned_body or str(work_dir) in planned_body:
         raise RuntimeError("GitHub Work Card summary comment leaked a local absolute artifact path")
     if "docs/work-units/WU-260607-150/evidence.md" not in planned_body:
@@ -5450,6 +5510,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             raise RuntimeError("GitHub Work Card summary publish truncated source findings too aggressively")
         if "### Criteria / Evidence" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not include Criteria / Evidence")
+        if "<summary>Show criteria evidence: 1/1 met</summary>" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish did not collapse Criteria / Evidence")
+        if "<summary>Show source artifacts: 3 refs</summary>" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish did not collapse Source Artifacts")
         if str(summary_publish_wu) in summary_comments[-1].get("body", "") or str(work_dir) in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish leaked a local absolute artifact path")
 
@@ -6077,6 +6141,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_hook_guard_smoke()
         run_async_work_unit_policy_smoke()
         assert_no_legacy_closeout_delegate_names()
+        run_work_card_body_collapsible_smoke(work_dir)
         run_discord_card_smoke()
         mark_artifact_started(build_artifacts)
         mark_artifact_result_ready(build_artifacts)
@@ -6101,6 +6166,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "checked artifact generation, two independent claims, pulse no-alert check, "
         "repo-local hook guard fixtures, "
         "async Work Unit policy docs, "
+        "collapsible Work Card operational sections, "
         "purpose-specific Discord card/checkpoint composition, "
         "thin handoff dry-run/no-mutation validation, "
         "handoff draft dry-run/no-mutation validation, "

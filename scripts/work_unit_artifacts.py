@@ -733,6 +733,100 @@ def compact_markdown_section(value: str, *, limit: int) -> str:
     return cleaned
 
 
+def markdown_details(summary: str, body: str) -> str:
+    cleaned_body = body.strip()
+    if not cleaned_body:
+        return ""
+    return f"""<details>
+<summary>{summary}</summary>
+
+{cleaned_body}
+
+</details>"""
+
+
+def criteria_evidence_summary_label(done_mapping: str) -> str:
+    criterion_count = len(re.findall(r"(?im)^\s*-\s*Criterion\s*:", done_mapping))
+    statuses = [
+        match.group(1).strip().rstrip(".").lower()
+        for match in re.finditer(r"(?im)^\s*-\s*Status\s*:\s*(.+?)\s*$", done_mapping)
+    ]
+    total = criterion_count or len(statuses)
+    met = sum(1 for status in statuses if status in {"met", "pass", "passed"})
+    if total:
+        return f"Show criteria evidence: {met}/{total} met"
+    return "Show criteria evidence"
+
+
+def source_artifacts_details(
+    *,
+    evidence_ref: str,
+    decision_ref: str,
+    work_card: str,
+    additional_refs: list[tuple[str, str]] | None = None,
+) -> str:
+    refs = [
+        ("Evidence", evidence_ref, True),
+        ("Decision", decision_ref, True),
+        ("Work Card", work_card, False),
+        *[(label, value, False) for label, value in (additional_refs or [])],
+    ]
+    lines = [
+        f"- {label}: `{value}`" if code else f"- {label}: {value}"
+        for label, value, code in refs
+        if str(value).strip()
+    ]
+    return markdown_details(f"Show source artifacts: {len(lines)} refs", "\n".join(lines))
+
+
+def mutation_authority_field_label(key: str) -> str:
+    labels = {
+        "mutation_allowed": "Mutation allowed",
+        "allowed_paths": "Allowed paths",
+        "allowed_surfaces": "Allowed surfaces",
+        "external_mutation_allowed": "External mutation allowed",
+        "commit_push_allowed": "Commit/push allowed",
+    }
+    return labels.get(key, key.replace("_", " ").capitalize())
+
+
+def mutation_authority_field_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return bool_yaml(value)
+    if isinstance(value, list):
+        return human_list_or_none([str(item) for item in value])
+    if value is None:
+        return "none"
+    return str(value)
+
+
+def mutation_authority_details(mutation_authority: dict[str, Any]) -> str:
+    preferred_order = [
+        "mutation_allowed",
+        "allowed_paths",
+        "allowed_surfaces",
+        "external_mutation_allowed",
+        "commit_push_allowed",
+    ]
+    ordered_keys = [
+        *[key for key in preferred_order if key in mutation_authority],
+        *sorted(key for key in mutation_authority if key not in preferred_order),
+    ]
+    lines = [
+        f"- {mutation_authority_field_label(key)}: `{mutation_authority_field_value(mutation_authority[key])}`"
+        for key in ordered_keys
+    ]
+    label = "field" if len(lines) == 1 else "fields"
+    return markdown_details(f"Show mutation authority: {len(lines)} {label}", "\n".join(lines))
+
+
+def source_refs_details(source_refs: list[str]) -> str:
+    refs = markdown_bullets(source_refs) if source_refs else "-"
+    count = len(source_refs)
+    label = "ref" if count == 1 else "refs"
+    return markdown_details(f"Show source refs: {count} {label}", refs)
+
+
 def low_information_summary(value: str) -> bool:
     cleaned = compact_summary_text(value, limit=10_000).strip()
     lowered = cleaned.lower()
@@ -2026,7 +2120,8 @@ def work_card_body(spec: dict[str, Any], output_dir: Path) -> str:
     assignment_path = output_dir / "assignment.md"
     evidence_path = output_dir / "evidence.md"
     decision_path = output_dir / "decision.md"
-    source_refs = markdown_bullets(spec["source_refs"]) if spec["source_refs"] else "-"
+    mutation_authority = mutation_authority_details(spec["mutation_authority"])
+    source_refs = source_refs_details(spec["source_refs"])
     return f"""# Work Card
 
 ## Identity
@@ -2056,11 +2151,7 @@ def work_card_body(spec: dict[str, Any], output_dir: Path) -> str:
 
 ## Mutation Authority
 
-- Mutation allowed: `{bool_yaml(spec["mutation_authority"]["mutation_allowed"])}`
-- Allowed paths: `{human_list_or_none(spec["mutation_authority"]["allowed_paths"])}`
-- Allowed surfaces: `{human_list_or_none(spec["mutation_authority"]["allowed_surfaces"])}`
-- External mutation allowed: `{bool_yaml(spec["mutation_authority"]["external_mutation_allowed"])}`
-- Commit/push allowed: `{bool_yaml(spec["mutation_authority"]["commit_push_allowed"])}`
+{mutation_authority}
 
 ## Source Refs
 
@@ -4754,6 +4845,15 @@ def render_work_card_summary_comment(
     marker = WORK_CARD_SUMMARY_MARKER_TEMPLATE.format(work_unit_id=args.work_unit_id)
     evidence_ref = safe_source_artifact_ref(args.source_ref or item["evidence_path"], work_unit_id=args.work_unit_id)
     decision_ref = safe_source_artifact_ref(decision_path, work_unit_id=args.work_unit_id)
+    criteria_evidence = markdown_details(
+        criteria_evidence_summary_label(summary["done_criteria_mapping"]),
+        summary["done_criteria_mapping"],
+    )
+    source_artifacts = source_artifacts_details(
+        evidence_ref=evidence_ref,
+        decision_ref=decision_ref,
+        work_card=item.get("work_card") or "missing",
+    )
     next_action = args.next or args.next_owner or ("Owner may inspect the accepted Work Unit." if args.decision == "accept" else "See source decision for next action.")
     body = f"""{marker}
 ## Company Ops Result Summary
@@ -4772,7 +4872,7 @@ Source of truth: source artifacts, not this GitHub comment.
 {summary["findings"]}
 
 ### Criteria / Evidence
-{summary["done_criteria_mapping"]}
+{criteria_evidence}
 
 ### Remaining Risks
 {summary["remaining_risks"]}
@@ -4781,9 +4881,7 @@ Source of truth: source artifacts, not this GitHub comment.
 {compact_summary_text(next_action, limit=300)}
 
 ### Source Artifacts
-- Evidence: `{evidence_ref}`
-- Decision: `{decision_ref}`
-- Work Card: {item.get("work_card") or "missing"}
+{source_artifacts}
 
 Published by guarded Company Ops closeout at `{decided_at}`.
 """
