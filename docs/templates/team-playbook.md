@@ -111,7 +111,10 @@ and follow-up routing.
 ### context recovery
 
 After long execution, compaction, resumed sessions, or subagent result
-integration, recover context before continuing the selected mode:
+integration, recover context before continuing the selected mode. Follow the
+context-recovery package prompt from `docs/protocols/context-recovery.md`: keep
+normal continuation lightweight, but read authoritative source records before
+any action that could rewrite, close, publish, or repair durable state.
 
 - Work Unit id.
 - Goal, scope, non-goals, and constraints.
