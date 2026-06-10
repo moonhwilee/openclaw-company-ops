@@ -577,6 +577,23 @@ Team Lead agents programmatically, guided onboarding should output a manual
 checklist and keep single-agent `ops-direct` mode usable while `team-qna` and
 `detached-wu` report setup-needed next steps.
 
+Guided onboarding may create Team Lead agents only after explicit foreground
+approval. When it does, it should install role instructions into each Team Lead
+workspace rather than relying on hidden conversation memory. The installed
+instructions should be generated from Company Ops templates and should stay
+small: role scope, Work Unit authority, evidence requirements, subagent budget
+rules, and the rule that Team Leads should actively consider subagents for
+non-trivial `goal` and `verify` Work Units. Work Unit-specific details still
+belong in the Assignment Packet; permanent operating rules belong in the Team
+Lead workspace instructions.
+
+Do not copy the Operations Lead's private memory, chat history, credentials,
+tokens, or broad personal bootstrap files into Team Lead agents. Public agent
+templates may be used only after curation; do not bulk-import third-party
+persona packs into a user's install. A guided setup should report the exact
+files it would write, the agents it would create, and the commands it would
+run before asking for confirmation.
+
 Do not reorganize the repository into an installable layout during setup. Phase
 5.7 locks the included surfaces, and Phase 6 performs the packaging layout and
 install/uninstall work.

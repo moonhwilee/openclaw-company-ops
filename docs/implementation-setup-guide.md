@@ -201,6 +201,38 @@ Recommended shape:
 - `market`: market research, positioning, and content role agent.
 - `revenue`: revenue operations and customer workflow role agent.
 
+### Install Role Instructions
+
+Creating an OpenClaw agent id is not enough. A fresh Team Lead session should
+not be expected to inherit the Operations Lead's chat history or private
+memory. Treat every Team Lead run as a fresh execution lane that can rely on
+only:
+
+- Its own workspace instructions, such as `AGENTS.md`.
+- The packaged Company Ops docs, templates, and CLI.
+- The active Work Card and Assignment Packet.
+- The dispatch packet for the assigned Work Unit.
+
+For public setup, install deterministic role instructions into each Team Lead
+agent workspace after the user approves the dry-run plan. This is safer than
+"memory injection" through chat because the installed instructions are visible,
+repeatable, and inspectable. The instructions should include:
+
+- Team role and scope.
+- Work Unit authority boundaries.
+- Evidence and result-ready obligations.
+- Subagent budget rules.
+- A standing rule to actively consider subagents for non-trivial `goal` and
+  `verify` Work Units, while keeping Work Unit ownership with the Team Lead.
+- Red lines: no owner-facing publish, final closeout decision, Project
+  mutation, customer contact, credentials, destructive actions, or production
+  mutation unless the Assignment Packet and protocol explicitly authorize it.
+
+Do not copy the Operations Lead's private `MEMORY.md`, personal chat history,
+tokens, credentials, or broad bootstrap files into Team Lead workspaces. If the
+runtime cannot safely install or verify role instructions, leave the agent
+unconfigured and return `setup-needed` with a manual checklist.
+
 Do not delete standing role agents on normal project closure. Keep their
 heartbeat and direct message bindings disabled unless explicitly needed, keep
 their workspace minimal, and remove project clones, raw archives, large

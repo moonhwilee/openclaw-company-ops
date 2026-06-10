@@ -1351,6 +1351,16 @@ Scope:
   explicit foreground confirmation. When the runtime cannot create Team Lead
   agents programmatically, it should leave a clear manual setup checklist and
   keep the single-agent mode usable.
+- When guided setup creates Team Lead agents, it must install deterministic
+  role instructions from Company Ops templates into each Team Lead workspace.
+  Do not rely on hidden chat memory or copy the Operations Lead's private
+  memory into Team Leads. The installed role instructions should include the
+  team persona, Work Unit authority boundaries, evidence/result-ready rules,
+  and a standing rule to actively consider subagents for substantial `goal` and
+  `verify` Work Units.
+- Third-party custom-agent/persona packs may inform the curated templates, but
+  public v1 must not bulk-install unreviewed persona packs. The package should
+  prefer a small, auditable core role set plus optional domain overlays.
 - Single-agent mode remains valid after install: `ops-direct` works
   immediately, while `team-qna` and `detached-wu` either route to configured
   Team Leads or return a setup-needed result with next steps.

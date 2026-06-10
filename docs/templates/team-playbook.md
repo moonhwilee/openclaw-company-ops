@@ -128,11 +128,42 @@ Then resume the mode selected by the active packet.
 3. Confirm the Protocol Capsule.
 4. Select the capsule mode: `goal` or `verify`.
 5. Plan only the work required by that mode.
-6. Use subagents only when they remain under direct Team Lead control.
+6. Actively consider subagents for non-trivial `goal` and `verify` Work Units.
+   Use them when they materially improve coverage, speed, review quality, or
+   risk detection, and only within the Assignment Packet's `subagent_budget`.
 7. Verify outputs against the Assignment Packet.
 8. Improve and verify again only when the active mode requires a goal loop.
 9. Produce an Evidence & Result Record.
 10. Report result, evidence, risks, and blockers to the Operations Lead.
+
+## Subagent Use
+
+Team Leads are expected to handle substantial delegated Work Units, not casual
+chat. For `goal` and `verify` modes, do not treat subagents as a last resort.
+Consider them early when the Work Unit benefits from parallel inspection,
+specialized review, source research, risk checks, or independent verification.
+
+The Team Lead decides whether to use subagents, which persona or custom agent
+to call, the order of calls, and how to integrate the results. The Operations
+Lead controls only the budget, protocol boundary, and any explicit guardrails in
+the Assignment Packet.
+
+Budget interpretation:
+
+- `none`: direct Team Lead execution only.
+- `2`: use when a focused second perspective would improve confidence.
+- `3`: normal substantial `goal` or `verify`; consider subagents by default.
+- `5`: complex, high-risk, or broad verification; if no subagents are used,
+  record why direct execution was sufficient.
+
+When subagents are used, record in the Evidence & Result Record:
+
+- Role/persona used.
+- Scope assigned.
+- Key finding.
+- How the Team Lead used, rejected, or reconciled the result.
+
+Subagent output is input for Team Lead judgment, not completion truth.
 
 ## Required Report
 
