@@ -208,6 +208,29 @@ not paste long logs, raw diffs, or exhaustive analysis into Discord; store those
 in the Evidence & Result Record or another source artifact and reference the
 path.
 
+## Evidence Writing Quality
+
+The Evidence & Result Record must be useful to a human reviewer without chat
+memory. Do not hide real findings behind a generic sentence such as "found N
+issues." Write the actual findings in the evidence source.
+
+Before recommending `accept`, `revise`, or `blocked`, make sure the Evidence &
+Result Record has these filled sections:
+
+- `Result Summary`: what changed or what was learned.
+- `Verification Performed`: concrete checks, files, commands, readbacks, or
+  review steps.
+- `Findings And Follow-up Routing`: every meaningful finding with severity,
+  evidence, and recommended next action.
+- `Done Criteria Mapping`: each done/verification criterion and the evidence
+  that supports pass, fail, or unknown.
+- `Remaining Risks`: real residual risk, or a clear statement that none is
+  known.
+
+GitHub Work Card comments are generated from these source sections. If the
+sections are missing, placeholder-like, or too low-information, guarded
+closeout can reject the result instead of publishing a vague summary.
+
 ## Guardrails
 
 - Do not create a hidden orchestrator agent.
