@@ -2048,13 +2048,17 @@ protocol_capsule:
 Subagent budget policy:
 
 - `none`: Team Lead handles the Work Unit directly.
-- `2`: simple delegated work.
-- `3`: normal goal/verify work.
+- `2`: two-subagent check for simple delegated work.
+- `3`: normal goal/verify work; use two or three subagents when delegation is useful.
 - `5`: complex, high-risk, or broad verification work.
 - More than `5` requires explicit Operations Lead or owner approval.
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.
+
+There is no one-subagent path. If the Team Lead uses subagents, use at least
+two complementary subagents within the budget so the result is meaningfully
+different from solo Team Lead execution.
 
 Before invoking `work-unit result-ready`, update the Evidence & Result Record to
 `Status: Result Ready`. A draft evidence file must remain in repair-needed
@@ -5358,13 +5362,17 @@ protocol_capsule:
 Subagent budget policy:
 
 - `none`: Team Lead handles the Work Unit directly.
-- `2`: simple delegated work.
-- `3`: normal goal/verify work.
+- `2`: two-subagent check for simple delegated work.
+- `3`: normal goal/verify work; use two or three subagents when delegation is useful.
 - `5`: complex, high-risk, or broad verification work.
 - More than `5` requires explicit Operations Lead or owner approval.
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.
+
+There is no one-subagent path. If the Team Lead uses subagents, use at least
+two complementary subagents within the budget so the result is meaningfully
+different from solo Team Lead execution.
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
 repeat implementation or improvement and verification until a `stop_only_on`

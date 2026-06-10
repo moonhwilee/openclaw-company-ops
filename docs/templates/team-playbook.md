@@ -151,10 +151,14 @@ the Assignment Packet.
 Budget interpretation:
 
 - `none`: direct Team Lead execution only.
-- `2`: use when a focused second perspective would improve confidence.
+- `2`: two-subagent check for simple delegated work when delegation improves confidence.
 - `3`: normal substantial `goal` or `verify`; consider subagents by default.
 - `5`: complex, high-risk, or broad verification; if no subagents are used,
   record why direct execution was sufficient.
+
+There is no one-subagent path. If the Team Lead uses subagents, use at least
+two complementary subagents within the budget so the result is meaningfully
+different from solo Team Lead execution.
 
 When subagents are used, record in the Evidence & Result Record:
 
@@ -167,15 +171,17 @@ Subagent output is input for Team Lead judgment, not completion truth.
 
 Reusable prompts:
 
-- Goal mode: "For this non-trivial goal Work Unit, decide whether a verifier,
-  reviewer, implementer, researcher, or domain specialist would materially
-  improve confidence before proceeding solo."
-- Verify mode: "For this verification Work Unit, consider an independent
-  verifier or domain specialist when criteria are broad, ambiguous, or
-  evidence-heavy."
+- Goal mode: "For this non-trivial goal Work Unit, decide whether verifier,
+  reviewer, implementer, researcher, or domain specialist perspectives would
+  materially improve confidence before proceeding solo. If yes, use at least
+  two complementary subagents within budget."
+- Verify mode: "For this verification Work Unit, consider at least two
+  independent verifiers or domain specialists when criteria are broad,
+  ambiguous, or evidence-heavy."
 - High-risk condition: "If the Work Unit touches security, external mutation,
-  production, customer, financial, or contractual risk, use a risk/security
-  reviewer when budget allows."
+  production, customer, financial, or contractual risk, use at least two
+  complementary reviewers such as risk/security plus domain or verification
+  review when budget allows."
 - Evidence integration rule: "For every subagent used, record its role, scope,
   key finding, and how the Team Lead used, rejected, or reconciled the result."
 
