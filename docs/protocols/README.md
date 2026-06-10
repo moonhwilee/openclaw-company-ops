@@ -32,6 +32,12 @@ proof/progress trail. The Operations Lead later rereads those sources and makes
 the decision. The Team Lead must not assume that returning a result directly to
 the current chat completes the Work Unit.
 
+Default detached handoff is fire-and-forget: once dispatch has accepted runtime
+proof and `dispatch.json` is written, the Operations Lead reports `dispatched`
+and returns idle. Waiting for `RESULT_READY`, closeout delegate judgment,
+`ACCEPTED`, or `COMPLETED` requires an explicit owner request for live protocol
+observation or manual recovery.
+
 ## Protocol Set
 
 - [goal](goal.md): complete the Work Unit through an initial plan followed by
@@ -92,6 +98,10 @@ Subagent budget is an Assignment Packet and package-prompt contract. The
 canonical budget values are defined in [capacity policy](../capacity-policy.md);
 do not add hook/tool-policy enforcement unless a later accepted policy changes
 that boundary.
+
+`subagents` describes who controls subagents if they are used. `subagent_budget:
+none` means this Work Unit uses no subagents and is handled directly by the Team
+Lead.
 
 `goal` mode must not stop after a single failed verification. The Team Lead
 plans once, then repeats implementation or improvement and verification until

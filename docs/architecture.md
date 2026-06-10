@@ -122,6 +122,10 @@ That budget is a packet/prompt contract. It is not a hook, tool-policy, or hard
 runtime enforcement layer. The current numeric budget and OpenClaw host sizing
 rules live in [capacity policy](capacity-policy.md).
 
+`subagents` is the control policy for any subagents that are used.
+`subagent_budget: none` is the direct Team Lead path: no subagents are used for
+that Work Unit.
+
 ## Operating Elements
 
 OpenClaw Company Ops has eight v1 elements.

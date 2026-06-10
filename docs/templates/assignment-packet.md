@@ -73,6 +73,11 @@ Links, files, references, or starting state:
 
 -
 
+Required source documents must be passed as source refs, not replaced by a
+compressed chat summary. If the source set is large, link a source context
+manifest in the Work Unit artifact subtree and require the Team Lead to inspect
+the underlying documents directly.
+
 Shared Company Ops references available to the Team Lead:
 
 -
@@ -122,6 +127,11 @@ Use this compact execution protocol for this Work Unit. Do not replace this
 packet by searching protocol docs or inferring completion criteria from request
 prose.
 
+Detached handoff completion policy: fire-and-forget after accepted dispatch
+proof. Operations Lead reports `dispatched` and returns idle; foreground waiting
+for `RESULT_READY`, closeout, `ACCEPTED`, or `COMPLETED` requires an explicit
+owner request for live protocol observation or manual recovery.
+
 Select the mode that matches the delegated Work Unit:
 
 - `goal`: produce or change a durable outcome through an initial plan followed
@@ -170,6 +180,10 @@ Subagent budget policy:
 - `3`: normal goal/verify work; use two or three subagents when delegation is useful.
 - `5`: complex, high-risk, or broad verification work.
 - More than `5` requires explicit Operations Lead or owner approval.
+
+`subagents` describes who controls subagents if they are used. `subagent_budget:
+none` means this Work Unit uses no subagents and is handled directly by the Team
+Lead.
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.

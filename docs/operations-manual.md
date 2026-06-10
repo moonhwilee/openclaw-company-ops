@@ -218,6 +218,14 @@ Dispatch also applies the Company Ops active Work Unit cap from
 [`docs/capacity-policy.md`](capacity-policy.md). A capacity-full dispatch writes
 no source artifacts and starts no runtime path.
 
+Detached dispatch is fire-and-forget by default. After `dispatch --publish`
+returns accepted runtime proof and records `dispatch.json`, the Operations Lead
+must send a handoff/status report and stop foreground waiting. The main session
+must not wait for `RESULT_READY`, closeout delegate judgment, `ACCEPTED`, or
+`COMPLETED` unless the owner explicitly requested live protocol observation or
+manual recovery. Later review resumes from source artifacts, proof/progress
+logs, the result-ready inbox, or `delegate-wake`.
+
 For `--runtime record-ref`, dispatch records a manually obtained
 `--session-ref`, `--job-ref`, or `--message-ref`. For
 `--runtime openclaw-agent`, manual refs are not enough: the runtime adapter must
@@ -298,6 +306,13 @@ it must not wait for delegate judgment or final closeout completion.
 If a readback-ok RESULT_READY proof already exists, `result-ready --publish`
 fails closed unless the operator passes `--force` for an intentional duplicate
 publication. Do not use `--force` to paper over a confused Team Lead rerun.
+
+After terminal closeout proof exists, recovery work must be read-only by
+default. Do not rewrite `evidence.md`, `decision.md`, proof logs, or closeout
+artifacts after `ACCEPTED`/`COMPLETED` unless the owner explicitly approves an
+artifact repair. If a post-closeout inconsistency is found, record a separate
+follow-up Work Unit or recovery note instead of changing the closed evidence
+chain.
 
 Process pending Team Lead results one at a time in a deterministic order:
 

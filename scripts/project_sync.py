@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -535,11 +536,97 @@ def require_project_scope(gh_binary: str) -> None:
         raise ProjectSyncError(f"GitHub auth lacks required 'project' scope; {PROJECT_SCOPE_HINT}")
 
 
+def command_label(command: list[str]) -> str:
+    return " ".join(command[:4])
+
+
+def classify_command_failure(detail: str) -> tuple[int | None, str]:
+    status_match = re.search(r"(?:HTTP |status code: |\"status\":\s*\")(?P<status>\d{3})", detail)
+    status = int(status_match.group("status")) if status_match else None
+    lowered = detail.lower()
+    if "secondary rate limit" in lowered or "retry-after" in lowered:
+        return status, "secondary_rate_limit"
+    if status in {403, 429} and "rate limit" in lowered:
+        return status, "rate_limit"
+    if "bad credentials" in lowered or "invalid token" in lowered:
+        return status, "bad_credentials"
+    if "requires authentication" in lowered or "unauthorized" in lowered:
+        return status, "transient_or_scope_auth"
+    if status == 401:
+        return status, "transient_or_scope_auth"
+    if status is not None and 500 <= status <= 599:
+        return status, "server_error"
+    if "timeout" in lowered:
+        return status, "timeout"
+    return status, "non_retryable"
+
+
+def retry_delay_seconds(kind: str, attempt: int) -> float | None:
+    if kind == "bad_credentials" or kind == "non_retryable":
+        return None
+    if kind in {"rate_limit", "secondary_rate_limit"}:
+        return 5.0 if attempt == 1 else None
+    if kind in {"transient_or_scope_auth", "server_error", "timeout"}:
+        return float(2 ** (attempt - 1))
+    return None
+
+
+def github_command_diagnostics(gh_binary: str, timeout: int) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {}
+    try:
+        auth = subprocess.run([gh_binary, "auth", "status"], text=True, capture_output=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        diagnostics["auth_ready"] = False
+        diagnostics["auth_error"] = f"timeout after {timeout}s"
+        auth_output = ""
+    else:
+        auth_output = f"{auth.stdout}\n{auth.stderr}"
+        diagnostics["auth_ready"] = auth.returncode == 0
+    diagnostics["project_scope_present"] = "'project'" in auth_output
+    try:
+        rate = subprocess.run(
+            [gh_binary, "api", "rate_limit", "--jq", "{core:.resources.core, graphql:.resources.graphql}"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        diagnostics["rate_limit_ready"] = False
+        diagnostics["rate_limit_error"] = f"timeout after {timeout}s"
+    else:
+        diagnostics["rate_limit_ready"] = rate.returncode == 0
+        if rate.returncode == 0 and rate.stdout.strip():
+            try:
+                diagnostics["rate_limit"] = json.loads(rate.stdout)
+            except json.JSONDecodeError:
+                diagnostics["rate_limit"] = rate.stdout.strip()
+    return diagnostics
+
+
 def run_json_command(command: list[str], timeout: int) -> dict[str, Any]:
-    result = subprocess.run(command, text=True, capture_output=True, check=False, timeout=timeout)
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip()
-        raise ProjectSyncError(f"command failed: {' '.join(command[:4])}: {detail}")
+    attempts: list[dict[str, Any]] = []
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = subprocess.run(command, text=True, capture_output=True, check=False, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            detail = f"timeout after {timeout}s"
+            status, kind = None, "timeout"
+        else:
+            if result.returncode == 0:
+                break
+            detail = (result.stderr or result.stdout).strip()
+            status, kind = classify_command_failure(detail)
+        attempts.append({"attempt": attempt, "status": status, "kind": kind})
+        delay = retry_delay_seconds(kind, attempt)
+        if attempt >= max_attempts or delay is None:
+            diagnostics = github_command_diagnostics(command[0], timeout) if command and Path(command[0]).name == "gh" else {}
+            raise ProjectSyncError(
+                f"command failed after {attempt} attempt(s): {command_label(command)}: {detail}; "
+                f"retry_diagnostics={json.dumps({'attempts': attempts, **diagnostics}, sort_keys=True, ensure_ascii=False)}"
+            )
+        time.sleep(delay)
     try:
         parsed = json.loads(result.stdout or "{}")
     except json.JSONDecodeError as exc:
@@ -985,17 +1072,31 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
             if current == desired:
                 actions.append({"type": "set_project_field", "field": field_name, "result": "unchanged"})
                 continue
-            edit_project_field(args, field_map, item_node_id, field_name, field_map["fields"][field_name], desired)
-            item_changed = True
-            actions.append(
-                {
-                    "type": "set_project_field",
-                    "field": field_name,
-                    "result": "changed",
-                    "current": current,
-                    "desired": desired,
-                }
-            )
+            try:
+                edit_project_field(args, field_map, item_node_id, field_name, field_map["fields"][field_name], desired)
+            except (subprocess.TimeoutExpired, ProjectSyncError) as exc:
+                actions.append(
+                    {
+                        "type": "set_project_field",
+                        "field": field_name,
+                        "result": "failed",
+                        "current": current,
+                        "desired": desired,
+                        "error": str(exc),
+                    }
+                )
+                continue
+            else:
+                item_changed = True
+                actions.append(
+                    {
+                        "type": "set_project_field",
+                        "field": field_name,
+                        "result": "changed",
+                        "current": current,
+                        "desired": desired,
+                    }
+                )
 
         issue_labels = {"result": "disabled"}
         issue_label_failed = False

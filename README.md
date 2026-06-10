@@ -147,6 +147,7 @@ guess targets, or grant permissions on the user's behalf.
 
 - [Architecture](docs/architecture.md)
 - [Team Lead Protocols](docs/protocols/README.md)
+- [Role Persona Packages](docs/role-persona-packages.md)
 - [Setup Guide](docs/setup-guide.md)
 - [Implementation Setup Guide](docs/implementation-setup-guide.md)
 - [Manual Day-0 Templates](docs/templates/README.md)

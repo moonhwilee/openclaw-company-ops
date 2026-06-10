@@ -51,6 +51,8 @@ DEFAULT_ARTIFACT_ROOT = Path("docs/work-units")
 DEFAULT_PROJECT_FIELD_MAP = Path("~/.openclaw/state/openclaw-company-ops/project-field-map.json")
 DEFAULT_PROJECT_LEDGER = Path("~/.openclaw/state/openclaw-company-ops/claims/ledger.json")
 DEFAULT_PROJECT_AUDIT_LOG = Path("~/.openclaw/state/openclaw-company-ops/project-sync-audit.jsonl")
+SOURCE_CONTEXT_MANIFEST_NAME = "source-context.json"
+SOURCE_CONTEXT_HASH_MAX_BYTES = 1024 * 1024
 DISPATCH_RUNTIME_CHOICES = ("record-ref", "openclaw-agent")
 DISPATCH_ADAPTER_CHOICES = ("auto", "fake", "command")
 DISPATCH_ADAPTER_COMMAND_ENV = "COMPANY_OPS_DISPATCH_ADAPTER_COMMAND"
@@ -821,6 +823,128 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def source_ref_kind(source_ref: str) -> str:
+    cleaned = source_ref.strip()
+    if not cleaned:
+        return "empty"
+    if cleaned.startswith("#"):
+        return "anchor"
+    if cleaned.startswith("repo:"):
+        return "repo_path"
+    if cleaned.startswith("artifact:"):
+        return "artifact_path"
+    if re.match(r"^[a-z][a-z0-9+.-]*://", cleaned, flags=re.IGNORECASE):
+        return "url"
+    if re.match(r"^[a-z][a-z0-9+.-]*:", cleaned, flags=re.IGNORECASE):
+        return "external_ref"
+    if Path(cleaned).expanduser().is_absolute():
+        return "local_path"
+    return "relative_path"
+
+
+def resolve_source_ref_path(source_ref: str, artifact_dir: Path) -> tuple[Path | None, str]:
+    cleaned = source_ref.strip()
+    repo_root = SCRIPT_DIR.parent
+    if cleaned.startswith("repo:"):
+        return repo_root / cleaned.removeprefix("repo:").strip(), "repo_path"
+    if cleaned.startswith("artifact:"):
+        return artifact_dir / cleaned.removeprefix("artifact:").strip(), "artifact_path"
+    kind = source_ref_kind(cleaned)
+    if kind == "local_path":
+        return Path(cleaned).expanduser(), kind
+    if kind == "relative_path":
+        repo_candidate = repo_root / cleaned
+        artifact_candidate = artifact_dir / cleaned
+        if repo_candidate.exists():
+            return repo_candidate, "repo_path"
+        if artifact_candidate.exists():
+            return artifact_candidate, "artifact_path"
+        return repo_candidate, "relative_path"
+    return None, kind
+
+
+def source_context_entry(
+    source_ref: str,
+    *,
+    artifact_dir: Path,
+    work_unit_id: str,
+    required: bool = True,
+) -> dict[str, Any]:
+    cleaned = source_ref.strip()
+    path, kind = resolve_source_ref_path(cleaned, artifact_dir)
+    entry: dict[str, Any] = {
+        "ref": cleaned,
+        "kind": kind,
+        "required": required,
+        "access_status": "unchecked",
+    }
+    if not cleaned:
+        entry["access_status"] = "missing-ref"
+        return entry
+    if path is None:
+        if kind == "url":
+            entry["access_status"] = "unchecked-url"
+        elif kind == "external_ref":
+            entry["access_status"] = "unchecked-external-ref"
+        elif kind == "anchor":
+            entry["access_status"] = "anchor"
+        else:
+            entry["access_status"] = "unchecked"
+        return entry
+    entry["path"] = safe_source_artifact_ref(path, work_unit_id=work_unit_id)
+    try:
+        stat = path.stat()
+    except OSError:
+        entry["exists"] = False
+        entry["access_status"] = "missing"
+        return entry
+    entry["exists"] = True
+    entry["size_bytes"] = stat.st_size
+    entry["mtime"] = dt.datetime.fromtimestamp(stat.st_mtime, dt.timezone.utc).isoformat()
+    entry["access_status"] = "ok"
+    if path.is_file() and stat.st_size <= SOURCE_CONTEXT_HASH_MAX_BYTES:
+        entry["sha256"] = file_sha256(path)
+    elif path.is_file():
+        entry["sha256"] = "skipped-large-file"
+    elif path.is_dir():
+        entry["sha256"] = "skipped-directory"
+    return entry
+
+
+def build_source_context_manifest(spec: dict[str, Any], artifact_dir: Path) -> dict[str, Any]:
+    required_refs = [source_context_entry(ref, artifact_dir=artifact_dir, work_unit_id=spec["work_unit_id"]) for ref in spec["source_refs"]]
+    missing_required = [
+        entry
+        for entry in required_refs
+        if entry.get("required") and entry.get("access_status") in {"missing", "missing-ref"}
+    ]
+    return {
+        "version": 1,
+        "work_unit_id": spec["work_unit_id"],
+        "repo_root": str(SCRIPT_DIR.parent),
+        "manifest_path": str(artifact_dir / SOURCE_CONTEXT_MANIFEST_NAME),
+        "required_refs": required_refs,
+        "optional_refs": [],
+        "forbidden_refs": ["private memory", "credentials", "owner chat history unless explicitly approved"],
+        "policy": {
+            "source_documents_not_replaced_by_summary": True,
+            "external_url_fetch_default": "disabled",
+            "large_file_hashing": f"sha256 only up to {SOURCE_CONTEXT_HASH_MAX_BYTES} bytes",
+            "missing_required_local_ref": "blocked",
+        },
+        "missing_required_refs": missing_required,
+    }
+
+
+def source_context_summary(manifest: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "manifest": manifest.get("manifest_path", ""),
+        "required_count": len(manifest.get("required_refs") or []),
+        "missing_required_count": len(manifest.get("missing_required_refs") or []),
+        "policy": manifest.get("policy", {}),
+    }
 
 
 def result_ready_proof_rows(proof_path: Path, work_unit: str) -> list[dict[str, Any]]:
@@ -1987,6 +2111,13 @@ Team Lead OpenClaw Agent for a delegated Work Unit.
 
 {markdown_bullets(context["source_refs"]) if context["source_refs"] else "- See Work Card and source artifacts."}
 
+Source context manifest: `{context["source_context_manifest_path"]}`
+
+Required source documents must be passed as source refs, not replaced by a
+compressed chat summary. If the source set is large, link a source context
+manifest in the Work Unit artifact subtree and require the Team Lead to inspect
+the underlying documents directly.
+
 ## Done Criteria
 
 {markdown_bullets(context["done_criteria"])}
@@ -2026,6 +2157,11 @@ Mode boundary:
 
 ## Protocol Capsule
 
+Detached handoff completion policy: fire-and-forget after accepted dispatch
+proof. Operations Lead reports `dispatched` and returns idle; foreground waiting
+for `RESULT_READY`, closeout, `ACCEPTED`, or `COMPLETED` requires an explicit
+owner request for live protocol observation or manual recovery.
+
 ```yaml
 protocol_capsule:
   mode: {context["mode"]}
@@ -2052,6 +2188,10 @@ Subagent budget policy:
 - `3`: normal goal/verify work; use two or three subagents when delegation is useful.
 - `5`: complex, high-risk, or broad verification work.
 - More than `5` requires explicit Operations Lead or owner approval.
+
+`subagents` describes who controls subagents if they are used. `subagent_budget:
+none` means this Work Unit uses no subagents and is handled directly by the Team
+Lead.
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.
@@ -2097,6 +2237,7 @@ def render_handoff_artifacts(spec: dict[str, Any], output_dir: Path, created_at:
         "verification_criteria": spec["verification_criteria"],
         "mutation_authority": spec["mutation_authority"],
         "source_refs": spec["source_refs"],
+        "source_context_manifest_path": f"{output_dir / SOURCE_CONTEXT_MANIFEST_NAME}",
         "report": spec["report"],
         "subagent_budget": spec["subagent_budget"],
         "subagent_budget_reason": spec["subagent_budget_reason"],
@@ -2203,12 +2344,14 @@ def write_handoff_files(
     rendered: dict[str, str],
     ops_card: dict[str, Any],
     team_card: dict[str, Any],
+    source_context_manifest: dict[str, Any],
     *,
     force: bool,
 ) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
         **{filename: output_dir / filename for filename in ARTIFACTS},
+        "source_context_manifest": output_dir / SOURCE_CONTEXT_MANIFEST_NAME,
         "ops_card": output_dir / "ops-assigned-card.json",
         "team_card": output_dir / "team-assigned-card.json",
     }
@@ -2218,6 +2361,10 @@ def write_handoff_files(
             raise FileExistsError("handoff output already exists: " + ", ".join(existing))
     for filename, content in rendered.items():
         paths[filename].write_text(content, encoding="utf-8")
+    paths["source_context_manifest"].write_text(
+        json.dumps(source_context_manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     paths["ops_card"].write_text(json.dumps({"card": ops_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     paths["team_card"].write_text(json.dumps({"card": team_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     return {key: str(value) for key, value in paths.items()}
@@ -2275,6 +2422,10 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
         spec["work_card"] = f"planned Work Card in {spec['work_card_repo']}"
 
     try:
+        source_context_manifest = build_source_context_manifest(spec, output_dir)
+        if source_context_manifest["missing_required_refs"]:
+            missing = ", ".join(entry.get("ref", "<empty>") for entry in source_context_manifest["missing_required_refs"])
+            raise RuntimeError(f"missing required source refs: {missing}")
         rendered = render_handoff_artifacts(spec, output_dir, created_at)
         ops_card, team_card, ops_text, team_text = handoff_card_payloads(spec)
     except RuntimeError as exc:
@@ -2282,7 +2433,10 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
         return 1
 
     if args.publish and not args.force:
-        planned_paths = [output_dir / filename for filename in (*ARTIFACTS, "ops-assigned-card.json", "team-assigned-card.json")]
+        planned_paths = [
+            output_dir / filename
+            for filename in (*ARTIFACTS, SOURCE_CONTEXT_MANIFEST_NAME, "ops-assigned-card.json", "team-assigned-card.json")
+        ]
         existing = [str(path) for path in planned_paths if path.exists()]
         if existing:
             print(f"error: handoff output already exists: {', '.join(existing)}", file=sys.stderr)
@@ -2291,6 +2445,10 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     if args.publish and spec["work_card"].startswith("planned Work Card in "):
         try:
             spec["work_card"] = create_github_work_card(spec, output_dir)
+            source_context_manifest = build_source_context_manifest(spec, output_dir)
+            if source_context_manifest["missing_required_refs"]:
+                missing = ", ".join(entry.get("ref", "<empty>") for entry in source_context_manifest["missing_required_refs"])
+                raise RuntimeError(f"missing required source refs: {missing}")
             rendered = render_handoff_artifacts(spec, output_dir, created_at)
             ops_card, team_card, ops_text, team_text = handoff_card_payloads(spec)
         except RuntimeError as exc:
@@ -2303,6 +2461,7 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
         "output_dir": str(output_dir),
         "work_card": spec["work_card"],
         "artifacts": [str(output_dir / filename) for filename in ARTIFACTS],
+        "source_context": source_context_summary(source_context_manifest),
         "cards": [
             {"surface": "ops-feed", "kind": "ASSIGNED", "target": spec["targets"]["ops_feed"], "path": str(output_dir / "ops-assigned-card.json")},
             {"surface": "team-detail", "kind": "ASSIGNED_DETAIL", "target": spec["targets"]["team_detail"], "path": str(output_dir / "team-assigned-card.json")},
@@ -2316,6 +2475,7 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     if args.dry_run:
         payload = {
             "plan": plan,
+            "source_context_manifest": source_context_manifest,
             "ops_card": ops_card,
             "team_card": team_card,
             "ops_text": ops_text,
@@ -2331,7 +2491,7 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        paths = write_handoff_files(output_dir, rendered, ops_card, team_card, force=args.force)
+        paths = write_handoff_files(output_dir, rendered, ops_card, team_card, source_context_manifest, force=args.force)
     except (OSError, FileExistsError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -3236,8 +3396,36 @@ def latest_team_detail_target(artifact_dir: Path, work_unit: str) -> str:
     return "<team-detail-target>"
 
 
+def fire_and_forget_completion_policy() -> dict[str, Any]:
+    return {
+        "mode": "fire-and-forget",
+        "operations_lead_stop_after": "dispatch_accepted",
+        "handoff_report_status": "dispatched",
+        "must_not_wait_for": [
+            "RESULT_READY",
+            "closeout_delegate_judgment",
+            "ACCEPTED",
+            "COMPLETED",
+        ],
+        "foreground_wait_requires": "explicit owner request for live protocol observation or manual recovery",
+        "recovery_path": "Later recover from Work Unit artifacts, proof/progress logs, result-ready inbox, or delegate-wake.",
+    }
+
+
 def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifact_dir: Path) -> dict[str, Any]:
     evidence_path = artifact_dir / "evidence.md"
+    source_context_path = artifact_dir / SOURCE_CONTEXT_MANIFEST_NAME
+    source_context: dict[str, Any] = {}
+    if source_context_path.exists():
+        try:
+            source_context = source_context_summary(read_json_file(source_context_path))
+        except ValueError:
+            source_context = {
+                "manifest": str(source_context_path),
+                "required_count": 0,
+                "missing_required_count": 1,
+                "error": "invalid source context manifest",
+            }
     fields = assignment.get("fields", {})
     subagent_budget = normalize_subagent_budget(
         fields.get("subagent_budget")
@@ -3283,6 +3471,8 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         "repo_root": str(SCRIPT_DIR.parent),
         "assignment_packet": str(artifact_dir / "assignment.md"),
         "evidence_ref": str(evidence_path),
+        "source_context": source_context,
+        "operations_lead_handoff": fire_and_forget_completion_policy(),
         "subagent_budget": {
             "budget": subagent_budget,
             "reason": subagent_budget_reason,
@@ -3305,6 +3495,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         },
         "instructions": [
             "Read assignment.md before executing.",
+            "If source_context.manifest is present, read it and inspect required source refs directly before relying on summaries.",
             "Use repo_root when resolving relative source paths.",
             "Do not mutate outside the assigned Work Unit scope.",
             "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
@@ -3314,6 +3505,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
             "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
             "For verify mode, the result-ready command is a source-backed lifecycle proof path, not permission to edit the candidate output.",
             "Do not publish closeout, Project mutation, or owner completion from the Team Lead dispatch.",
+            "Operations Lead stops after accepted dispatch proof in the default fire-and-forget path; RESULT_READY and closeout are recovered later from source/proof artifacts unless foreground observation was explicitly requested.",
         ],
     }
 
@@ -3343,6 +3535,7 @@ def dispatch_record(
         "assignment_packet": str(artifact_dir / "assignment.md"),
         "dispatch_ref": dispatch_ref(args),
         "accepted_proof": accepted_proof,
+        "completion_policy": fire_and_forget_completion_policy(),
         "dispatched_at": dispatched_at,
         "recorded_by": args.recorded_by,
         "packet": dispatch_packet(args, assignment, artifact_dir),
@@ -3554,6 +3747,7 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         "job_ref": args.job_ref,
         "message_ref": args.message_ref,
         "accepted_proof": accepted_proof,
+        "completion_policy": fire_and_forget_completion_policy(),
         "capacity": {
             "effective_maxConcurrent": args.capacity_effective_max_concurrent,
             "reserved_slots": args.capacity_reserved_slots,
@@ -3573,7 +3767,7 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         "next_action": (
             "Run publish with a configured runtime adapter, or use record-ref for a manually started session."
             if args.dry_run
-            else "Team Lead owns execution until result-ready."
+            else "Report dispatched/fire-and-forget, then stop foreground waiting; recover later from source/proof artifacts."
         ),
     }
     if args.dry_run:
@@ -3583,6 +3777,7 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
             print(f"DRY-RUN dispatch {args.work_unit_id}")
             print(f"- Team: {args.team}")
             print(f"- Session key: {args.session_key}")
+            print("- Completion policy: fire-and-forget after accepted dispatch proof.")
             print("- No source artifacts, runtime sessions, Project mirrors, or owner reports mutated.")
         return 0
 
@@ -3593,6 +3788,7 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(f"OK dispatch recorded: {args.work_unit_id} · {args.team} · {dispatch_ref(args)}")
+        print("Next: report dispatched/fire-and-forget; do not wait for RESULT_READY or closeout unless explicitly requested.")
     return 0
 
 
@@ -5191,7 +5387,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 else:
                     stage_status = "published"
                 work_card_summary = work_card_summary_state(args, item)
-                if stage_status == "published":
+                if stage_status in {"published", "project-sync-needed"}:
                     work_card_summary = publish_work_card_summary_comment(
                         args,
                         item,
@@ -5203,7 +5399,8 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                             f"error: Work Card summary failed: {work_card_summary.get('error')}",
                             file=sys.stderr,
                         )
-                        stage_status = "work-card-summary-needed"
+                        if stage_status == "published":
+                            stage_status = "work-card-summary-needed"
                         closeout_exit_code = 1
                 write_closeout_stage(
                     stage_path,
@@ -5322,6 +5519,11 @@ Links, files, references, or starting state:
 
 -
 
+Required source documents must be passed as source refs, not replaced by a
+compressed chat summary. If the source set is large, link a source context
+manifest in the Work Unit artifact subtree and require the Team Lead to inspect
+the underlying documents directly.
+
 ## Done Criteria
 
 The Work Unit can be considered ready for review when:
@@ -5339,6 +5541,11 @@ Evidence or checks required for review:
 Use this compact execution protocol for this Work Unit. Do not replace this
 packet by searching protocol docs or inferring completion criteria from request
 prose.
+
+Detached handoff completion policy: fire-and-forget after accepted dispatch
+proof. Operations Lead reports `dispatched` and returns idle; foreground waiting
+for `RESULT_READY`, closeout, `ACCEPTED`, or `COMPLETED` requires an explicit
+owner request for live protocol observation or manual recovery.
 
 ```yaml
 protocol_capsule:
@@ -5366,6 +5573,10 @@ Subagent budget policy:
 - `3`: normal goal/verify work; use two or three subagents when delegation is useful.
 - `5`: complex, high-risk, or broad verification work.
 - More than `5` requires explicit Operations Lead or owner approval.
+
+`subagents` describes who controls subagents if they are used. `subagent_budget:
+none` means this Work Unit uses no subagents and is handled directly by the Team
+Lead.
 
 This budget is an Assignment Packet and package-prompt contract. It is not a
 runtime hook, tool policy, or hard enforcement layer.

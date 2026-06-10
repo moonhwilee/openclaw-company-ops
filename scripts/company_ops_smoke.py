@@ -1940,6 +1940,13 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
 
     import project_sync as project_sync_module  # type: ignore
 
+    auth_status, auth_kind = project_sync_module.classify_command_failure("GraphQL: Requires authentication")
+    if auth_status is not None or auth_kind != "transient_or_scope_auth":
+        raise RuntimeError("project sync retry classifier did not handle auth errors without numeric HTTP status")
+    bad_status, bad_kind = project_sync_module.classify_command_failure("GraphQL: Bad credentials")
+    if bad_status is not None or bad_kind != "bad_credentials":
+        raise RuntimeError("project sync retry classifier did not fail fast on bad credentials")
+
     field_map_data = json.loads(field_map.read_text(encoding="utf-8"))
     project_apply_args = argparse.Namespace(
         no_create_missing_project_item=True,
@@ -2618,6 +2625,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
 
     handoff_root = artifact_root.parent / "handoff-artifacts"
     handoff_spec = artifact_root.parent / "handoff-spec.json"
+    handoff_source = artifact_root.parent / "handoff-source.md"
+    handoff_source.write_text("# Smoke Source\n\nsource context manifest fixture\n", encoding="utf-8")
     handoff_spec_data = {
         "work_unit_id": "WU-260606-906",
         "title": "Smoke initial handoff bundle",
@@ -2630,6 +2639,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         "scope": ["Render source artifacts", "Prepare ASSIGNED Discord cards"],
         "done_criteria": ["Artifacts and initial visibility cards are planned from one spec"],
         "verification_criteria": ["Dry-run has no persistent artifact writes", "ops-feed ASSIGNED precedes team-detail ASSIGNED_DETAIL"],
+        "source_refs": [str(handoff_source)],
         "targets": {
             "ops_feed": "channel:ops-feed-smoke",
             "team_detail": "channel:team-build-lab-smoke",
@@ -2661,8 +2671,38 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     planned_cards = handoff_payload.get("plan", {}).get("cards") or []
     if [card.get("kind") for card in planned_cards] != ["ASSIGNED", "ASSIGNED_DETAIL"]:
         raise RuntimeError("handoff dry-run did not preserve initial publish order")
+    source_context = handoff_payload.get("source_context_manifest", {})
+    if source_context.get("work_unit_id") != "WU-260606-906":
+        raise RuntimeError("handoff dry-run did not produce a source context manifest")
+    required_refs = source_context.get("required_refs") or []
+    if not required_refs or required_refs[0].get("access_status") != "ok":
+        raise RuntimeError("handoff source context manifest did not validate the source ref")
+    if handoff_payload.get("plan", {}).get("source_context", {}).get("required_count") != 1:
+        raise RuntimeError("handoff plan did not include source context summary")
     if (handoff_root / "WU-260606-906").exists():
         raise RuntimeError("handoff dry-run wrote persistent artifacts")
+
+    missing_source_spec = artifact_root.parent / "missing-source-handoff-spec.json"
+    missing_source_data = dict(handoff_spec_data)
+    missing_source_data["source_refs"] = ["docs/does-not-exist/source-context.md"]
+    write_json(missing_source_spec, missing_source_data)
+    missing_source_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "handoff",
+            "--spec",
+            str(missing_source_spec),
+            "--output-root",
+            str(handoff_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if missing_source_result.returncode == 0:
+        raise RuntimeError("handoff dry-run accepted a missing required source ref")
 
     verify_mutation_spec = artifact_root.parent / "verify-mutation-handoff-spec.json"
     verify_mutation_data = {
@@ -3254,6 +3294,24 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "  subagent_budget_reason: team_lead_direct\n"
             "```\n"
         )
+    write_json(
+        start_dir / "source-context.json",
+        {
+            "version": 1,
+            "work_unit_id": "WU-260607-110",
+            "manifest_path": str(start_dir / "source-context.json"),
+            "required_refs": [
+                {
+                    "ref": str(start_dir / "assignment.md"),
+                    "kind": "local_path",
+                    "required": True,
+                    "access_status": "ok",
+                }
+            ],
+            "missing_required_refs": [],
+            "policy": {"source_documents_not_replaced_by_summary": True},
+        },
+    )
     dispatch_progress_before = (start_dir / "progress.jsonl").read_text(encoding="utf-8")
     dispatch_dry_run = run_command(
         [
@@ -3287,6 +3345,16 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("dispatch dry-run ignored Assignment Packet subagent_budget")
     if dispatch_packet.get("subagent_budget", {}).get("reason") != "team_lead_direct":
         raise RuntimeError("dispatch dry-run ignored Assignment Packet subagent_budget_reason")
+    if dispatch_packet.get("source_context", {}).get("required_count") != 1:
+        raise RuntimeError("dispatch dry-run did not include source context manifest summary")
+    if not any("source_context.manifest" in item for item in (dispatch_packet.get("instructions") or [])):
+        raise RuntimeError("dispatch dry-run did not instruct Team Lead to read source context manifest")
+    if dispatch_payload.get("completion_policy", {}).get("mode") != "fire-and-forget":
+        raise RuntimeError("dispatch dry-run did not expose fire-and-forget completion policy")
+    if dispatch_packet.get("operations_lead_handoff", {}).get("operations_lead_stop_after") != "dispatch_accepted":
+        raise RuntimeError("dispatch packet did not tell Operations Lead to stop after accepted dispatch")
+    if not any("fire-and-forget" in item and "RESULT_READY" in item for item in (dispatch_packet.get("instructions") or [])):
+        raise RuntimeError("dispatch packet did not include fire-and-forget wait boundary")
     if not dispatch_packet.get("repo_root"):
         raise RuntimeError("dispatch dry-run did not include repo_root for fresh sessions")
     assignment_text = (start_dir / "assignment.md").read_text(encoding="utf-8")
@@ -5473,6 +5541,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     project_sync_root = work_dir / "project-sync-closeout-artifacts"
     project_sync_wu = project_sync_root / "WU-260607-101"
     shutil.copytree(ready_late, project_sync_wu)
+    write_valid_decision_ready_summary(project_sync_wu)
+    set_work_card_fields(project_sync_wu, "https://github.com/acme/company-ops/issues/41")
     project_sync_request = closeout_commit_request(
         project_sync_wu,
         "WU-260607-101",
@@ -5505,8 +5575,24 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             handle.write(json.dumps(row, sort_keys=True) + "\n")
         return 0, {"publish": row}, ""
 
+    project_summary_comments: list[dict[str, Any]] = []
+
+    def fake_project_sync_gh_api(endpoint: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
+        if endpoint.startswith("repos/acme/company-ops/issues/41/comments") and method == "GET":
+            return 0, list(project_summary_comments), ""
+        if endpoint == "repos/acme/company-ops/issues/41/comments" and method == "POST":
+            comment = {
+                "id": 41,
+                "html_url": "https://github.com/acme/company-ops/issues/41#issuecomment-41",
+                "body": (payload or {}).get("body", ""),
+            }
+            project_summary_comments.append(comment)
+            return 0, comment, ""
+        raise RuntimeError(f"unexpected fake project-sync gh api call: {method} {endpoint}")
+
     try:
         work_unit_module.publish_card = successful_publish_card
+        work_unit_module.run_gh_api = fake_project_sync_gh_api
         work_unit_module.run_project_sync = lambda args: {
             "enabled": True,
             "required": True,
@@ -5524,7 +5610,6 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
                 str(project_sync_root),
                 "--commit-request",
                 json.dumps(project_sync_request, sort_keys=True),
-                *WORK_CARD_SUMMARY_DISABLED_ARGS,
                 "--publish",
                 "--team-target",
                 "channel:team",
@@ -5549,11 +5634,16 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         project_payload = json.loads(project_stdout.getvalue())
         if project_payload.get("status") != "project-sync-needed":
             raise RuntimeError("Project sync failure did not leave project-sync-needed status")
+        if project_payload.get("work_card_summary", {}).get("sync_state") != "attempted_ok":
+            raise RuntimeError("Project sync failure blocked Work Card summary comment publication")
+        if not any("company-ops-work-card-summary:WU-260607-101:v1" in comment.get("body", "") for comment in project_summary_comments):
+            raise RuntimeError("Project sync failure did not leave a recoverable Work Card summary comment")
         stage_payload = json.loads((project_sync_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
         if (
             stage_payload.get("status") != "project-sync-needed"
             or stage_payload.get("project_sync_state") != "failed"
             or stage_payload.get("project_sync_required") is not True
+            or stage_payload.get("work_card_summary", {}).get("sync_state") != "attempted_ok"
         ):
             raise RuntimeError("Project sync failure stage did not remain recoverable")
         if "Status: Accepted" not in (project_sync_wu / "decision.md").read_text(encoding="utf-8"):
@@ -5606,6 +5696,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     finally:
         work_unit_module.publish_card = original_publish_card
         work_unit_module.run_project_sync = original_project_sync
+        work_unit_module.run_gh_api = original_run_gh_api
 
     manual_required_request = json.loads(json.dumps(commit_request))
     manual_required_request["autonomy_class"] = "manual_required"
