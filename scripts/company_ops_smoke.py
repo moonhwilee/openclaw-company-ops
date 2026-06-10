@@ -246,6 +246,33 @@ def write_valid_decision_ready_summary(artifact_dir: Path) -> None:
         "- Confirmed no external mutation is required for this smoke fixture.",
     )
     evidence_text = evidence_text.replace(
+        "## Findings And Follow-up Routing\n\n"
+        "For each meaningful finding, include severity and routing so the Operations\n"
+        "Lead can decide without another broad summarization pass.\n\n"
+        "- Finding:\n"
+        "  - Severity: `P0|P1|P2|P3`\n"
+        "  - Routing: `direct_patch|docs_or_preflight|owner_decision|observe`\n"
+        "  - Evidence:\n"
+        "  - Recommended next action:",
+        "## Findings And Follow-up Routing\n\n"
+        "- Finding: No follow-up defect remains in this smoke fixture.\n"
+        "  - Severity: `P3`\n"
+        "  - Routing: `observe`\n"
+        "  - Evidence: Source artifacts and result-ready proof fixture are complete.\n"
+        "  - Recommended next action: Continue smoke validation.",
+    )
+    evidence_text = evidence_text.replace(
+        "## Done Criteria Mapping\n\n"
+        "For each done criterion, state whether it is met and link evidence.\n\n"
+        "- Criterion:\n"
+        "  - Status:\n"
+        "  - Evidence:",
+        "## Done Criteria Mapping\n\n"
+        "- Criterion: Evidence is source-backed and decision-ready.\n"
+        "  - Status: Met.\n"
+        "  - Evidence: Result Summary, Verification Performed, and result-ready proof are populated.",
+    )
+    evidence_text = evidence_text.replace(
         "## Remaining Risks\n\n-",
         "## Remaining Risks\n\n- No live GitHub mutation was performed in this smoke fixture.",
     )
@@ -4996,6 +5023,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("GitHub Work Card summary comment did not declare source-truth boundary")
     if "The Team Lead verified the bounded Company Ops visibility flow" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not use evidence Result Summary")
+    if "### Key Findings" not in planned_body or "No follow-up defect remains in this smoke fixture" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not include source findings")
+    if "### Criteria / Evidence" not in planned_body or "Evidence is source-backed and decision-ready" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not include done criteria mapping")
     if str(github_summary_dir) in planned_body or str(work_dir) in planned_body:
         raise RuntimeError("GitHub Work Card summary comment leaked a local absolute artifact path")
     if "docs/work-units/WU-260607-150/evidence.md" not in planned_body:
@@ -5322,6 +5353,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         if endpoint == "repos/acme/company-ops/issues/comments/137" and method == "PATCH":
             summary_comments[-1]["body"] = (payload or {}).get("body", "")
             return 0, dict(summary_comments[-1]), ""
+        if endpoint == "repos/acme/company-ops/issues/37" and method == "PATCH":
+            return 0, {
+                "state": "closed",
+                "html_url": "https://github.com/acme/company-ops/issues/37",
+            }, ""
         if endpoint.startswith("repos/acme/company-ops/issues/39/comments") and method == "GET":
             return 0, [], ""
         if endpoint == "repos/acme/company-ops/issues/39/comments" and method == "POST":
@@ -5374,8 +5410,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             )
         summary_payload = json.loads(summary_stdout.getvalue())
         summary_result = summary_payload.get("work_card_summary") or {}
+        summary_close = summary_payload.get("work_card_issue_close") or {}
         if summary_payload.get("status") != "published" or summary_result.get("sync_state") != "attempted_ok":
             raise RuntimeError("GitHub Work Card summary publish did not report attempted_ok")
+        if summary_close.get("sync_state") != "attempted_ok" or summary_close.get("state") != "closed":
+            raise RuntimeError("accepted GitHub Work Card issue close did not report attempted_ok")
         marker_count = sum(
             1
             for comment in summary_comments
@@ -5385,6 +5424,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             raise RuntimeError("GitHub Work Card summary publish did not update exactly one paginated managed comment")
         if "The Team Lead verified the bounded Company Ops visibility flow" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not patch the paginated managed comment")
+        if "### Key Findings" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish did not include Key Findings")
+        if "### Criteria / Evidence" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish did not include Criteria / Evidence")
         if str(summary_publish_wu) in summary_comments[-1].get("body", "") or str(work_dir) in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish leaked a local absolute artifact path")
 
@@ -5588,6 +5631,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             }
             project_summary_comments.append(comment)
             return 0, comment, ""
+        if endpoint == "repos/acme/company-ops/issues/41" and method == "PATCH":
+            return 0, {
+                "state": "closed",
+                "html_url": "https://github.com/acme/company-ops/issues/41",
+            }, ""
         raise RuntimeError(f"unexpected fake project-sync gh api call: {method} {endpoint}")
 
     try:
@@ -5636,6 +5684,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             raise RuntimeError("Project sync failure did not leave project-sync-needed status")
         if project_payload.get("work_card_summary", {}).get("sync_state") != "attempted_ok":
             raise RuntimeError("Project sync failure blocked Work Card summary comment publication")
+        if project_payload.get("work_card_issue_close", {}).get("sync_state") != "attempted_ok":
+            raise RuntimeError("Project sync failure blocked accepted Work Card issue close")
         if not any("company-ops-work-card-summary:WU-260607-101:v1" in comment.get("body", "") for comment in project_summary_comments):
             raise RuntimeError("Project sync failure did not leave a recoverable Work Card summary comment")
         stage_payload = json.loads((project_sync_wu / "closeout-accept-stage.json").read_text(encoding="utf-8"))
@@ -5644,6 +5694,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             or stage_payload.get("project_sync_state") != "failed"
             or stage_payload.get("project_sync_required") is not True
             or stage_payload.get("work_card_summary", {}).get("sync_state") != "attempted_ok"
+            or stage_payload.get("work_card_issue_close", {}).get("sync_state") != "attempted_ok"
         ):
             raise RuntimeError("Project sync failure stage did not remain recoverable")
         if "Status: Accepted" not in (project_sync_wu / "decision.md").read_text(encoding="utf-8"):

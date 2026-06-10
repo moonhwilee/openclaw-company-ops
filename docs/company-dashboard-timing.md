@@ -288,14 +288,14 @@ Target date available but hidden in the primary owner view unless they are
 actively used for a specific Work Unit. Keep source artifact reference fields
 hidden in the primary view; they are audit drill-down fields.
 
-Accepted Work Units are the owner's final-review queue. After the Operations
-Lead has sent the visible completion report and the Work Card has an accepted
-decision/evidence trail, keep the Project item visible as `Accepted` until the
-owner has had a reasonable chance to inspect it or explicitly says it can be
-cleared. Then archive the Project item from the active dashboard and close the
-Work Card when the task is fully closed. Immediate archive is reserved for
-completed samples, internal smoke tests, or owner-approved cleanup. Project
-archive is safe because source artifacts remain the source of truth.
+Accepted Work Units are terminal unless the source record explicitly marks an
+owner-review hold. After guarded closeout has published the accepted
+decision/evidence trail and the required visibility mirrors have read back, a
+GitHub Work Card should be closed as completed. The Project item may remain
+visible as `Accepted` for audit/review, but the GitHub Issue state should not
+stay open merely because it is accepted. If owner inspection is required before
+closure, record that as an explicit hold/follow-up instead of relying on an
+open Issue as an implicit queue.
 
 ## Auto-Sync Rules
 
@@ -382,6 +382,10 @@ Implement the dashboard sync in narrow stages:
      `blocked`, Result Ready -> `result-ready` + `decision-needed`, In Progress
      -> `working`, Assigned -> `assignment-ready`. It does not close, reopen,
      archive, or import truth from labels.
+   - GitHub Issue closing is not part of standalone Project/label sync.
+     Accepted Work Cards are closed only by guarded `work-unit closeout
+     --publish` after source decision, required visibility/comment mirrors, and
+     close readback converge.
 
 ## Creation Checklist
 

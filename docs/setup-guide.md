@@ -134,6 +134,12 @@ small:
   removes stale queue labels and adds the one desired queue label set, but it
   does not close, reopen, archive, or otherwise treat the Issue as source
   truth.
+- Accepted GitHub Work Cards are closed by the guarded closeout publish path,
+  not by `project-sync`. The source decision must be `Accepted`, required
+  closeout visibility mirrors must read back, and the Work Card must not be
+  explicitly held for owner review. If GitHub close/readback fails, closeout
+  leaves `work-card-close-needed` or another explicit recoverable stage instead
+  of reporting full convergence.
 - `Last proof or last source update` is a dashboard text mirror. Keep source
   artifact timestamps in UTC, but let `project-sync` display the value in the
   runner machine's local timezone. This field should contain timestamps only,

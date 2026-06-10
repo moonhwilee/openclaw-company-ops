@@ -45,6 +45,13 @@ WORK_CARD_SUMMARY_PLACEHOLDERS = {
     "tbd",
     "-",
 }
+WORK_CARD_SUMMARY_PLACEHOLDER_FRAGMENTS = (
+    "for each meaningful finding",
+    "for each done criterion",
+    "p0|p1|p2|p3",
+    "direct_patch|docs_or_preflight|owner_decision|observe",
+    "<accept|revise|blocked>",
+)
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 DEFAULT_ARTIFACT_ROOT = Path("docs/work-units")
@@ -664,6 +671,14 @@ def markdown_section(text: str, heading: str) -> str:
     return "\n".join(captured).strip()
 
 
+def first_markdown_section(text: str, headings: tuple[str, ...]) -> str:
+    for heading in headings:
+        section = markdown_section(text, heading)
+        if section and not low_information_summary(section):
+            return section
+    return ""
+
+
 def compact_summary_text(value: str, *, limit: int = WORK_CARD_SUMMARY_MAX_CHARS) -> str:
     lines = [line.strip() for line in value.splitlines() if line.strip()]
     cleaned = " ".join(lines).strip()
@@ -689,6 +704,8 @@ def low_information_summary(value: str) -> bool:
     if len(cleaned) < WORK_CARD_SUMMARY_MIN_CHARS:
         return True
     if lowered in WORK_CARD_SUMMARY_PLACEHOLDERS:
+        return True
+    if any(fragment in lowered for fragment in WORK_CARD_SUMMARY_PLACEHOLDER_FRAGMENTS):
         return True
     if lowered.startswith("summarize ") or lowered.startswith("todo"):
         return True
@@ -4628,17 +4645,26 @@ def decision_ready_summary(item: dict[str, Any], decision: str, reason: str) -> 
     verification = markdown_section(evidence_text, "Verification Performed") if evidence_text else ""
     risks = markdown_section(evidence_text, "Remaining Risks") if evidence_text else ""
     done_mapping = markdown_section(evidence_text, "Done Criteria Mapping") if evidence_text else ""
+    findings = first_markdown_section(
+        evidence_text,
+        ("Findings And Follow-up Routing", "Protocol Friction Findings", "Findings"),
+    ) if evidence_text else ""
 
     if decision in {"accept", "revise"} and low_information_summary(result_summary):
         failures.append("Evidence Result Summary is missing, placeholder, or too low-information for Work Card summary")
     if decision in {"accept", "revise"} and low_information_summary(verification):
         failures.append("Evidence Verification Performed is missing, placeholder, or too low-information for Work Card summary")
+    if decision in {"accept", "revise"} and low_information_summary(findings):
+        failures.append("Evidence Findings/Follow-up section is missing, placeholder, or too low-information for Work Card summary")
+    if decision in {"accept", "revise"} and low_information_summary(done_mapping):
+        failures.append("Evidence Done Criteria Mapping is missing, placeholder, or too low-information for Work Card summary")
     if decision == "blocked" and low_information_summary(reason):
         failures.append("blocked closeout requires a concrete reason for Work Card summary")
 
     return {
         "result_summary": compact_summary_text(result_summary or reason),
         "verification": compact_summary_text(verification or "Operations Lead reviewed source artifacts."),
+        "findings": compact_summary_text(findings),
         "remaining_risks": compact_summary_text(risks or "None recorded."),
         "done_criteria_mapping": compact_summary_text(done_mapping, limit=500),
     }, failures
@@ -4704,6 +4730,12 @@ Source of truth: source artifacts, not this GitHub comment.
 
 ### Verification
 {summary["verification"]}
+
+### Key Findings
+{summary["findings"]}
+
+### Criteria / Evidence
+{summary["done_criteria_mapping"]}
 
 ### Remaining Risks
 {summary["remaining_risks"]}
@@ -4824,6 +4856,47 @@ def publish_work_card_summary_comment(
             "comment_url": response.get("html_url") or response.get("url") or "",
             "marker": rendered["marker"],
             "rendered_summary": rendered["summary"],
+        }
+    )
+    return state
+
+
+def work_card_issue_close_state(args: argparse.Namespace, item: dict[str, Any]) -> dict[str, Any]:
+    work_card = str(item.get("work_card") or "")
+    parts = github_work_card_parts(work_card)
+    return {
+        "required": args.decision == "accept" and bool(parts),
+        "sync_state": "not_required" if args.decision != "accept" else ("not_attempted" if parts else "non_github_work_card"),
+        "work_card": work_card,
+        "github_issue": parts,
+        "ok": False,
+        "error": "",
+    }
+
+
+def close_accepted_work_card_issue(args: argparse.Namespace, item: dict[str, Any]) -> dict[str, Any]:
+    state = work_card_issue_close_state(args, item)
+    if not state["required"]:
+        return state
+    parts = state["github_issue"]
+    code, response, error = run_gh_api(
+        f"repos/{parts['owner']}/{parts['repo']}/issues/{parts['number']}",
+        method="PATCH",
+        payload={"state": "closed", "state_reason": "completed"},
+    )
+    if code != 0:
+        state.update({"ok": False, "sync_state": "issue_close_failed", "error": error})
+        return state
+    live_state = str((response or {}).get("state") or "").lower() if isinstance(response, dict) else ""
+    if live_state != "closed":
+        state.update({"ok": False, "sync_state": "readback_mismatch", "error": f"issue state readback was {live_state or 'unknown'}"})
+        return state
+    state.update(
+        {
+            "ok": True,
+            "sync_state": "attempted_ok",
+            "issue_url": (response or {}).get("html_url", "") if isinstance(response, dict) else "",
+            "state": live_state,
         }
     )
     return state
@@ -5221,6 +5294,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             decision_preview = ""
             decision_decided_at = ""
             work_card_summary_preview: dict[str, Any] = {}
+            work_card_issue_close_preview: dict[str, Any] = {}
             if args.decision:
                 if stage_payload and not partial_resume and not args.force:
                     decision_failures.append(f"closeout stage already exists: {stage_path}")
@@ -5265,6 +5339,9 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         }
                     else:
                         work_card_summary_preview = summary_state
+                    work_card_issue_close_preview = work_card_issue_close_state(args, item)
+                    if work_card_issue_close_preview.get("required"):
+                        work_card_issue_close_preview["sync_state"] = "dry_run_planned"
                     status = "decision-ready"
                     next_action = "Publish records decision.md, team final review, and owner closeout."
 
@@ -5283,6 +5360,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "owner_text": owner_text,
                 "decision_preview": decision_preview,
                 "work_card_summary": work_card_summary_preview,
+                "work_card_issue_close": work_card_issue_close_preview,
                 "commit_request": commit_request,
                 "closeout_stage": stage_payload,
                 "partial_resume": partial_resume,
@@ -5402,6 +5480,19 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         if stage_status == "published":
                             stage_status = "work-card-summary-needed"
                         closeout_exit_code = 1
+                work_card_issue_close = work_card_issue_close_state(args, item)
+                if stage_status in {"published", "project-sync-needed"} and not (
+                    work_card_summary.get("required") and not work_card_summary.get("ok")
+                ):
+                    work_card_issue_close = close_accepted_work_card_issue(args, item)
+                    if work_card_issue_close.get("required") and not work_card_issue_close.get("ok"):
+                        print(
+                            f"error: Work Card issue close failed: {work_card_issue_close.get('error')}",
+                            file=sys.stderr,
+                        )
+                        if stage_status == "published":
+                            stage_status = "work-card-close-needed"
+                        closeout_exit_code = 1
                 write_closeout_stage(
                     stage_path,
                     args=args,
@@ -5415,6 +5506,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         "project_sync_state": project_sync.get("sync_state", "not_configured"),
                         "project_sync_required": bool(project_sync.get("required")),
                         "work_card_summary": work_card_summary,
+                        "work_card_issue_close": work_card_issue_close,
                     },
                 )
                 publish_payload = {
@@ -5428,6 +5520,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     "owner_publish": owner_publish.get("publish", {}),
                     "project_sync": project_sync,
                     "work_card_summary": work_card_summary,
+                    "work_card_issue_close": work_card_issue_close,
                 }
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)

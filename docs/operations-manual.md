@@ -549,12 +549,11 @@ The Discord messages are visibility only. They show the owner what was assigned,
 what changed, what result came back, and where to inspect detail, but they do
 not create, mutate, approve, close, reassign, recover, or complete Work Units.
 
-After the Operations Lead accepts a result, the matching GitHub Project item
-stays visible as `Accepted` for owner final review. Archive the Project item and
-close the Work Card only after the owner has had a reasonable chance to inspect
-it, explicitly says it can be cleared, or the item is a completed sample/internal
-smoke test. Project archive clears active dashboard clutter; it does not delete
-the source artifact trail.
+After guarded closeout accepts a GitHub Work Card result, the Work Card is
+closed as completed once required visibility mirrors read back. The matching
+GitHub Project item can remain visible as `Accepted` for audit/review, but an
+open Issue should not be used as an implicit owner-review queue. If owner review
+is still required, record a follow-up/hold explicitly before final acceptance.
 
 The expected Team Lead result should include a short result summary,
 verification summary, changed artifact list, blocker if any, and next action.
@@ -794,8 +793,9 @@ hygiene is included in the same foreground Project sync gate. For recovery or
 maintenance, use the explicit foreground path `project-sync apply
 --sync-issue-labels` or `project-sync reconcile --sync-issue-labels`. It
 derives desired labels from source status and only changes managed queue labels.
-It does not close Accepted issues; Accepted remains an owner-inspection
-lifecycle until a separate cleanup/archive action is approved.
+It does not close Accepted issues. Accepted GitHub Work Cards are closed only
+by guarded closeout after the accepted source decision, required visibility
+mirrors, and issue close readback converge.
 
 Project sync is a derived mirror update, not source truth. The foreground sync
 path uses changed-only Project field updates, bounded retry/backoff for

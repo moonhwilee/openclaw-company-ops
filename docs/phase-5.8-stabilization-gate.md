@@ -1073,8 +1073,9 @@ Slice B, deterministic Work Card summary comment:
   GitHub Work Card comments are intentionally unavailable.
 - Render a bounded deterministic comment from current source artifacts:
   Assignment Packet identity, Evidence & Result Record summary, Operations Lead
-  Decision, verification summary, remaining risks, next action, and source
-  artifact links.
+  Decision, verification summary, key findings/follow-up routing,
+  done-criteria mapping, remaining risks, next action, and source artifact
+  links.
 - Use one canonical hidden marker, for example
   `<!-- company-ops-work-card-summary:<WU>:v1 -->`, to create or update exactly
   one managed summary comment. Never edit "the latest comment" by position and
@@ -1116,6 +1117,9 @@ Acceptance:
 - Publish with a GitHub Work Card and summary mode `required` creates or updates
   exactly one marker-managed comment, reads it back, and records the comment
   reference in source closeout proof.
+- The managed comment includes explicit `Key Findings` and
+  `Criteria / Evidence` sections so owner-facing review does not hide the
+  actual findings behind a generic "N findings found" sentence.
 - Retrying the same closeout updates or no-ops the managed comment without
   duplicate summary comments.
 - Required mode with a non-GitHub Work Card, missing Work Card URL, GitHub auth
