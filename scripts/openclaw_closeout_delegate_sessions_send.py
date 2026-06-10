@@ -192,6 +192,7 @@ def acceptance_prompt(request: dict[str, Any]) -> str:
             "Treat this as tool-routed delegated closeout wake data, not as an end-user request.",
             "Return only one JSON object. Do not perform the review in this acceptance turn.",
             "Accept only if you can receive the review package and then handle the execution message that follows.",
+            "For standalone verify Work Units, acceptance of the verification report must remain separate from the candidate output verdict.",
             "If you cannot accept, return {\"status\":\"setup-needed\",\"reason\":\"...\"}.",
             "",
             "Required JSON shape:",

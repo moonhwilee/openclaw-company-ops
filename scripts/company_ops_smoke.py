@@ -3292,6 +3292,10 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     assignment_text = (start_dir / "assignment.md").read_text(encoding="utf-8")
     if "Mode: `verify`" in assignment_text and "candidate output verdict" not in assignment_text:
         raise RuntimeError("Assignment Packet does not separate verify WU acceptance from candidate verdict")
+    closeout_delegate_text = CLOSEOUT_DELEGATE_SESSIONS_SEND.read_text(encoding="utf-8")
+    acceptance_prompt_text = closeout_delegate_text.split("def execution_prompt", 1)[0]
+    if "standalone verify Work Units" not in acceptance_prompt_text or "candidate output verdict" not in acceptance_prompt_text:
+        raise RuntimeError("closeout delegate acceptance prompt does not separate verify acceptance from candidate verdict")
     instructions = dispatch_packet.get("instructions") or []
     if not any("Result Ready" in item for item in instructions):
         raise RuntimeError("dispatch dry-run did not remind Team Lead to set evidence status")
