@@ -594,6 +594,12 @@ persona packs into a user's install. A guided setup should report the exact
 files it would write, the agents it would create, and the commands it would
 run before asking for confirmation.
 
+Local development Team Lead `AGENTS.md` files may be used as reference
+material for package design, but public install templates must be curated and
+sanitized before distribution. Do not copy local paths, private owner context,
+local-only operating notes, or workspace-specific memory into the public
+template.
+
 Do not reorganize the repository into an installable layout during setup. Phase
 5.7 locks the included surfaces, and Phase 6 performs the packaging layout and
 install/uninstall work.

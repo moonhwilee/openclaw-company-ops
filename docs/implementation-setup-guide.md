@@ -233,6 +233,12 @@ tokens, credentials, or broad bootstrap files into Team Lead workspaces. If the
 runtime cannot safely install or verify role instructions, leave the agent
 unconfigured and return `setup-needed` with a manual checklist.
 
+During development, local Team Lead `AGENTS.md` files can be treated as working
+examples. For a public package, convert those examples into curated install
+templates first; strip local paths, private owner context, local-only recovery
+notes, private memory, and any machine-specific assumptions before offering
+them to users.
+
 Do not delete standing role agents on normal project closure. Keep their
 heartbeat and direct message bindings disabled unless explicitly needed, keep
 their workspace minimal, and remove project clones, raw archives, large
