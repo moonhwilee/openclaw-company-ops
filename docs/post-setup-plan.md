@@ -560,11 +560,12 @@ Current implementation state:
   Source Repository. GitHub collaboration and source-reference fields should be
   hidden unless needed for an active Work Unit.
 - Accepted Work Units are terminal by default. Guarded closeout closes accepted
-  GitHub Work Cards after source decision, required visibility mirrors, and
-  close readback converge. Keep Project items visible as `Accepted` for
-  audit/review if useful, but do not use an open Issue as an implicit owner
-  review queue. If owner review is required, record a follow-up/hold explicitly
-  before final acceptance.
+  GitHub Work Cards after source decision, team/owner closeout proof, Work Card
+  summary comment readback, and issue close readback converge. Project sync can
+  still leave a separate `project-sync-needed` dashboard repair state. Keep
+  Project items visible as `Accepted` for audit/review if useful, but do not use
+  an open Issue as an implicit owner review queue. If owner review is required,
+  record a follow-up/hold explicitly before final acceptance.
 
 ### Phase 5.4: Discord Publisher Hardening Gate
 

@@ -136,10 +136,11 @@ small:
   truth.
 - Accepted GitHub Work Cards are closed by the guarded closeout publish path,
   not by `project-sync`. The source decision must be `Accepted`, required
-  closeout visibility mirrors must read back, and the Work Card must not be
-  explicitly held for owner review. If GitHub close/readback fails, closeout
-  leaves `work-card-close-needed` or another explicit recoverable stage instead
-  of reporting full convergence.
+  team/owner closeout proof and the Work Card summary comment must read back,
+  and the Work Card must not be explicitly held for owner review. Project sync
+  can still leave `project-sync-needed` as a separate dashboard repair state.
+  If GitHub close/readback fails, closeout leaves `work-card-close-needed` or
+  another explicit recoverable stage instead of reporting full convergence.
 - `Last proof or last source update` is a dashboard text mirror. Keep source
   artifact timestamps in UTC, but let `project-sync` display the value in the
   runner machine's local timezone. This field should contain timestamps only,

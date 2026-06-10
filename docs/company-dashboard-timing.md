@@ -290,12 +290,13 @@ hidden in the primary view; they are audit drill-down fields.
 
 Accepted Work Units are terminal by default. After guarded closeout has
 published the accepted decision/evidence trail and the required visibility
-mirrors have read back, a GitHub Work Card should be closed as completed. The
-Project item may remain visible as `Accepted` for audit/review, but the GitHub
-Issue state should not stay open merely because it is accepted. If owner
-inspection is required before closure, do not treat the Work Unit as finally
-accepted yet; record a follow-up/hold explicitly instead of relying on an open
-Issue as an implicit queue.
+proof plus Work Card summary comment have read back, a GitHub Work Card should
+be closed as completed. Project sync may still have a separate
+`project-sync-needed` repair state. The Project item may remain visible as
+`Accepted` for audit/review, but the GitHub Issue state should not stay open
+merely because it is accepted. If owner inspection is required before closure,
+do not treat the Work Unit as finally accepted yet; record a follow-up/hold
+explicitly instead of relying on an open Issue as an implicit queue.
 
 ## Auto-Sync Rules
 
@@ -384,8 +385,8 @@ Implement the dashboard sync in narrow stages:
      archive, or import truth from labels.
    - GitHub Issue closing is not part of standalone Project/label sync.
      Accepted Work Cards are closed only by guarded `work-unit closeout
-     --publish` after source decision, required visibility/comment mirrors, and
-     close readback converge.
+     --publish` after source decision, team/owner closeout proof, Work Card
+     summary comment readback, and issue close readback converge.
 
 ## Creation Checklist
 

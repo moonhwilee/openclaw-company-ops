@@ -550,10 +550,12 @@ what changed, what result came back, and where to inspect detail, but they do
 not create, mutate, approve, close, reassign, recover, or complete Work Units.
 
 After guarded closeout accepts a GitHub Work Card result, the Work Card is
-closed as completed once required visibility mirrors read back. The matching
-GitHub Project item can remain visible as `Accepted` for audit/review, but an
-open Issue should not be used as an implicit owner-review queue. If owner review
-is still required, record a follow-up/hold explicitly before final acceptance.
+closed as completed once team/owner closeout proof and the Work Card summary
+comment read back. The matching GitHub Project item can remain visible as
+`Accepted` for audit/review, or show a separate `project-sync-needed` repair
+state, but an open Issue should not be used as an implicit owner-review queue.
+If owner review is still required, record a follow-up/hold explicitly before
+final acceptance.
 
 The expected Team Lead result should include a short result summary,
 verification summary, changed artifact list, blocker if any, and next action.
@@ -794,8 +796,8 @@ maintenance, use the explicit foreground path `project-sync apply
 --sync-issue-labels` or `project-sync reconcile --sync-issue-labels`. It
 derives desired labels from source status and only changes managed queue labels.
 It does not close Accepted issues. Accepted GitHub Work Cards are closed only
-by guarded closeout after the accepted source decision, required visibility
-mirrors, and issue close readback converge.
+by guarded closeout after the accepted source decision, team/owner closeout
+proof, Work Card summary comment readback, and issue close readback converge.
 
 Project sync is a derived mirror update, not source truth. The foreground sync
 path uses changed-only Project field updates, bounded retry/backoff for
