@@ -35,8 +35,8 @@ GITHUB_WORK_CARD_RE = re.compile(
 WORK_CARD_SUMMARY_MARKER_TEMPLATE = "<!-- company-ops-work-card-summary:{work_unit_id}:v1 -->"
 WORK_CARD_SUMMARY_MIN_CHARS = 20
 WORK_CARD_SUMMARY_MAX_CHARS = 700
-WORK_CARD_SUMMARY_FINDINGS_MAX_CHARS = 1600
-WORK_CARD_SUMMARY_CRITERIA_MAX_CHARS = 1000
+WORK_CARD_SUMMARY_FINDINGS_MAX_CHARS = 3200
+WORK_CARD_SUMMARY_CRITERIA_MAX_CHARS = 2200
 WORK_CARD_SUMMARY_PLACEHOLDERS = {
     "summarize what was completed.",
     "summarize what was completed",
@@ -48,8 +48,6 @@ WORK_CARD_SUMMARY_PLACEHOLDERS = {
     "-",
 }
 WORK_CARD_SUMMARY_PLACEHOLDER_FRAGMENTS = (
-    "for each meaningful finding",
-    "for each done criterion",
     "p0|p1|p2|p3",
     "direct_patch|docs_or_preflight|owner_decision|observe",
     "<accept|revise|blocked>",
@@ -700,6 +698,41 @@ def compact_summary_text(value: str, *, limit: int = WORK_CARD_SUMMARY_MAX_CHARS
     return cleaned
 
 
+def compact_markdown_section(value: str, *, limit: int) -> str:
+    guidance_lines = {
+        "For each meaningful finding, include severity and routing so the Operations",
+        "Lead can decide without another broad summarization pass.",
+        "For each done criterion, state whether it is met and link evidence.",
+    }
+    lines = [line.rstrip() for line in value.splitlines()]
+    kept: list[str] = []
+    previous_blank = False
+    for line in lines:
+        if line.strip() in guidance_lines:
+            continue
+        blank = not line.strip()
+        if blank and (previous_blank or not kept):
+            continue
+        kept.append(line)
+        previous_blank = blank
+    while kept and not kept[-1].strip():
+        kept.pop()
+    cleaned = "\n".join(kept).strip()
+    home = str(Path.home())
+    if home and home in cleaned:
+        cleaned = cleaned.replace(home, "~")
+    token_patterns = (
+        r"ghp_[A-Za-z0-9_]+",
+        r"github_pat_[A-Za-z0-9_]+",
+        r"sk-[A-Za-z0-9_-]+",
+    )
+    for pattern in token_patterns:
+        cleaned = re.sub(pattern, "[redacted]", cleaned)
+    if len(cleaned) > limit:
+        return cleaned[: max(0, limit - 1)].rstrip() + "…"
+    return cleaned
+
+
 def low_information_summary(value: str) -> bool:
     cleaned = compact_summary_text(value, limit=10_000).strip()
     lowered = cleaned.lower()
@@ -708,6 +741,8 @@ def low_information_summary(value: str) -> bool:
     if lowered in WORK_CARD_SUMMARY_PLACEHOLDERS:
         return True
     if any(fragment in lowered for fragment in WORK_CARD_SUMMARY_PLACEHOLDER_FRAGMENTS):
+        return True
+    if "- criterion: - status: - evidence:" in lowered:
         return True
     if lowered.startswith("summarize ") or lowered.startswith("todo"):
         return True
@@ -4666,9 +4701,9 @@ def decision_ready_summary(item: dict[str, Any], decision: str, reason: str) -> 
     return {
         "result_summary": compact_summary_text(result_summary or reason),
         "verification": compact_summary_text(verification or "Operations Lead reviewed source artifacts."),
-        "findings": compact_summary_text(findings, limit=WORK_CARD_SUMMARY_FINDINGS_MAX_CHARS),
+        "findings": compact_markdown_section(findings, limit=WORK_CARD_SUMMARY_FINDINGS_MAX_CHARS),
         "remaining_risks": compact_summary_text(risks or "None recorded."),
-        "done_criteria_mapping": compact_summary_text(done_mapping, limit=WORK_CARD_SUMMARY_CRITERIA_MAX_CHARS),
+        "done_criteria_mapping": compact_markdown_section(done_mapping, limit=WORK_CARD_SUMMARY_CRITERIA_MAX_CHARS),
     }, failures
 
 
