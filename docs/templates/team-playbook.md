@@ -173,11 +173,11 @@ Reusable prompts:
 - Verify mode: "For this verification Work Unit, consider an independent
   verifier or domain specialist when criteria are broad, ambiguous, or
   evidence-heavy."
-- High-risk mode: "If the Work Unit touches security, external mutation,
+- High-risk condition: "If the Work Unit touches security, external mutation,
   production, customer, financial, or contractual risk, use a risk/security
   reviewer when budget allows."
-- Evidence integration: "For every subagent used, record its role, scope, key
-  finding, and how the Team Lead used, rejected, or reconciled the result."
+- Evidence integration rule: "For every subagent used, record its role, scope,
+  key finding, and how the Team Lead used, rejected, or reconciled the result."
 
 ## Required Report
 
