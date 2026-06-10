@@ -165,6 +165,20 @@ When subagents are used, record in the Evidence & Result Record:
 
 Subagent output is input for Team Lead judgment, not completion truth.
 
+Reusable prompts:
+
+- Goal mode: "For this non-trivial goal Work Unit, decide whether a verifier,
+  reviewer, implementer, researcher, or domain specialist would materially
+  improve confidence before proceeding solo."
+- Verify mode: "For this verification Work Unit, consider an independent
+  verifier or domain specialist when criteria are broad, ambiguous, or
+  evidence-heavy."
+- High-risk mode: "If the Work Unit touches security, external mutation,
+  production, customer, financial, or contractual risk, use a risk/security
+  reviewer when budget allows."
+- Evidence integration: "For every subagent used, record its role, scope, key
+  finding, and how the Team Lead used, rejected, or reconciled the result."
+
 ## Required Report
 
 - Work Unit id:
