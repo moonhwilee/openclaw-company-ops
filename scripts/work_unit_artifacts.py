@@ -2745,7 +2745,85 @@ def write_handoff_files(
     return {key: str(value) for key, value in paths.items()}
 
 
+def publish_handoff_card(
+    args: argparse.Namespace,
+    *,
+    card_json: str,
+    target: str,
+    proof_log: Path,
+    expect_surface: str,
+) -> tuple[int, dict[str, Any], str]:
+    command = [
+        sys.executable,
+        str(SCRIPT_DIR / "discord_ops.py"),
+        "publish-card",
+        "--card-json",
+        card_json,
+        "--target",
+        target,
+        "--expect-target",
+        target,
+        "--expect-surface",
+        expect_surface,
+        "--proof-log",
+        str(proof_log),
+        "--transition-at",
+        args.transition_at,
+        "--readback-limit",
+        str(args.readback_limit),
+        "--format",
+        "json",
+    ]
+    if args.channel:
+        command.extend(["--channel", args.channel])
+    if args.account:
+        command.extend(["--account", args.account])
+    if args.thread_id:
+        command.extend(["--thread-id", args.thread_id])
+    return run_json_command(command)
+
+
 def publish_handoff_sequence(args: argparse.Namespace, spec: dict[str, Any], paths: dict[str, str], proof_log: Path) -> tuple[int, dict[str, Any], str]:
+    if args.project_sync_field_map:
+        sequence: list[dict[str, Any]] = []
+        ops_code, ops_payload, ops_error = publish_handoff_card(
+            args,
+            card_json=paths["ops_card"],
+            target=spec["targets"]["ops_feed"],
+            proof_log=proof_log,
+            expect_surface="ops-feed",
+        )
+        sequence.append(
+            {
+                "card_json": paths["ops_card"],
+                "target": spec["targets"]["ops_feed"],
+                "ok": ops_code == 0,
+                **ops_payload,
+            }
+        )
+        if ops_code != 0:
+            return ops_code, {"sequence": sequence}, ops_error
+
+        initial_project_sync = run_project_sync(args)
+        sequence[-1]["project_sync"] = initial_project_sync
+
+        team_code, team_payload, team_error = publish_handoff_card(
+            args,
+            card_json=paths["team_card"],
+            target=spec["targets"]["team_detail"],
+            proof_log=proof_log,
+            expect_surface="team-detail",
+        )
+        sequence.append(
+            {
+                "card_json": paths["team_card"],
+                "target": spec["targets"]["team_detail"],
+                "ok": team_code == 0,
+                **team_payload,
+            }
+        )
+        return team_code, {"sequence": sequence, "initial_project_sync": initial_project_sync}, team_error
+
     command = [
         sys.executable,
         str(SCRIPT_DIR / "discord_ops.py"),
@@ -2874,7 +2952,7 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     publish_code, publish_payload, publish_error = publish_handoff_sequence(args, spec, paths, proof_log)
     project_sync = {"enabled": False}
     if publish_code == 0:
-        project_sync = run_project_sync(args)
+        project_sync = publish_payload.get("initial_project_sync") or run_project_sync(args)
         if project_sync.get("enabled") and not project_sync.get("ok"):
             print(f"warning: Project handoff sync failed: {project_sync.get('error')}", file=sys.stderr)
     else:

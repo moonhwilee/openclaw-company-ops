@@ -140,6 +140,95 @@ def run_work_card_body_collapsible_smoke(work_dir: Path) -> None:
         raise RuntimeError("Source Artifacts details did not preserve additional refs")
 
 
+def run_handoff_initial_project_hydrate_smoke(work_dir: Path) -> None:
+    module = load_work_unit_artifacts_module()
+    handoff_dir = work_dir / "handoff-initial-project-hydrate"
+    unit_dir = handoff_dir / "WU-260607-198"
+    unit_dir.mkdir(parents=True, exist_ok=True)
+    ops_card = unit_dir / "ops-assigned-card.json"
+    team_card = unit_dir / "team-assigned-card.json"
+    ops_card.write_text(
+        json.dumps(
+            {
+                "card": {
+                    "surface": "ops-feed",
+                    "kind": "ASSIGNED",
+                    "work_unit_id": "WU-260607-198",
+                    "team": "build-lab",
+                }
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    team_card.write_text(
+        json.dumps(
+            {
+                "card": {
+                    "surface": "team-detail",
+                    "kind": "ASSIGNED_DETAIL",
+                    "work_unit_id": "WU-260607-198",
+                    "team": "build-lab",
+                }
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+    original_run_json_command = module.run_json_command
+    original_run_project_sync = module.run_project_sync
+
+    def fake_run_json_command(command: list[str]) -> tuple[int, dict[str, Any], str]:
+        card_path = Path(command[command.index("--card-json") + 1])
+        card = json.loads(card_path.read_text(encoding="utf-8"))["card"]
+        calls.append(f"publish:{card['kind']}")
+        return 0, {"publish": {"kind": card["kind"], "readback_ok": True}}, ""
+
+    def fake_run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
+        calls.append("project-sync")
+        return {"enabled": True, "ok": True, "sync_state": "attempted_ok"}
+
+    try:
+        module.run_json_command = fake_run_json_command
+        module.run_project_sync = fake_run_project_sync
+        code, payload, error = module.publish_handoff_sequence(
+            argparse.Namespace(
+                channel="discord",
+                account="",
+                thread_id="",
+                transition_at="2026-06-07T01:30:00Z",
+                readback_limit=10,
+                project_sync_field_map=str(work_dir / "field-map.json"),
+                output_root=handoff_dir,
+                work_unit_id="WU-260607-198",
+                project_sync_mode="auto",
+                project_sync_ledger="",
+                project_sync_audit_log=str(work_dir / "project-sync-audit.jsonl"),
+                project_sync_no_create_missing_project_item=False,
+            ),
+            {
+                "targets": {
+                    "ops_feed": "channel:ops-feed-smoke",
+                    "team_detail": "channel:team-build-lab-smoke",
+                }
+            },
+            {"ops_card": str(ops_card), "team_card": str(team_card)},
+            unit_dir / "visibility-proof.jsonl",
+        )
+    finally:
+        module.run_json_command = original_run_json_command
+        module.run_project_sync = original_run_project_sync
+    if code != 0:
+        raise RuntimeError(f"handoff initial Project hydrate smoke failed: {error}")
+    if calls != ["publish:ASSIGNED", "project-sync", "publish:ASSIGNED_DETAIL"]:
+        raise RuntimeError(f"handoff initial Project hydrate order was wrong: {calls}")
+    if not payload.get("initial_project_sync", {}).get("ok"):
+        raise RuntimeError("handoff initial Project hydrate result was not returned")
+
+
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -6427,6 +6516,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_async_work_unit_policy_smoke()
         assert_no_legacy_closeout_delegate_names()
         run_work_card_body_collapsible_smoke(work_dir)
+        run_handoff_initial_project_hydrate_smoke(work_dir)
         run_discord_card_smoke()
         mark_artifact_started(build_artifacts)
         mark_artifact_result_ready(build_artifacts)
@@ -6452,6 +6542,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "repo-local hook guard fixtures, "
         "async Work Unit policy docs, "
         "collapsible Work Card operational sections, "
+        "initial handoff Project hydration after ASSIGNED readback, "
         "purpose-specific Discord card/checkpoint composition, "
         "thin handoff dry-run/no-mutation validation, "
         "handoff draft dry-run/no-mutation validation, "
