@@ -116,6 +116,16 @@ CLOSEOUT_BY_FINAL_REVIEW = {
     "REVISE": "NEEDS_REVISION",
     "BLOCKED_DETAIL": "BLOCKED",
 }
+TERMINALIZING_CLOSEOUT_STAGE_STATUSES = {
+    "started",
+    "team_published",
+    "visibility_published",
+    "project_sync_needed",
+    "work_card_summary_needed",
+    "work_card_close_needed",
+    "published",
+}
+TEAM_MUTATION_ACTIONS = {"start", "dispatch", "checkpoint", "result-ready", "delegate-wake"}
 FINAL_REVIEW_BY_RECOMMENDATION = {
     "accept": "ACCEPTED",
     "accepted": "ACCEPTED",
@@ -1204,6 +1214,120 @@ def proof_has_event(proof_path: Path, work_unit: str, kind: str) -> bool:
         and row.get("readback_ok") is not False
         for row in rows
     )
+
+
+def read_json_object(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def closeout_stage_states(artifact_dir: Path, work_unit: str) -> list[dict[str, Any]]:
+    states: list[dict[str, Any]] = []
+    for path in sorted(artifact_dir.glob("closeout-*-stage.json")):
+        payload = read_json_object(path)
+        if not payload:
+            continue
+        if str(payload.get("work_unit_id") or work_unit) != work_unit:
+            continue
+        status = normalized_state(str(payload.get("status") or ""))
+        states.append(
+            {
+                "path": str(path),
+                "status": status,
+                "decision": str(payload.get("decision") or ""),
+                "terminalizing": status in TERMINALIZING_CLOSEOUT_STAGE_STATUSES,
+            }
+        )
+    return states
+
+
+def closeout_delegate_status(artifact_dir: Path) -> dict[str, Any]:
+    wake_path = artifact_dir / CLOSEOUT_DELEGATE_WAKE_FILENAME
+    wake = read_json_object(wake_path)
+    if not wake:
+        return {"active": False, "status": "none", "path": str(wake_path)}
+    status = normalized_state(str(wake.get("status") or "delegate-wake-enqueued"))
+    active = status in {"delegate_wake_enqueued", "delegate_wake_accepted", "enqueued", "accepted"}
+    return {
+        "active": active,
+        "status": status,
+        "path": str(wake_path),
+        "delegate_ref": (
+            str(wake.get("session_ref") or "")
+            or str(wake.get("job_ref") or "")
+            or str(wake.get("message_ref") or "")
+            or str(wake.get("delegate_ref") or "")
+        ),
+        "record": wake,
+    }
+
+
+def work_unit_terminal_state(artifact_root: Path, work_unit: str) -> dict[str, Any]:
+    artifact_dir = artifact_root / work_unit
+    item = build_work_unit_readiness(artifact_root, work_unit)
+    stages = closeout_stage_states(artifact_dir, work_unit)
+    terminalizing_stages = [stage for stage in stages if stage["terminalizing"]]
+    result_ready_waiting_review = bool(item.get("result_ready")) and not bool(item.get("decision_final"))
+    return {
+        "artifact_dir": str(artifact_dir),
+        "decision_final": bool(item.get("decision_final")),
+        "final_reviews": list(item.get("final_reviews") or []),
+        "owner_closeouts": list(item.get("owner_closeouts") or []),
+        "result_ready_waiting_review": result_ready_waiting_review,
+        "closeout_stages": stages,
+        "terminalizing_stages": terminalizing_stages,
+        "delegate": closeout_delegate_status(artifact_dir),
+        "item": item,
+    }
+
+
+def work_unit_mutation_blockers(
+    artifact_root: Path,
+    work_unit: str,
+    action: str,
+    *,
+    allow_result_ready_idempotency: bool = False,
+) -> list[str]:
+    state = work_unit_terminal_state(artifact_root, work_unit)
+    blockers: list[str] = []
+    if state["decision_final"]:
+        blockers.append("terminal_decided: decision.md already records a final Operations Lead decision")
+    if state["final_reviews"]:
+        blockers.append("terminal_final_review: team final review proof already exists")
+    if state["owner_closeouts"]:
+        blockers.append("terminal_owner_closeout: owner closeout proof already exists")
+    for stage in state["terminalizing_stages"]:
+        blockers.append(f"closeout_in_progress: {Path(stage['path']).name} status={stage['status']}")
+    if action in {"start", "dispatch"} and state["result_ready_waiting_review"]:
+        blockers.append("result_ready_waiting_review: Team Lead result is already submitted")
+    delegate = state["delegate"]
+    if action in TEAM_MUTATION_ACTIONS and delegate.get("active"):
+        blockers.append(f"delegate_wake_enqueued: closeout delegate already owns review ({delegate.get('delegate_ref') or delegate.get('path')})")
+    if action == "result-ready" and allow_result_ready_idempotency:
+        blockers = [blocker for blocker in blockers if not blocker.startswith("delegate_wake_enqueued:")]
+    return blockers
+
+
+def print_mutation_blocked(action: str, work_unit: str, blockers: list[str], *, format_name: str = "text") -> None:
+    payload = {
+        "status": "mutation-blocked",
+        "work_unit_id": work_unit,
+        "action": action,
+        "blockers": blockers,
+        "would_mutate_source": False,
+        "next_action": "Inspect source state and open an explicit recovery/takeover path if appropriate.",
+    }
+    if format_name == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        return
+    print(f"error: mutation-blocked: {action} is not allowed for {work_unit}", file=sys.stderr)
+    for blocker in blockers:
+        print(f"  - {blocker}", file=sys.stderr)
 
 
 def latest_visibility_target(artifact_dir: Path, work_unit: str, surface: str, fallback: str) -> str:
@@ -3771,6 +3895,10 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
     if not artifact_dir.is_dir():
         print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
         return 1
+    blockers = work_unit_mutation_blockers(artifact_root, args.work_unit_id, "dispatch")
+    if blockers:
+        print_mutation_blocked("dispatch", args.work_unit_id, blockers, format_name=args.format)
+        return 1
     assignment = parse_markdown_source(artifact_dir / "assignment.md")
     if not assignment.get("exists"):
         print(f"error: assignment.md is missing: {artifact_dir / 'assignment.md'}", file=sys.stderr)
@@ -3943,6 +4071,10 @@ def start_work_unit(args: argparse.Namespace) -> int:
     if not artifact_dir.is_dir():
         print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
         return 1
+    blockers = work_unit_mutation_blockers(artifact_root, args.work_unit_id, "start")
+    if blockers:
+        print_mutation_blocked("start", args.work_unit_id, blockers, format_name=args.format)
+        return 1
     assignment = parse_markdown_source(artifact_dir / "assignment.md")
     if not assignment.get("exists"):
         print(f"error: assignment.md is missing: {artifact_dir / 'assignment.md'}", file=sys.stderr)
@@ -4054,6 +4186,10 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
     output_dir = args.output_root.expanduser() / args.work_unit_id
     if not output_dir.is_dir():
         print(f"error: Work Unit artifact directory not found: {output_dir}", file=sys.stderr)
+        return 1
+    blockers = work_unit_mutation_blockers(args.output_root.expanduser(), args.work_unit_id, "checkpoint")
+    if blockers:
+        print_mutation_blocked("checkpoint", args.work_unit_id, blockers, format_name=args.format)
         return 1
     if not args.dry_run and not args.publish:
         print("error: checkpoint requires --dry-run or --publish", file=sys.stderr)
@@ -4328,6 +4464,10 @@ def closeout_delegate_wake_work_unit(args: argparse.Namespace) -> int:
     if not artifact_dir.is_dir():
         print(f"error: Work Unit artifact directory not found: {artifact_dir}", file=sys.stderr)
         return 1
+    blockers = work_unit_mutation_blockers(artifact_root, args.work_unit_id, "delegate-wake")
+    if blockers:
+        print_mutation_blocked("delegate-wake", args.work_unit_id, blockers, format_name=args.format)
+        return 1
     transition_at = args.transition_at or utc_now_iso()
     args.transition_at = transition_at
     code, payload = perform_closeout_delegate_wake(
@@ -4382,6 +4522,15 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         and row.get("kind") == "RESULT_READY"
         and row.get("readback_ok") is not False
     ]
+    blockers = work_unit_mutation_blockers(
+        artifact_root,
+        args.work_unit_id,
+        "result-ready",
+        allow_result_ready_idempotency=bool(args.publish and existing_result_ready and not args.force),
+    )
+    if blockers:
+        print_mutation_blocked("result-ready", args.work_unit_id, blockers, format_name=args.format)
+        return 1
     if args.publish and existing_result_ready and not args.force:
         payload = {
             "dry_run": False,
@@ -5060,6 +5209,15 @@ def validate_closeout_decision(
         partial_resume and proof_contains_only_expected(item["owner_closeouts"], expected_owner_closeout)
     ):
         failures.append("owner closeout proof already exists")
+    delegate = closeout_delegate_status(artifact_dir)
+    if (
+        delegate.get("active")
+        and commit_request_text(getattr(args, "authority_role", "")) != "operations-lead-delegate"
+        and not commit_request_text(getattr(args, "manual_takeover_reason", ""))
+    ):
+        failures.append(
+            "closeout delegate is already enqueued; manual Operations Lead closeout requires --manual-takeover-reason"
+        )
     if not args.reason:
         failures.append("--reason is required for explicit closeout decisions")
     if not item.get("work_card"):
@@ -5234,6 +5392,17 @@ def render_closeout_decision(args: argparse.Namespace, item: dict[str, Any], dec
 - Delegate refs: {", ".join(f"`{ref}`" for ref in delegate_refs) if delegate_refs else "`missing`"}
 - Artifact snapshot hash: `{canonical_json_hash(commit_request_hashes(commit_request)) if commit_request_hashes(commit_request) else ""}`
 """
+    manual_takeover_reason = commit_request_text(getattr(args, "manual_takeover_reason", ""))
+    manual_takeover_section = ""
+    if manual_takeover_reason:
+        delegate = closeout_delegate_status(Path(str(item.get("artifact_dir") or "")))
+        manual_takeover_section = f"""
+## Manual Takeover
+
+- Reason: {manual_takeover_reason}
+- Previous delegate status: `{delegate.get("status", "none")}`
+- Previous delegate ref: `{delegate.get("delegate_ref") or delegate.get("path") or "missing"}`
+"""
     return f"""# Operations Lead Decision
 
 Status: {status}
@@ -5265,6 +5434,7 @@ Assignment Packet and evidence requirements.
 
 {markdown_bullets(source_refs)}
 {commit_request_section}
+{manual_takeover_section}
 
 ## Required Follow-up
 
@@ -5355,6 +5525,7 @@ def write_closeout_stage(
         "decided_at": decided_at,
         "recorded_by": args.recorded_by,
         "commit_request_present": bool(getattr(args, "commit_request_payload", {})),
+        "manual_takeover_reason": commit_request_text(getattr(args, "manual_takeover_reason", "")),
     }
     if extra:
         payload.update(extra)
@@ -6674,6 +6845,11 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument("--recorded-by", default="operations-lead")
     closeout.add_argument("--authority-role", choices=CLOSEOUT_PUBLISH_AUTHORITY_ROLES, default="")
     closeout.add_argument("--delegate-agent", default="", help="Required for operations-lead-delegate closeout authority")
+    closeout.add_argument(
+        "--manual-takeover-reason",
+        default="",
+        help="Explicit recovery reason required for Operations Lead manual closeout after delegate wake is enqueued",
+    )
     closeout.add_argument(
         "--proof-log",
         type=Path,

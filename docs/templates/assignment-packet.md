@@ -132,6 +132,12 @@ proof. Operations Lead reports `dispatched` and returns idle; foreground waiting
 for `RESULT_READY`, closeout, `ACCEPTED`, or `COMPLETED` requires an explicit
 owner request for live protocol observation or manual recovery.
 
+Closeout ownership policy: when RESULT_READY enqueues a closeout delegate, the
+delegate owns the closeout attempt. Operations Lead manual closeout after
+delegate wake requires an explicit takeover reason in source artifacts. After
+closeout starts or a final decision exists, late lifecycle writes must fail
+closed instead of rewriting evidence, proof, or decision state.
+
 Select the mode that matches the delegated Work Unit:
 
 - `goal`: produce or change a durable outcome through an initial plan followed

@@ -4975,6 +4975,215 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
         raise RuntimeError("duplicate RESULT_READY idempotency guard mutated visibility proof")
 
+    terminal_guard_dir = create_artifacts(args, inbox_work_dir, "WU-260607-160", "build-lab")
+    mark_artifact_started(terminal_guard_dir)
+    mark_artifact_result_ready(terminal_guard_dir, recommendation="accept")
+    write_valid_decision_ready_summary(terminal_guard_dir)
+    write_jsonl(
+        terminal_guard_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-160",
+            [("team-detail", "RESULT_READY", "terminal-001", "2026-06-07T01:44:00Z")],
+        ),
+    )
+    terminal_decision = terminal_guard_dir / "decision.md"
+    terminal_decision.write_text(
+        terminal_decision.read_text(encoding="utf-8").replace("Status: Pending", "Status: Accepted"),
+        encoding="utf-8",
+    )
+    late_result_ready_after_decision = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-160",
+            "--artifact-root",
+            str(artifact_root),
+            "--result",
+            "Late result-ready should be blocked after decision.",
+            "--evidence",
+            str(terminal_guard_dir / "evidence.md"),
+            "--verification",
+            "Terminal decisions freeze result-ready writes.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if late_result_ready_after_decision.returncode == 0:
+        raise RuntimeError("result-ready after terminal decision was not blocked")
+    late_result_payload = json.loads(late_result_ready_after_decision.stdout)
+    if "terminal_decided" not in " ".join(late_result_payload.get("blockers", [])):
+        raise RuntimeError("terminal decision result-ready block did not explain terminal_decided")
+
+    late_checkpoint_after_decision = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            "WU-260607-160",
+            "--output-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "working",
+            "--current-slice",
+            "late checkpoint",
+            "--next",
+            "No-op.",
+            "--source-ref",
+            str(terminal_guard_dir / "evidence.md"),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if late_checkpoint_after_decision.returncode == 0:
+        raise RuntimeError("checkpoint after terminal decision was not blocked")
+    late_checkpoint_payload = json.loads(late_checkpoint_after_decision.stdout)
+    if "terminal_decided" not in " ".join(late_checkpoint_payload.get("blockers", [])):
+        raise RuntimeError("terminal decision checkpoint block did not explain terminal_decided")
+
+    closeout_stage_guard_dir = create_artifacts(args, inbox_work_dir, "WU-260607-161", "build-lab")
+    mark_artifact_started(closeout_stage_guard_dir)
+    mark_artifact_result_ready(closeout_stage_guard_dir, recommendation="accept")
+    write_valid_decision_ready_summary(closeout_stage_guard_dir)
+    write_jsonl(
+        closeout_stage_guard_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-161",
+            [("team-detail", "RESULT_READY", "stage-001", "2026-06-07T01:45:00Z")],
+        ),
+    )
+    write_json(
+        closeout_stage_guard_dir / "closeout-accept-stage.json",
+        {
+            "version": 1,
+            "status": "started",
+            "work_unit_id": "WU-260607-161",
+            "decision": "accept",
+            "decided_at": "2026-06-07T01:45:30Z",
+            "recorded_by": "operations-lead",
+        },
+    )
+    result_ready_during_closeout = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-161",
+            "--artifact-root",
+            str(artifact_root),
+            "--result",
+            "Late result-ready during closeout should be blocked.",
+            "--evidence",
+            str(closeout_stage_guard_dir / "evidence.md"),
+            "--verification",
+            "Closeout stage is terminalizing.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if result_ready_during_closeout.returncode == 0:
+        raise RuntimeError("result-ready during closeout stage was not blocked")
+    closeout_stage_block_payload = json.loads(result_ready_during_closeout.stdout)
+    if "closeout_in_progress" not in " ".join(closeout_stage_block_payload.get("blockers", [])):
+        raise RuntimeError("closeout stage result-ready block did not explain closeout_in_progress")
+
+    delegate_takeover_dir = create_artifacts(args, inbox_work_dir, "WU-260607-162", "build-lab")
+    mark_artifact_started(delegate_takeover_dir)
+    mark_artifact_result_ready(delegate_takeover_dir, recommendation="accept")
+    write_valid_decision_ready_summary(delegate_takeover_dir)
+    write_jsonl(
+        delegate_takeover_dir / "visibility-proof.jsonl",
+        proof_rows(
+            "WU-260607-162",
+            [("team-detail", "RESULT_READY", "delegate-001", "2026-06-07T01:46:00Z")],
+        ),
+    )
+    write_json(
+        delegate_takeover_dir / "closeout-delegate-wake.json",
+        {
+            "version": 1,
+            "status": "delegate-wake-enqueued",
+            "work_unit_id": "WU-260607-162",
+            "delegate_agent": "main",
+            "session_ref": "session:WU-260607-162:closeout-delegate",
+            "job_ref": "job:WU-260607-162:closeout-delegate",
+            "enqueued_at": "2026-06-07T01:46:10Z",
+        },
+    )
+    manual_closeout_without_takeover = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-162",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--authority-role",
+            "operations-lead",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(delegate_takeover_dir / "evidence.md"),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if manual_closeout_without_takeover.returncode == 0:
+        raise RuntimeError("manual closeout after delegate wake succeeded without takeover reason")
+    manual_closeout_block_payload = json.loads(manual_closeout_without_takeover.stdout)
+    if "--manual-takeover-reason" not in " ".join(manual_closeout_block_payload.get("decision_failures", [])):
+        raise RuntimeError("manual closeout block did not require manual takeover reason")
+
+    manual_closeout_with_takeover = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "closeout",
+            "--work-unit-id",
+            "WU-260607-162",
+            "--artifact-root",
+            str(artifact_root),
+            "--decision",
+            "accept",
+            "--authority-role",
+            "operations-lead",
+            "--manual-takeover-reason",
+            "Owner-approved recovery after delegate setup failure.",
+            "--reason",
+            "Operations Lead accepts the source-backed result.",
+            "--source-ref",
+            str(delegate_takeover_dir / "evidence.md"),
+            *WORK_CARD_SUMMARY_DISABLED_ARGS,
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(manual_closeout_with_takeover, "manual closeout with explicit takeover reason")
+    manual_takeover_payload = json.loads(manual_closeout_with_takeover.stdout)
+    if manual_takeover_payload.get("status") != "decision-ready":
+        raise RuntimeError("manual takeover closeout did not become decision-ready")
+    if "## Manual Takeover" not in manual_takeover_payload.get("decision_preview", ""):
+        raise RuntimeError("manual takeover closeout did not record takeover context in decision preview")
+
     decision_before = (ready_late / "decision.md").read_text(encoding="utf-8")
     missing_authority_closeout = run_command(
         [

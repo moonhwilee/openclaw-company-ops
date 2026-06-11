@@ -38,6 +38,13 @@ and returns idle. Waiting for `RESULT_READY`, closeout delegate judgment,
 `ACCEPTED`, or `COMPLETED` requires an explicit owner request for live protocol
 observation or manual recovery.
 
+If `RESULT_READY` has been published and a closeout delegate wake has been
+enqueued, the Operations Lead must not publish a competing manual closeout just
+because runtime progress is not visible. Manual takeover is a recovery action:
+it requires an explicit reason and must be recorded in source artifacts. After a
+final decision or closeout stage starts, late Team Lead lifecycle writes are
+rejected by the normal command path.
+
 ## Protocol Set
 
 - [goal](goal.md): complete the Work Unit through an initial plan followed by

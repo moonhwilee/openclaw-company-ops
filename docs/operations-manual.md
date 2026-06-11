@@ -73,6 +73,15 @@ claim refresh, progress/evidence/result writes, local verification references,
 and blocker reports. Read-only status, docs, help, and smoke checks may stay
 role-neutral when they do not change operating state.
 
+Normal lifecycle writes must pass the source-derived Work Unit mutation gate.
+Once `decision.md` is final, final review/owner closeout proof exists, or a
+closeout stage has started, Team Lead lifecycle writes such as start, dispatch,
+checkpoint, result-ready, or delegate-wake must fail closed. A closeout delegate
+wake record means the delegate owns the closeout attempt; a manual Operations
+Lead closeout after that point requires an explicit takeover reason recorded in
+the decision source. Do not use session liveness, dashboard state, or chat
+silence as authority to create a second writer.
+
 ## Main Session Nonblocking Rule
 
 The Operations Lead main session must not sit idle waiting for sizeable Team
