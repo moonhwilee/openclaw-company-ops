@@ -21,6 +21,12 @@ The future public-v1 package/plugin should be assembled from these repo-local
 surfaces, subject to Phase 6 manifest review:
 
 - `scripts/`: supported foreground CLI and source-backed helper modules.
+- A small Company Ops skill/router that maps user-facing requests such as
+  `/goal`, `/verify`, "verify this", or "run this as a goal" into the
+  foreground Work Unit flow. The router is an intent-to-Work-Unit adapter only:
+  it should select a supported protocol mode, create or draft the Assignment
+  Packet, and call the packaged CLI. It must not become a hidden orchestrator,
+  background monitor, source of truth, or direct Team Lead execution channel.
 - `.codex/hooks/`: optional hook guard code and related configuration, if the
   package keeps the hook surface.
 - `docs/protocols/`: Team Lead and recovery protocol references.
@@ -80,6 +86,9 @@ Phase 6 packaging is not complete until all of these are true:
 - A manifest or export script identifies every file in the installable surface.
 - The exported package excludes concrete Work Unit artifacts and local state.
 - A clean OpenClaw runtime can discover the bundled Company Ops skill/plugin.
+- The bundled Company Ops skill can route `/goal` and `/verify` style owner
+  requests into Assignment Packets with `protocol_capsule.mode: goal|verify`
+  without writing user `MEMORY.md` or personal `AGENTS.md`.
 - The packaged foreground CLI can run setup/preflight/smoke without relying on
   this development repo's chat memory.
 - Team Lead and Operations Lead setup prompts receive the same packaged protocol

@@ -1019,6 +1019,24 @@ package that bundles a small Company Ops skill for natural-language routing and
 foreground CLI tools for deterministic source-backed operations. Do not make
 user `MEMORY.md` or `AGENTS.md` edits part of the install path.
 
+The small skill/router is the package discovery layer for owner-facing requests
+such as `/goal`, `/verify`, "verify this", or "run this as a goal". It should
+do only four things:
+
+1. Classify the request as a supported Company Ops route or return
+   `needs-ops-decision` when ambiguous.
+2. Start the normal Work Unit draft/create/handoff path through the packaged
+   foreground CLI.
+3. Put `protocol_capsule.mode: goal` or `protocol_capsule.mode: verify` in the
+   Assignment Packet.
+4. Report the next source-backed state to the Operations Lead.
+
+It must not execute Team Lead work directly, hold private operating state,
+install private memory, infer completion, publish closeout, or bypass the
+normal command guards. The Assignment Packet and Work Unit source artifacts
+remain the source of truth; the skill only helps an Operations Lead reach the
+right foreground command path.
+
 Until Phase 6, there is no installable distribution target. The current target
 is the repo-local model: scripts, docs, protocol references, and templates.
 Phase 5.7 has recorded what must be packaged; Phase 6 builds the actual
@@ -1078,7 +1096,10 @@ Recommended replacement order:
    result-ready inbox and closeout-lock path are stable. Add it only if it
    remains deterministic and can return `needs-ops-decision` when ambiguous.
 11. Package the accepted surfaces as a plugin/package with a bundled small skill
-   now that Phase 5.7 has locked the included and deferred surfaces.
+   now that Phase 5.7 has locked the included and deferred surfaces. The small
+   skill must expose the user-facing `/goal` and `/verify` style entry points as
+   routing triggers, but the generated Assignment Packet's Protocol Capsule is
+   what the Team Lead executes.
 12. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the
