@@ -1348,7 +1348,6 @@ def run_discord_card_smoke() -> None:
             "retry_state",
             "rendered_title",
             "rendered_progress_summary",
-            "clamp_version",
         }
         missing_checkpoint_proof_fields = sorted(
             field for field in required_checkpoint_proof_fields if field not in checkpoint_proof
@@ -2549,8 +2548,6 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("checkpoint dry-run rendered Progress does not match Project Progress")
     if "Progress: R2 · P1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
         raise RuntimeError("checkpoint dry-run did not render Project Progress in the first body line")
-    if checkpoint_payload.get("card", {}).get("clamp_version") != "progress-display-v2-unclamped":
-        raise RuntimeError("checkpoint dry-run did not preserve the progress display version")
     checkpoint_unknown_total = run_command(
         [
             sys.executable,

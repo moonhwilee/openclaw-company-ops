@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 ROUND_VISIBLE_MODES = {"goal", "convergence"}
-CLAMP_VERSION = "progress-display-v2-unclamped"
 
 AT_RISK_STATES = {"at-risk", "at_risk", "risk", "blocked", "blocker", "blocked_progress"}
 RETRY_STATES = {"retry", "re-run", "rerun", "re_run", "retrying"}
@@ -51,15 +50,14 @@ def progress_parts(row: dict[str, Any]) -> tuple[str, str, str]:
     return round_part, prefix, label
 
 
-def render_progress_display(row: dict[str, Any], *, clamp: bool = True) -> dict[str, Any]:
+def render_progress_display(row: dict[str, Any]) -> dict[str, Any]:
     round_part, prefix, label = progress_parts(row)
     summary = " · ".join(part for part in (round_part, prefix, label) if part)
     return {
         "rendered_progress_summary": summary,
-        "clamp_version": CLAMP_VERSION,
         "icon": progress_icon(row),
     }
 
 
-def render_progress_summary(row: dict[str, Any], *, clamp: bool = True) -> str:
-    return str(render_progress_display(row, clamp=clamp)["rendered_progress_summary"])
+def render_progress_summary(row: dict[str, Any]) -> str:
+    return str(render_progress_display(row)["rendered_progress_summary"])

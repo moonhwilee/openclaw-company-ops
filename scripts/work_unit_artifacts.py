@@ -3381,8 +3381,6 @@ def checkpoint_card_args(args: argparse.Namespace) -> list[str]:
         progress_row["retry_state"],
         "--rendered-progress-summary",
         rendered["rendered_progress_summary"],
-        "--clamp-version",
-        rendered["clamp_version"],
         "--status",
         args.status,
         "--next",

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from progress_display import CLAMP_VERSION, progress_icon
+from progress_display import progress_icon
 
 UTC = timezone.utc
 
@@ -596,7 +596,6 @@ def card_from_args(args: argparse.Namespace) -> dict[str, str]:
         "risk_state": args.risk_state,
         "retry_state": args.retry_state,
         "rendered_progress_summary": args.rendered_progress_summary,
-        "clamp_version": args.clamp_version,
         "elapsed": args.elapsed,
         "next_checkpoint": args.next_checkpoint,
         "source": args.source,
@@ -635,7 +634,7 @@ def validate_card(card: dict[str, str]) -> None:
     elif card["kind"] == "CHECKPOINT":
         require_fields(
             card,
-            ("status", "current_slice", "rendered_progress_summary", "clamp_version"),
+            ("status", "current_slice", "rendered_progress_summary"),
             "team checkpoint card",
         )
     elif card["kind"] == "RESULT_READY":
@@ -997,7 +996,6 @@ def proof_row_from_card(
                 "retry_state": card.get("retry_state", ""),
                 "rendered_title": text.splitlines()[0] if text.splitlines() else "",
                 "rendered_progress_summary": card["rendered_progress_summary"],
-                "clamp_version": card["clamp_version"],
             }
         )
     return row
@@ -1412,7 +1410,6 @@ def build_parser() -> argparse.ArgumentParser:
     card.add_argument("--risk-state", default="", help="Source progress risk state for CHECKPOINT")
     card.add_argument("--retry-state", default="", help="Source progress retry state for CHECKPOINT")
     card.add_argument("--rendered-progress-summary", default="", help="Rendered dashboard Progress text for user-facing CHECKPOINT display")
-    card.add_argument("--clamp-version", default=CLAMP_VERSION, help="Progress display clamp version")
     card.add_argument("--elapsed", default="", help="Elapsed time or progress age for CHECKPOINT")
     card.add_argument("--next-checkpoint", default="", help="Next expected checkpoint time/window")
     card.add_argument("--source", default="", help="Source artifact or local proof reference")

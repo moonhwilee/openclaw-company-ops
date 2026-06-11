@@ -1192,9 +1192,7 @@ Slice C, structured proof and readback:
 - Preserve structured fields in the card/proof row: `work_unit_id`, `team`,
   `mode`, `round`, `show_round`, `phase`, `phase_index`, `phase_total`,
   `current_slice`, `risk_state`, `retry_state`, `rendered_title`,
-  `rendered_progress_summary`, and `clamp_version`. The field name remains for
-  compatibility; current values identify the display renderer version rather
-  than an active truncation policy.
+  and `rendered_progress_summary`.
 - Readback may match the rendered title/header, but status and Project
   derivation must continue to use source artifacts and structured fields.
 
