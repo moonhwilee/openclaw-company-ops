@@ -2549,8 +2549,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("checkpoint dry-run rendered Progress does not match Project Progress")
     if "Progress: R2 · P1/4 · converge implementation" not in checkpoint_payload.get("text", ""):
         raise RuntimeError("checkpoint dry-run did not render Project Progress in the first body line")
-    if checkpoint_payload.get("card", {}).get("clamp_version") != "progress-display-v1":
-        raise RuntimeError("checkpoint dry-run did not preserve the progress display clamp version")
+    if checkpoint_payload.get("card", {}).get("clamp_version") != "progress-display-v2-unclamped":
+        raise RuntimeError("checkpoint dry-run did not preserve the progress display version")
     checkpoint_unknown_total = run_command(
         [
             sys.executable,
@@ -2676,8 +2676,8 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
     if "Progress: P1/3 · positioning note" not in verify_payload.get("text", ""):
         raise RuntimeError("verify checkpoint did not render Project Progress in Discord text")
 
-    long_phase = "this is a deliberately long progress label that should be clamped for mobile visibility"
-    clamped_checkpoint = run_command(
+    long_phase = "this is a deliberately long progress label that should remain visible in Project Progress"
+    unclamped_checkpoint = run_command(
         [
             sys.executable,
             str(ARTIFACTS),
@@ -2710,7 +2710,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "--retry-state",
             "retry",
             "--source-ref",
-            "local-smoke://checkpoint-clamp",
+            "local-smoke://checkpoint-unclamped",
             "--transition-at",
             "2026-06-06T13:00:00Z",
             "--format",
@@ -2718,12 +2718,12 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "--dry-run",
         ]
     )
-    require_success(clamped_checkpoint, "work-unit checkpoint clamp dry-run")
-    clamped_payload = json.loads(clamped_checkpoint.stdout)
-    clamped_summary = clamped_payload.get("card", {}).get("rendered_progress_summary", "")
-    if "…" not in clamped_summary or long_phase in clamped_summary:
-        raise RuntimeError("checkpoint dry-run did not clamp an overlong progress summary")
-    if not clamped_payload.get("text", "").startswith("⚠️ [PROGRESS]"):
+    require_success(unclamped_checkpoint, "work-unit checkpoint unclamped dry-run")
+    unclamped_payload = json.loads(unclamped_checkpoint.stdout)
+    unclamped_summary = unclamped_payload.get("card", {}).get("rendered_progress_summary", "")
+    if "…" in unclamped_summary or long_phase not in unclamped_summary:
+        raise RuntimeError("checkpoint dry-run unexpectedly clamped the progress summary")
+    if not unclamped_payload.get("text", "").startswith("⚠️ [PROGRESS]"):
         raise RuntimeError("checkpoint dry-run did not apply risk icon priority")
 
     handoff_root = artifact_root.parent / "handoff-artifacts"
@@ -3456,6 +3456,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("dispatch dry-run did not expose fire-and-forget completion policy")
     if dispatch_packet.get("operations_lead_handoff", {}).get("operations_lead_stop_after") != "dispatch_accepted":
         raise RuntimeError("dispatch packet did not tell Operations Lead to stop after accepted dispatch")
+    checkpoint_contract = dispatch_packet.get("checkpoint_contract") or {}
+    if "--project-sync-field-map" not in str(checkpoint_contract.get("command") or ""):
+        raise RuntimeError("dispatch packet did not include Project-sync checkpoint contract")
+    if "checkpoint_contract" not in " ".join(dispatch_packet.get("instructions") or []):
+        raise RuntimeError("dispatch packet did not instruct Team Lead to use checkpoint contract")
     if not any("fire-and-forget" in item and "RESULT_READY" in item for item in (dispatch_packet.get("instructions") or [])):
         raise RuntimeError("dispatch packet did not include fire-and-forget wait boundary")
     if not dispatch_packet.get("repo_root"):
@@ -5319,6 +5324,11 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("closeout accept dry-run did not compose ACCEPTED team card")
     if accept_payload.get("owner_card", {}).get("kind") != "COMPLETED":
         raise RuntimeError("closeout accept dry-run did not compose COMPLETED owner card")
+    owner_card = accept_payload.get("owner_card", {})
+    if owner_card.get("criteria_result") == owner_card.get("outcome"):
+        raise RuntimeError("closeout owner card duplicated outcome into criteria_result")
+    if owner_card.get("criteria_result") != "Done criteria satisfied; see evidence and final review.":
+        raise RuntimeError("closeout owner card did not normalize missing criteria_result")
     if accept_payload.get("resolved_work_card") != "local-smoke://WU-260607-101":
         raise RuntimeError("closeout accept dry-run did not resolve Work Card")
     if accept_payload.get("work_card_source") != "assignment.md":

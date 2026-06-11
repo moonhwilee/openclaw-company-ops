@@ -529,7 +529,10 @@ The default flow is:
    holding the execution session. In the detached flow, this becomes Team
    Lead-owned execution visibility. The command publishes/readbacks the team
    `CHECKPOINT`, then records matching source-backed `progress.jsonl` metadata
-   and can run one Project mirror sync.
+   and can run one changed-only Project mirror sync. Detached Team Leads should
+   use the dispatch packet `checkpoint_contract` when present so the checkpoint
+   trigger updates Discord proof, source progress, and Project `Progress` from
+   the same source state.
 7. For standalone progress metadata without Discord visibility, Operations Lead
    may still use `work-unit progress`, but it must not replace the normal
    checkpoint briefing path during live long work.

@@ -40,8 +40,11 @@ Each row is a JSON object:
   work such as ordinary verify unless the owner explicitly asks to see round
   labels in the dashboard.
 - Prefer `work-unit checkpoint` for live long-work checkpoints. It uses one
-  payload for the team `CHECKPOINT`, the `progress.jsonl` row, and optional
-  Project mirror sync after Discord readback.
+  payload for the team `CHECKPOINT`, the `progress.jsonl` row, and changed-only
+  Project mirror sync after Discord readback when the dispatch
+  `checkpoint_contract` or explicit Project sync args are present.
+- Progress display preserves the full source slice text. Keep checkpoint labels
+  concise as source writing discipline; do not depend on renderer truncation.
 - Do not infer progress from GitHub Project fields, GitHub comments, or
   free-form Discord text.
 - `project-sync` may derive dashboard `Progress` from the latest valid row.

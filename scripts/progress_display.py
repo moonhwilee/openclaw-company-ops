@@ -5,9 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 ROUND_VISIBLE_MODES = {"goal", "convergence"}
-CLAMP_VERSION = "progress-display-v1"
-DEFAULT_LABEL_LIMIT = 32
-DEFAULT_SUMMARY_TARGET = 40
+CLAMP_VERSION = "progress-display-v2-unclamped"
 
 AT_RISK_STATES = {"at-risk", "at_risk", "risk", "blocked", "blocker", "blocked_progress"}
 RETRY_STATES = {"retry", "re-run", "rerun", "re_run", "retrying"}
@@ -23,22 +21,6 @@ def should_show_round(mode: str, explicit_show_round: Any) -> bool:
     if str(explicit_show_round or "").strip().lower() in {"0", "false", "no"}:
         return False
     return True
-
-
-def utf16_units(value: str) -> int:
-    return len(value.encode("utf-16-le")) // 2
-
-
-def clamp_text(value: str, *, limit: int) -> str:
-    text = value.strip()
-    if utf16_units(text) <= limit:
-        return text
-    result = ""
-    for char in text:
-        if utf16_units(result + char + "…") > limit:
-            break
-        result += char
-    return result.rstrip() + "…"
 
 
 def normalized_state(value: Any) -> str:
@@ -71,16 +53,7 @@ def progress_parts(row: dict[str, Any]) -> tuple[str, str, str]:
 
 def render_progress_display(row: dict[str, Any], *, clamp: bool = True) -> dict[str, Any]:
     round_part, prefix, label = progress_parts(row)
-    separators = " · ".join(part for part in (round_part, prefix) if part)
-    label_limit = DEFAULT_LABEL_LIMIT
-    if separators:
-        label_limit = max(24, min(DEFAULT_LABEL_LIMIT, DEFAULT_SUMMARY_TARGET - utf16_units(separators) - 3))
-    rendered_label = clamp_text(label, limit=label_limit) if clamp else label
-    summary = " · ".join(part for part in (round_part, prefix, rendered_label) if part)
-    if clamp and utf16_units(summary) > DEFAULT_SUMMARY_TARGET and rendered_label:
-        overage = utf16_units(summary) - DEFAULT_SUMMARY_TARGET
-        rendered_label = clamp_text(rendered_label, limit=max(12, label_limit - overage))
-        summary = " · ".join(part for part in (round_part, prefix, rendered_label) if part)
+    summary = " · ".join(part for part in (round_part, prefix, label) if part)
     return {
         "rendered_progress_summary": summary,
         "clamp_version": CLAMP_VERSION,

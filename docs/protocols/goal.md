@@ -60,7 +60,10 @@ happening:
 - Use `work-unit checkpoint` at each major slice boundary or at least every
   10-15 minutes while work remains active. The foreground command publishes the
   team `CHECKPOINT`, records matching `progress.jsonl` metadata after readback,
-  and can run one Project mirror sync from the same payload.
+  and can run one changed-only Project mirror sync from the same payload. In
+  detached execution, Team Leads should use the dispatch packet
+  `checkpoint_contract` when present so Discord `CHECKPOINT` proof and Project
+  `Progress` stay in sync from one source-backed checkpoint trigger.
 - Keep checkpoint text factual: current slice, status, elapsed time or last
   checkpoint, next expected checkpoint, and source artifact or evidence pointer
   when one exists.
@@ -68,6 +71,8 @@ happening:
   `--mode convergence`, `--round`, and `--phase-index`. The dashboard renders
   these as `R<round> · P<phase-index>/<phase-total> · <slice>` when a total is
   known, or `R<round> · P<phase-index> · <slice>` when the total is not known.
+  The renderer does not clamp or ellipsize source progress text; keep the slice
+  concise as a writing rule rather than relying on display truncation.
   For one-pass `verify`, keep round metadata out of the dashboard unless the
   owner explicitly asks for it with `--show-round`.
 - Do not use an LLM call just to make a checkpoint sound polished.

@@ -3829,6 +3829,20 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
     )
     result_ready_dry_run_command = f"{result_ready_base_command}--dry-run --format json"
     result_ready_command = f"{result_ready_base_command}--publish --format json"
+    checkpoint_base_command = (
+        "python3 scripts/openclaw_company_ops.py work-unit checkpoint "
+        f"--work-unit-id {args.work_unit_id} --output-root {args.artifact_root} "
+        f"--team {args.team} --status <status> --current-slice <current-slice> "
+        "--next <next-action> --source-ref <source-ref> "
+        "--mode <mode> --round <round> --phase <phase> "
+        "--phase-index <phase-index> --phase-total <phase-total> "
+        f"--target {team_detail_target} --channel discord --account default "
+        f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
+        f"--project-sync-ledger {DEFAULT_PROJECT_LEDGER} "
+        f"--project-sync-audit-log {DEFAULT_PROJECT_AUDIT_LOG} "
+    )
+    checkpoint_dry_run_command = f"{checkpoint_base_command}--dry-run --format json"
+    checkpoint_command = f"{checkpoint_base_command}--publish --format json"
     return {
         "protocol": "company_ops_detached_dispatch_v1",
         "work_unit_id": args.work_unit_id,
@@ -3866,6 +3880,19 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
                 "audit_log": str(DEFAULT_PROJECT_AUDIT_LOG),
             },
         },
+        "checkpoint_contract": {
+            "command": checkpoint_command,
+            "dry_run_command": checkpoint_dry_run_command,
+            "rule": "Use for source-backed goal/progress checkpoints; it publishes Discord CHECKPOINT, records progress.jsonl after readback, and syncs the Project mirror from the same source state.",
+            "team_detail_target": team_detail_target,
+            "channel": "discord",
+            "account": "default",
+            "project_sync": {
+                "field_map": str(DEFAULT_PROJECT_FIELD_MAP),
+                "ledger": str(DEFAULT_PROJECT_LEDGER),
+                "audit_log": str(DEFAULT_PROJECT_AUDIT_LOG),
+            },
+        },
         "instructions": [
             "Read assignment.md before executing.",
             "If source_context.manifest is present, read it and inspect required source refs directly before relying on summaries.",
@@ -3874,6 +3901,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
             "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
             "Set Evidence & Result Record status to Result Ready before calling the result-ready command.",
             "Run result_ready_contract.dry_run_command before result_ready_contract.command; if setup is missing, report a source-backed blocker instead of improvising success.",
+            "For long goal/progress updates, run checkpoint_contract.dry_run_command before checkpoint_contract.command so Discord CHECKPOINT and Project Progress mirror stay in sync.",
             "Return result evidence through the result-ready path with a fresh closeout delegate wake.",
             "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
             "For verify mode, the result-ready command is a source-backed lifecycle proof path, not permission to edit the candidate output.",
@@ -5467,6 +5495,13 @@ def closeout_cards(args: argparse.Namespace, item: dict[str, Any]) -> tuple[dict
             "json",
         ]
     else:
+        owner_outcome = args.outcome or args.reason
+        owner_criteria_result = args.criteria_result or ""
+        if not owner_criteria_result or owner_criteria_result == owner_outcome:
+            if final_kind == "ACCEPTED":
+                owner_criteria_result = "Done criteria satisfied; see evidence and final review."
+            else:
+                owner_criteria_result = "Done criteria require revision; see evidence and final review."
         owner_command = [
             sys.executable,
             str(SCRIPT_DIR / "discord_ops.py"),
@@ -5480,9 +5515,9 @@ def closeout_cards(args: argparse.Namespace, item: dict[str, Any]) -> tuple[dict
             "--team",
             team,
             "--outcome",
-            args.outcome or args.reason,
+            owner_outcome,
             "--criteria-result",
-            args.criteria_result or args.reason,
+            owner_criteria_result,
             "--decision",
             final_kind,
             "--verification",

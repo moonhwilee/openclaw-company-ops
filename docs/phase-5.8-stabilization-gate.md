@@ -1170,7 +1170,7 @@ Slice A, two-line progress card layout:
   outside round-based `goal` or `convergence` work even if a stale/provided
   `show_round` flag is present.
 
-Slice B, icon and clamping rules:
+Slice B, icon and display rules:
 
 - Use one leading icon:
   - `🧭` for normal progress;
@@ -1180,10 +1180,10 @@ Slice B, icon and clamping rules:
   `⚠️` > `🔄` > `🧭`.
 - Keep retry/re-run progress visually distinct from closeout revision events
   such as `🔁 [REVISE]`.
-- Clamp the slice/phase label inside the rendered progress summary to roughly
-  24-32 display characters, keep the full progress detail around 40 characters
-  when possible, and keep the header under roughly 55-60 UTF-16 code units so
-  mobile Discord does not push Work Unit id and team out of view.
+- Preserve the full source slice/phase label inside the rendered progress
+  summary. Keep checkpoint labels concise by writing discipline so Discord and
+  Project remain readable, but do not ellipsize source-backed progress text in
+  the renderer.
 
 Slice C, structured proof and readback:
 
@@ -1192,7 +1192,9 @@ Slice C, structured proof and readback:
 - Preserve structured fields in the card/proof row: `work_unit_id`, `team`,
   `mode`, `round`, `show_round`, `phase`, `phase_index`, `phase_total`,
   `current_slice`, `risk_state`, `retry_state`, `rendered_title`,
-  `rendered_progress_summary`, and `clamp_version`.
+  `rendered_progress_summary`, and `clamp_version`. The field name remains for
+  compatibility; current values identify the display renderer version rather
+  than an active truncation policy.
 - Readback may match the rendered title/header, but status and Project
   derivation must continue to use source artifacts and structured fields.
 
