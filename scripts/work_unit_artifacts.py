@@ -1177,6 +1177,8 @@ def closeout_commit_request_template(packet: dict[str, Any]) -> dict[str, Any]:
         "work_unit_id": packet.get("work_unit_id"),
         "decision": "accept|revise|blocked",
         "reason": "<delegated OL audit rationale>",
+        "outcome": "<owner-facing result summary>",
+        "criteria_result": "<owner-facing done criteria verdict>",
         "source_ref": packet.get("refs", {}).get("source_ref"),
         "result_ready_proof_id": packet.get("result_ready", {}).get("proof_id"),
         "artifact_hashes": packet.get("artifact_hashes"),
@@ -5493,7 +5495,8 @@ def closeout_cards(args: argparse.Namespace, item: dict[str, Any]) -> tuple[dict
             "json",
         ]
     else:
-        owner_outcome = args.outcome or args.reason
+        summary, _summary_failures = decision_ready_summary(item, args.decision, args.reason)
+        owner_outcome = args.outcome or summary.get("result_summary") or args.reason
         owner_criteria_result = args.criteria_result or ""
         if not owner_criteria_result or owner_criteria_result == owner_outcome:
             if final_kind == "ACCEPTED":
@@ -7003,8 +7006,8 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument("--team", default="", help="Team Lead; defaults from source artifacts")
     closeout.add_argument("--reason", default="", help="Operations Lead rationale for an explicit decision")
     closeout.add_argument("--source-ref", default="", help="Decision/evidence source reference")
-    closeout.add_argument("--outcome", default="", help="Owner-facing closeout outcome, default: reason")
-    closeout.add_argument("--criteria-result", default="", help="Owner-facing criteria result, default: reason")
+    closeout.add_argument("--outcome", default="", help="Owner-facing closeout outcome; defaults to evidence Result Summary")
+    closeout.add_argument("--criteria-result", default="", help="Owner-facing criteria result; defaults to a concise criteria verdict")
     closeout.add_argument("--verification", default="", help="Owner-facing verification summary")
     closeout.add_argument("--needed", default="", help="Required for blocked decisions")
     closeout.add_argument("--blocker-source", default="", help="Required for blocked decisions")
