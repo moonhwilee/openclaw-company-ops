@@ -752,10 +752,15 @@ Guarded closeout commit request:
 - Add a structured `--commit-request <json>` input so the fresh delegate does
   not synthesize arbitrary closeout CLI arguments.
 - Minimum commit request fields: `work_unit_id`, `decision`, `reason`,
-  `source_ref`, `result_ready_proof_id`, `artifact_hashes`, delegate
-  session/run refs, `authority_role`, `delegate_agent`, `autonomy_class`,
-  `review_depth`, structured `red_line_check`, and
+  owner-facing `outcome`, owner-facing `criteria_result`, `source_ref`,
+  `result_ready_proof_id`, `artifact_hashes`, delegate session/run refs,
+  `authority_role`, `delegate_agent`, `autonomy_class`, `review_depth`,
+  structured `red_line_check`, and
   blocked-only fields such as `blocker_source`, `needed`, and `next_owner`.
+- `reason` is the delegate audit rationale; it must not be reused as both the
+  owner-facing outcome and criteria verdict. Guarded closeout derives missing
+  owner-facing outcome from Evidence `Result Summary` and uses a concise
+  criteria verdict when `criteria_result` is missing or duplicates `outcome`.
 - Before writing final state, closeout must revalidate WU id, result-ready
   proof, source refs, artifact hashes, final-decision absence, final proof
   absence, stale/duplicate/conflict status, and manual-required red lines.

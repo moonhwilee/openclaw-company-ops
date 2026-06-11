@@ -308,6 +308,12 @@ guarded closeout only. The delegate execution turn prepares
 only through the guarded closeout command when all red-line categories are
 clear. It must not write `decision.md` directly, mutate Project final status
 directly, publish final Discord cards directly, archive, cleanup, or reassign.
+The delegate commit request separates reviewer rationale from owner-facing
+display fields: `reason` is the audit rationale, `outcome` is the concise
+owner-facing result summary, and `criteria_result` is the concise done-criteria
+verdict. If owner-facing fields are omitted, guarded closeout derives `outcome`
+from the Evidence `Result Summary` and uses a short criteria verdict instead of
+copying the long audit rationale into completion cards.
 `--closeout-delegate-adapter fake` is a smoke/local contract fixture, not a
 production path. Production wake should use the configured command adapter,
 usually through `COMPANY_OPS_CLOSEOUT_DELEGATE_ADAPTER_COMMAND`.
