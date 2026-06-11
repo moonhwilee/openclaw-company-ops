@@ -4106,6 +4106,12 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     dispatch_publish_payload = json.loads(dispatch_publish.stdout)
     if dispatch_publish_payload.get("status") != "dispatched":
         raise RuntimeError("dispatch publish did not record dispatched status")
+    if dispatch_publish_payload.get("ol_status", {}).get("status") != "team-active":
+        raise RuntimeError("dispatch publish did not expose Team Lead ownership to OL status")
+    if "do not send duplicate continuation" not in " ".join(
+        dispatch_publish_payload.get("ol_status", {}).get("prohibited_actions") or []
+    ):
+        raise RuntimeError("dispatch OL status did not warn against duplicate continuation")
     if "session:ops:WU-260607-110" not in (start_dir / "dispatch.json").read_text(encoding="utf-8"):
         raise RuntimeError("dispatch publish did not persist the session ref")
     if '"transition_kind": "dispatched"' not in (start_dir / "progress.jsonl").read_text(encoding="utf-8"):
@@ -4371,11 +4377,65 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     delegate_wake_publish_payload = json.loads(delegate_wake_publish.stdout)
     if delegate_wake_publish_payload.get("status") != "delegate-wake-enqueued":
         raise RuntimeError("closeout delegate wake publish did not report delegate-wake-enqueued")
+    if delegate_wake_publish_payload.get("ol_status", {}).get("status") != "delegate-wake-enqueued":
+        raise RuntimeError("delegate wake publish did not expose OL idle status")
     delegate_wake_record = json.loads((delegate_wake_dir / "closeout-delegate-wake.json").read_text(encoding="utf-8"))
     if delegate_wake_record.get("accepted_proof", {}).get("readback", {}).get("authority_boundary") != "closeout_delegate_guarded_closeout_only":
         raise RuntimeError("closeout delegate wake record did not persist guarded readback")
     if (delegate_wake_dir / "decision.md").read_text(encoding="utf-8").count("Status: Pending") != 1:
         raise RuntimeError("closeout delegate wake mutated decision.md")
+    ops_status_field_map = artifact_root.parent / "ops-status-project-field-map.json"
+    write_json(
+        ops_status_field_map,
+        {
+            "owner": "@me",
+            "project_number": 1,
+            "project_id": "PVT_local_smoke",
+            "fields": {
+                "Work Unit id": "field_work_unit",
+                "Repository": "field_repository",
+                "Work Card": "field_work_card",
+                "Team Lead": "field_team_lead",
+                "Status": "field_status",
+                "Progress": "field_progress",
+                "Priority": "field_priority",
+                "Blocker": "field_blocker",
+                "Evidence present": "field_evidence_present",
+                "Decision": "field_decision",
+                "Last proof or last source update": "field_last_update",
+                "Assignment Packet reference": "field_assignment",
+                "Ops Claim Ledger reference": "field_claim",
+                "Evidence & Result Record reference": "field_evidence",
+                "Operations Lead Decision reference": "field_ops_decision",
+            },
+        },
+    )
+    delegate_project_status = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--artifact-root",
+            str(artifact_root),
+            "--work-unit-id",
+            "WU-260607-117",
+            "--field-map",
+            str(ops_status_field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(delegate_project_status, "delegate wake Project status dry-run")
+    delegate_project_payload = json.loads(delegate_project_status.stdout)
+    delegate_project_unit = delegate_project_payload["work_units"][0]
+    delegate_project_fields = delegate_project_unit.get("desired_fields") or {}
+    if delegate_project_unit.get("source_ops_status", {}).get("state") != "delegate_wake_enqueued":
+        raise RuntimeError("Project dry-run did not expose source-derived delegate status")
+    if delegate_project_fields.get("Progress") != "closeout delegate enqueued":
+        raise RuntimeError("Project dry-run did not hydrate delegate progress")
+    if "do not manually close out" not in delegate_project_fields.get("Blocker", ""):
+        raise RuntimeError("Project dry-run did not hydrate OL no-manual-closeout blocker")
     duplicate_delegate_wake = run_command(
         [
             sys.executable,

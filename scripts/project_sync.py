@@ -53,7 +53,22 @@ GITHUB_ISSUE_OR_PR_PARTS_RE = re.compile(
     r"^https://github\.com/(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+)/(?:issues|pull)/(?P<number>\d+)(?:[?#].*)?$"
 )
 PROOF_LOG_NAME = "visibility-proof.jsonl"
+CLOSEOUT_DELEGATE_WAKE_NAME = "closeout-delegate-wake.json"
 PROOF_TIMESTAMP_FIELDS = ("discord_timestamp", "readback_at", "sent_at", "transition_at")
+TERMINALIZING_CLOSEOUT_STAGE_STATUSES = {
+    "started",
+    "team published",
+    "team_published",
+    "visibility published",
+    "visibility_published",
+    "project sync needed",
+    "project_sync_needed",
+    "work card summary needed",
+    "work_card_summary_needed",
+    "work card close needed",
+    "work_card_close_needed",
+    "published",
+}
 PROOF_LIFECYCLE_LABELS = {
     "ASSIGNED": "assigned",
     "ASSIGNED_DETAIL": "assigned",
@@ -215,6 +230,88 @@ def proof_lifecycle_projection(summary: dict[str, Any]) -> dict[str, str]:
     return {"progress": progress, "timestamp": raw_timestamp}
 
 
+def read_json_object(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def source_ops_status(summary: dict[str, Any]) -> dict[str, Any]:
+    artifact_dir = Path(str(summary.get("artifact_dir") or ""))
+    decision = normalize(decision_value(summary))
+    decision_status = normalize(summary["decision"]["status"])
+    lifecycle = normalize(str(summary.get("lifecycle", {}).get("state") or ""))
+    dispatch = read_json_object(artifact_dir / "dispatch.json")
+    wake = read_json_object(artifact_dir / CLOSEOUT_DELEGATE_WAKE_NAME)
+    wake_status = normalize(str(wake.get("status") or ""))
+    wake_active = wake_status in {"delegate wake enqueued", "delegate wake accepted", "enqueued", "accepted"}
+    stages: list[dict[str, str]] = []
+    if artifact_dir.exists():
+        for path in sorted(artifact_dir.glob("closeout-*-stage.json")):
+            stage = read_json_object(path)
+            stage_status = normalize(str(stage.get("status") or ""))
+            if stage_status in TERMINALIZING_CLOSEOUT_STAGE_STATUSES:
+                stages.append({"path": str(path), "status": stage_status})
+
+    if lifecycle in {"accepted", "revision requested", "blocked"} or decision in {"accept", "accepted", "revise", "revision", "blocked", "block"} or decision_status in {"accepted", "blocked"} or "revise" in decision_status:
+        return {
+            "state": "terminal_decided",
+            "message": "Accepted/reviewed; evidence is frozen.",
+            "progress": "",
+            "blocker": "",
+            "authority": "source-derived",
+        }
+    if stages:
+        stage = stages[-1]
+        return {
+            "state": "closeout_in_progress",
+            "message": "Closeout delegate in progress; final decision pending.",
+            "progress": "closeout in progress",
+            "blocker": "Operations Lead idle; do not publish a competing manual closeout without explicit takeover.",
+            "authority": "source-derived",
+            "source": stage["path"],
+        }
+    if wake_active:
+        ref = str(wake.get("job_ref") or wake.get("session_ref") or wake.get("message_ref") or "")
+        return {
+            "state": "delegate_wake_enqueued",
+            "message": "Result ready published; closeout delegate enqueued.",
+            "progress": "closeout delegate enqueued",
+            "blocker": "Operations Lead idle; do not manually close out.",
+            "authority": "source-derived",
+            "source": ref or str(artifact_dir / CLOSEOUT_DELEGATE_WAKE_NAME),
+        }
+    if lifecycle == "result ready":
+        return {
+            "state": "result_ready_waiting_review",
+            "message": "Result ready published; Operations Lead decision is pending.",
+            "progress": "",
+            "blocker": "",
+            "authority": "source-derived",
+        }
+    if dispatch:
+        owner = str(dispatch.get("team") or dispatch.get("agent") or "Team Lead")
+        return {
+            "state": "team_active",
+            "message": f"Dispatch accepted; {owner} owns execution. Operations Lead idle.",
+            "progress": "team lead owns execution",
+            "blocker": "Wait for RESULT_READY/inbox; do not send duplicate continuation.",
+            "authority": "source-derived",
+            "source": str(artifact_dir / "dispatch.json"),
+        }
+    return {
+        "state": "none",
+        "message": "",
+        "progress": "",
+        "blocker": "",
+        "authority": "source-derived",
+    }
+
+
 def normalize_field_entry(value: Any) -> dict[str, Any]:
     if isinstance(value, str):
         return {"id": value, "type": "text", "options": {}}
@@ -356,6 +453,10 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     lifecycle_projection = proof_lifecycle_projection(summary)
     terminal_progress = terminal_progress_display(summary, status)
     progress_display = terminal_progress or format_progress(progress) or lifecycle_projection["progress"]
+    ops_status = source_ops_status(summary)
+    ops_progress = str(ops_status.get("progress") or "")
+    if ops_progress and (not progress_display or ops_status.get("state") in {"closeout_in_progress", "delegate_wake_enqueued"}):
+        progress_display = ops_progress
     if terminal_progress and lifecycle_projection["timestamp"]:
         last_update = lifecycle_projection["timestamp"]
     else:
@@ -378,6 +479,11 @@ def desired_fields(summary: dict[str, Any], repository: str) -> dict[str, str]:
     if gate and not gate.get("ready"):
         blockers = gate.get("blockers") or []
         blocker = "; ".join(str(blocker) for blocker in blockers if blocker) or reason
+    ops_blocker = str(ops_status.get("blocker") or "")
+    if ops_blocker and not blocker:
+        blocker = ops_blocker
+    elif ops_blocker and ops_blocker not in blocker:
+        blocker = f"{blocker}; {ops_blocker}"
     fields = {
         "Work Unit id": summary["work_unit_id"],
         "Repository": repository,
@@ -433,6 +539,7 @@ def plan_work_unit(args: argparse.Namespace, work_unit_id: str, field_map: dict[
     )
     summary, return_code = build_summary(status_args)
     fields = desired_fields(summary, args.repository)
+    ops_status = source_ops_status(summary)
     missing_field_ids = [field for field in DEFAULT_FIELDS if field not in field_map["fields"]]
     return {
         "work_unit_id": work_unit_id,
@@ -445,6 +552,7 @@ def plan_work_unit(args: argparse.Namespace, work_unit_id: str, field_map: dict[
             "decision_ref": summary["decision"]["ref"],
         },
         "desired_fields": fields,
+        "source_ops_status": ops_status,
         "desired_issue_labels": sorted(desired_issue_labels(fields["Status"])),
         "planned_actions": build_actions(fields, field_map),
         "audit_problems": summary["audit_problems"],
@@ -466,6 +574,8 @@ def print_text(plan: dict[str, Any]) -> None:
         print(f"Work Card: {item['work_card'] or 'missing'}")
         print(f"Desired Status: {item['desired_fields']['Status']}")
         print(f"Team Lead: {item['desired_fields']['Team Lead']}")
+        if item.get("source_ops_status", {}).get("message"):
+            print(f"Ops status: {item['source_ops_status']['message']}")
         print(f"Evidence present: {item['desired_fields']['Evidence present']}")
         print(f"Decision: {item['desired_fields']['Decision']}")
         print(f"Mutation ready: {str(item['mutation_ready']).lower()}")

@@ -1313,6 +1313,92 @@ def work_unit_mutation_blockers(
     return blockers
 
 
+def dispatch_owner_status(artifact_dir: Path) -> dict[str, str]:
+    dispatch = read_json_object(artifact_dir / "dispatch.json")
+    if not dispatch:
+        return {"active": "false", "owner": "", "ref": "", "source": str(artifact_dir / "dispatch.json")}
+    owner = str(dispatch.get("team") or dispatch.get("agent") or "")
+    ref = (
+        str(dispatch.get("job_ref") or "")
+        or str(dispatch.get("session_ref") or "")
+        or str(dispatch.get("message_ref") or "")
+        or str(dispatch.get("session_key") or "")
+    )
+    return {
+        "active": "true",
+        "owner": owner,
+        "ref": ref,
+        "source": str(artifact_dir / "dispatch.json"),
+    }
+
+
+def operations_lead_status(artifact_root: Path, work_unit: str) -> dict[str, Any]:
+    state = work_unit_terminal_state(artifact_root, work_unit)
+    artifact_dir = Path(str(state["artifact_dir"]))
+    item = state["item"]
+    dispatch = dispatch_owner_status(artifact_dir)
+    prohibited = [
+        "do not infer authority from session silence, chat text, dashboard status, or labels",
+    ]
+    status = "review-source-state"
+    message = "Review source artifacts before choosing the next operation."
+    next_action = "Inspect the Work Unit source artifacts and run the appropriate guarded command."
+    reason = "source state is not in an active or terminal lifecycle phase"
+
+    if state["decision_final"] or state["owner_closeouts"] or state["final_reviews"]:
+        status = "terminal-decided"
+        message = "Accepted/reviewed; evidence is frozen."
+        next_action = "Do not edit closed artifacts; open an explicit recovery or new Work Unit if source drift is found."
+        reason = "final decision or final visibility proof exists"
+        prohibited.append("do not publish result-ready, checkpoint, dispatch, or competing closeout")
+    elif state["terminalizing_stages"]:
+        stage = state["terminalizing_stages"][-1]
+        status = "closeout-in-progress"
+        message = "Closeout delegate or guarded closeout is in progress; final decision pending."
+        next_action = "Operations Lead idle; wait for guarded closeout result or use explicit recovery only after reviewing source state."
+        reason = f"{Path(stage['path']).name} status={stage['status']}"
+        prohibited.append("do not publish a competing manual closeout without explicit takeover")
+    elif state["delegate"].get("active"):
+        status = "delegate-wake-enqueued"
+        message = "Result ready published; closeout delegate enqueued. Operations Lead idle. Do not manually close out."
+        next_action = "Wait for the delegate commit request or inspect delegate setup through the source-backed path."
+        reason = str(state["delegate"].get("delegate_ref") or state["delegate"].get("path") or "delegate wake record exists")
+        prohibited.append("do not send Team Lead continuation or manual closeout")
+    elif state["result_ready_waiting_review"]:
+        status = "result-ready-waiting-review"
+        message = "Result ready published; Operations Lead decision is pending."
+        next_action = "Review source artifacts, or enqueue/recover closeout delegate through work-unit delegate-wake."
+        reason = "claim/evidence/proof records result_ready and no final decision exists"
+        prohibited.append("do not send Team Lead continuation")
+    elif dispatch.get("active") == "true":
+        status = "team-active"
+        owner = dispatch.get("owner") or item.get("team") or "Team Lead"
+        message = f"Dispatch accepted; {owner} owns execution. Operations Lead idle. Next: wait for RESULT_READY/inbox."
+        next_action = "Do not continue the Team Lead from foreground; recover later from source/proof artifacts if explicit takeover is approved."
+        reason = dispatch.get("ref") or dispatch.get("source") or "dispatch.json exists"
+        prohibited.append("do not send duplicate continuation")
+    elif item.get("claim_state"):
+        status = "assigned-or-working"
+        message = "Work Unit source exists; follow guarded lifecycle commands for the next transition."
+        next_action = "Start or dispatch only if no active owner, result-ready proof, delegate wake, or terminal decision exists."
+        reason = f"claim_state={item.get('claim_state')}"
+
+    return {
+        "status": status,
+        "message": message,
+        "next_action": next_action,
+        "reason": reason,
+        "prohibited_actions": prohibited,
+        "authority": "source-derived",
+        "source_files": [
+            str(artifact_dir / "dispatch.json"),
+            str(artifact_dir / CLOSEOUT_DELEGATE_WAKE_FILENAME),
+            str(artifact_dir / "decision.md"),
+            str(artifact_dir / DEFAULT_PROOF_LOG_NAME),
+        ],
+    }
+
+
 def print_mutation_blocked(action: str, work_unit: str, blockers: list[str], *, format_name: str = "text") -> None:
     payload = {
         "status": "mutation-blocked",
@@ -1322,6 +1408,10 @@ def print_mutation_blocked(action: str, work_unit: str, blockers: list[str], *, 
         "would_mutate_source": False,
         "next_action": "Inspect source state and open an explicit recovery/takeover path if appropriate.",
     }
+    for blocker in blockers:
+        if ":" in blocker:
+            payload["blocker_class"] = blocker.split(":", 1)[0]
+            break
     if format_name == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
         return
@@ -4037,6 +4127,23 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         "would_append_progress": bool(args.publish),
         "would_call_runtime_adapter": bool(args.publish and args.runtime != "record-ref"),
         "would_spawn_runtime": False,
+        "ol_status": {
+            "status": "dispatch-preview" if args.dry_run else "team-active",
+            "message": (
+                "Dispatch accepted; Team Lead owns execution. Operations Lead idle. "
+                "Next: wait for RESULT_READY/inbox."
+            ),
+            "next_action": (
+                "Run publish with a configured runtime adapter, or use record-ref for a manually started session."
+                if args.dry_run
+                else "Report dispatched/fire-and-forget, then stop foreground waiting; recover later from source/proof artifacts."
+            ),
+            "prohibited_actions": [
+                "do not send duplicate continuation after accepted dispatch proof",
+                "do not infer authority from session silence, chat text, dashboard status, or labels",
+            ],
+            "authority": "source-derived",
+        },
         "next_action": (
             "Run publish with a configured runtime adapter, or use record-ref for a manually started session."
             if args.dry_run
@@ -4057,6 +4164,7 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
     dispatch_path.write_text(json.dumps(payload["dispatch_record"], indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     progress_path = append_progress_row(artifact_dir, row)
     payload["progress_path"] = str(progress_path)
+    payload["ol_status"] = operations_lead_status(artifact_root, args.work_unit_id)
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     else:
@@ -4476,6 +4584,8 @@ def closeout_delegate_wake_work_unit(args: argparse.Namespace) -> int:
         artifact_dir=artifact_dir,
         transition_at=transition_at,
     )
+    if code == 0:
+        payload["ol_status"] = operations_lead_status(artifact_root, args.work_unit_id)
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     elif code == 0:
@@ -4545,6 +4655,7 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
                 "mode": "skipped",
                 "reason": "existing RESULT_READY proof makes this retry idempotent",
             },
+            "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
             "next_action": (
                 "Use work-unit inbox --result-ready or work-unit delegate-wake "
                 "to recover closeout delegate setup if closeout has not started."
@@ -4572,6 +4683,13 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
             "post_publish_gate": {
                 "mode": "skipped",
                 "reason": "dry-run does not publish/read back RESULT_READY proof",
+            },
+            "ol_status": {
+                "status": "result-ready-preview",
+                "message": "Result ready would be published; Operations Lead review would become pending.",
+                "next_action": "Publish RESULT_READY only from the official result-ready path.",
+                "prohibited_actions": ["do not treat dry-run as source truth"],
+                "authority": "source-derived",
             },
         }
         if args.format == "json":
@@ -4610,6 +4728,7 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         "post_publish_gate": post_gate,
         "project_sync": project_sync,
         "delegate_wake": delegate_wake,
+        "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
     }
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
@@ -5676,6 +5795,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "would_publish_team_final_review": bool(args.decision and not decision_failures),
                 "would_publish_owner_closeout": bool(args.decision and not decision_failures),
                 "would_mutate_project": bool(args.project_sync_field_map and args.publish and not decision_failures),
+                "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
                 "next_action": next_action,
                 "checks": {
                     "source_artifacts_reread": True,
@@ -5828,6 +5948,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     "work_card_summary": work_card_summary,
                     "work_card_issue_close": work_card_issue_close,
                 }
+                publish_payload["ol_status"] = operations_lead_status(artifact_root, args.work_unit_id)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

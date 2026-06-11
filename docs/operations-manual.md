@@ -82,6 +82,15 @@ Lead closeout after that point requires an explicit takeover reason recorded in
 the decision source. Do not use session liveness, dashboard state, or chat
 silence as authority to create a second writer.
 
+Lifecycle commands should also return a source-derived Operations Lead status
+when they can. The status is guidance generated from Work Unit artifacts such
+as `dispatch.json`, `closeout-delegate-wake.json`, closeout stage files,
+`decision.md`, and `visibility-proof.jsonl`. It is not a prompt-memory rule and
+not a new source of truth. Its job is to make the safe next action visible, for
+example "Team Lead owns execution; Operations Lead idle" or "closeout delegate
+enqueued; do not manually close out." Command guards still decide whether a
+mutation is allowed.
+
 ## Main Session Nonblocking Rule
 
 The Operations Lead main session must not sit idle waiting for sizeable Team
@@ -814,6 +823,13 @@ transient `gh`/GitHub failures, final desired-vs-live readback, and diagnostic
 details for auth/scope/rate-limit failures. If a Project field update fails,
 the sync records the failed field and leaves an explicit `project-sync-needed`
 state instead of treating the dashboard as converged.
+
+Dashboard hydration may surface source-derived operational hints in existing
+fields such as `Progress` and `Blocker`, including active Team Lead ownership,
+delegate wake enqueued, closeout in progress, or terminal evidence-frozen
+states. These hints are visibility only. They must never be reverse-imported
+into Work Unit artifacts and must never authorize continuation, manual closeout,
+Project repair, or artifact mutation.
 
 During guarded closeout, Project sync failure must not block publication of the
 final marker-managed Work Card summary comment when the source-backed decision
