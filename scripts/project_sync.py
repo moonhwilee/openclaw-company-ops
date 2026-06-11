@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -38,6 +39,11 @@ DEFAULT_FIELDS = (
     "Evidence & Result Record reference",
     "Operations Lead Decision reference",
 )
+
+
+def stable_json_hash(value: Any) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 PRESERVE_WHEN_SOURCE_EMPTY_FIELDS = {"Priority"}
 FIELD_FALLBACKS = {
     # GitHub's built-in Repository field is read-only through the Project item
@@ -813,14 +819,28 @@ def apply_issue_label_sync(args: argparse.Namespace, item_plan: dict[str, Any]) 
     managed_current = current & ISSUE_QUEUE_LABELS
     add_labels = sorted(desired - current)
     remove_labels = sorted((managed_current - desired))
+    desired_full = sorted((current - ISSUE_QUEUE_LABELS) | desired)
     if not add_labels and not remove_labels:
         return {
             "result": "unchanged",
             "current": sorted(current),
-            "desired": sorted((current - ISSUE_QUEUE_LABELS) | desired),
+            "desired": desired_full,
             "add": [],
             "remove": [],
-            "readback": {"ok": True, "mismatches": []},
+            "readback": {
+                "target": "issue_labels",
+                "ok": True,
+                "sync_state": "attempted_ok",
+                "desired": {"managed_labels": sorted(desired)},
+                "live": {"managed_labels": sorted(managed_current)},
+                "checked": ["managed_labels"],
+                "mismatches": [],
+                "current_managed_labels": sorted(managed_current),
+                "desired_managed_labels": sorted(desired),
+                "live_managed_labels": sorted(managed_current),
+                "full_current_labels_sha256": stable_json_hash(sorted(current)),
+                "full_live_labels_sha256": stable_json_hash(sorted(current)),
+            },
         }
 
     command = [
@@ -851,11 +871,50 @@ def apply_issue_label_sync(args: argparse.Namespace, item_plan: dict[str, Any]) 
     return {
         "result": "readback_mismatch" if mismatches else "changed",
         "current": sorted(current),
-        "desired": sorted((current - ISSUE_QUEUE_LABELS) | desired),
+        "desired": desired_full,
         "add": add_labels,
         "remove": remove_labels,
-        "readback": {"ok": not mismatches, "mismatches": mismatches},
+        "readback": {
+            "target": "issue_labels",
+            "ok": not mismatches,
+            "sync_state": "readback_mismatch" if mismatches else "attempted_ok",
+            "desired": {"managed_labels": sorted(desired)},
+            "live": {"managed_labels": sorted(live_managed)},
+            "checked": ["managed_labels"],
+            "mismatches": mismatches,
+            "current_managed_labels": sorted(managed_current),
+            "desired_managed_labels": sorted(desired),
+            "live_managed_labels": sorted(live_managed),
+            "full_current_labels_sha256": stable_json_hash(sorted(current)),
+            "full_live_labels_sha256": stable_json_hash(sorted(live)),
+        },
     }
+
+
+def compact_issue_label_snapshot(issue_labels: dict[str, Any]) -> dict[str, Any]:
+    readback = issue_labels.get("readback") if isinstance(issue_labels.get("readback"), dict) else {}
+    compact = {
+        "result": issue_labels.get("result", ""),
+        "add": issue_labels.get("add", []),
+        "remove": issue_labels.get("remove", []),
+        "readback": {
+            "target": readback.get("target", "issue_labels"),
+            "ok": readback.get("ok", False),
+            "sync_state": readback.get("sync_state", ""),
+            "desired_managed_labels": readback.get("desired_managed_labels", []),
+            "current_managed_labels": readback.get("current_managed_labels", []),
+            "live_managed_labels": readback.get("live_managed_labels", []),
+            "full_current_labels_sha256": readback.get("full_current_labels_sha256", ""),
+            "full_live_labels_sha256": readback.get("full_live_labels_sha256", ""),
+            "checked": readback.get("checked", []),
+            "mismatches": readback.get("mismatches", []),
+        },
+    }
+    if issue_labels.get("reason"):
+        compact["reason"] = issue_labels.get("reason", "")
+    if issue_labels.get("error"):
+        compact["error"] = issue_labels.get("error", "")
+    return compact
 
 
 def list_project_items(args: argparse.Namespace, field_map: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1273,10 +1332,14 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
 
         status = "changed" if item_changed else "unchanged"
         readback_values = fetch_current_field_values(args, item_node_id)
+        desired_snapshot: dict[str, str] = {}
+        live_snapshot: dict[str, str] = {}
         readback_mismatches = []
         for field_name in DEFAULT_FIELDS:
             desired = item_plan["desired_fields"].get(field_name, "")
             live = current_value_for_field(readback_values, field_map, field_name)
+            desired_snapshot[field_name] = desired
+            live_snapshot[field_name] = live
             if field_name in PRESERVE_WHEN_SOURCE_EMPTY_FIELDS and not desired and live:
                 continue
             if live != desired:
@@ -1307,6 +1370,9 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
             "issue_labels": issue_labels,
             "readback": {
                 "ok": not readback_mismatches,
+                "checked_fields": list(DEFAULT_FIELDS),
+                "desired_fields": desired_snapshot,
+                "live_fields": live_snapshot,
                 "mismatches": readback_mismatches,
             },
         }
@@ -1321,6 +1387,14 @@ def apply_work_units(args: argparse.Namespace, plan: dict[str, Any], field_map: 
                 "project_item_id": item_node_id,
                 "result": status,
                 "changed_action_count": sum(1 for action in actions if action.get("result") == "changed"),
+                "issue_labels": compact_issue_label_snapshot(issue_labels),
+                "readback": {
+                    "ok": not readback_mismatches,
+                    "checked_fields": list(DEFAULT_FIELDS),
+                    "desired_fields": desired_snapshot,
+                    "live_fields": live_snapshot,
+                    "mismatches": readback_mismatches,
+                },
             },
         )
     if result["summary"]["failed"]:

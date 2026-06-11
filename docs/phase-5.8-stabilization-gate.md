@@ -1184,7 +1184,7 @@ Slice B, icon and display rules:
 - If more than one condition applies, choose the leading icon by priority:
   `⚠️` > `🔄` > `🧭`.
 - Keep retry/re-run progress visually distinct from closeout revision events
-  such as `🔁 [REVISE]`.
+  such as `⚠️ [REVISE]` and owner-facing `⚠️ [수정필요]`.
 - Preserve the full source slice/phase label inside the rendered progress
   summary. Keep checkpoint labels concise by writing discipline so Discord and
   Project remain readable, but do not ellipsize source-backed progress text in

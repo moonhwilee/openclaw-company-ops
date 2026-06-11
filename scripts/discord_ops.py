@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -56,7 +57,7 @@ OPS_FEED_CARD_LABELS = {
 OPS_FEED_CARD_STATUS_ICONS = {
     "ASSIGNED": "📌",
     "COMPLETED": "✅",
-    "NEEDS_REVISION": "🔁",
+    "NEEDS_REVISION": "⚠️",
     "BLOCKED": "⛔",
 }
 
@@ -66,7 +67,7 @@ TEAM_DETAIL_STATUS_ICONS = {
     "CHECKPOINT": "🧭",
     "RESULT_READY": "📦",
     "ACCEPTED": "✅",
-    "REVISE": "🔁",
+    "REVISE": "⚠️",
     "BLOCKED_DETAIL": "⛔",
 }
 
@@ -255,6 +256,27 @@ def stable_card_id(card: dict[str, str], text: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
+def text_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def compact_text_preview(value: str, limit: int = 200) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 3].rstrip() + "..."
+
+
+def text_snapshot(value: str) -> dict[str, Any]:
+    lines = value.splitlines()
+    return {
+        "sha256": text_sha256(value),
+        "length": len(value),
+        "header": lines[0] if lines else "",
+        "snippet": compact_text_preview(value),
+    }
+
+
 def find_values(data: Any, keys: set[str]) -> list[str]:
     found: list[str] = []
     if isinstance(data, dict):
@@ -338,7 +360,7 @@ def readback_match(
     args: argparse.Namespace,
     text: str,
     sent_message_id: str,
-) -> tuple[bool, str, str, dict[str, Any], str]:
+) -> tuple[bool, str, str, dict[str, Any], dict[str, Any], str]:
     command = [
         "openclaw",
         "message",
@@ -360,17 +382,26 @@ def readback_match(
 
     code, data, stdout, stderr = run_openclaw_message(command)
     if code != 0:
-        return False, "", "", data, stderr.strip() or stdout.strip()
+        return False, "", "", data, {}, stderr.strip() or stdout.strip()
 
     expected_header = text.splitlines()[0] if text else ""
     for candidate in find_message_objects(data):
         candidate_id = message_id(candidate)
         candidate_text = message_text(candidate)
+        exact_text = candidate_text == text
+        header_match = bool(expected_header and expected_header in candidate_text)
+        match_details = {
+            "match_basis": "",
+            "text_hash_match": exact_text,
+            "live_text": text_snapshot(candidate_text),
+        }
         if sent_message_id and candidate_id == sent_message_id:
-            return True, candidate_id, message_timestamp(candidate), data, ""
-        if candidate_text == text or (expected_header and expected_header in candidate_text):
-            return True, candidate_id, message_timestamp(candidate), data, ""
-    return False, "", "", data, "sent message was not found in readback"
+            match_details["match_basis"] = "message_id"
+            return True, candidate_id, message_timestamp(candidate), data, match_details, ""
+        if exact_text or header_match:
+            match_details["match_basis"] = "exact_text" if exact_text else "header_substring"
+            return True, candidate_id, message_timestamp(candidate), data, match_details, ""
+    return False, "", "", data, {}, "sent message was not found in readback"
 
 
 def normalize_alerts(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -952,9 +983,13 @@ def proof_row_from_card(
     sent_at: str,
     readback_at: str,
     readback_ok: bool,
+    readback_match_details: dict[str, Any] | None = None,
     error: str = "",
 ) -> dict[str, Any]:
     card_id = stable_card_id(card, text)
+    match_details = readback_match_details or {}
+    expected_text = text_snapshot(text)
+    live_text = match_details.get("live_text") if isinstance(match_details.get("live_text"), dict) else {}
     row = {
         "proof_version": 1,
         "proof_id": f"{card['work_unit_id']}:{card['surface']}:{card['kind']}:{card_id}",
@@ -974,6 +1009,16 @@ def proof_row_from_card(
         "readback_ok": readback_ok,
         "dry_run": bool(args.dry_run),
         "error": error,
+        "expected_text_sha256": expected_text["sha256"],
+        "expected_text_len": expected_text["length"],
+        "expected_header": expected_text["header"],
+        "expected_snippet": expected_text["snippet"],
+        "live_text_sha256": live_text.get("sha256", ""),
+        "live_text_len": live_text.get("length", 0),
+        "live_header": live_text.get("header", ""),
+        "live_snippet": live_text.get("snippet", ""),
+        "match_basis": match_details.get("match_basis", ""),
+        "text_hash_match": bool(match_details.get("text_hash_match", False)),
         "send_result": result_summary(send_result),
         "readback_result": {
             **result_summary(readback_result),
@@ -1041,6 +1086,7 @@ def perform_publish_card(args: argparse.Namespace) -> tuple[int, dict[str, Any],
             sent_at,
             readback_at,
             True,
+            {"match_basis": "dry_run", "text_hash_match": True, "live_text": text_snapshot(text)},
         )
         append_jsonl(args.proof_log, row)
         return 0, {"publish": row, "text": text, "project_sync": project_sync}, ""
@@ -1078,13 +1124,14 @@ def perform_publish_card(args: argparse.Namespace) -> tuple[int, dict[str, Any],
             sent_at,
             "",
             False,
+            {},
             stderr.strip() or stdout.strip() or "send failed",
         )
         append_jsonl(args.proof_log, row)
         return 1, {"publish": row}, f"error: Discord publish send failed; proof recorded as incomplete: {row['error']}"
 
     sent_message_id = first_sent_message_id(send_result)
-    readback_ok, readback_message_id, discord_timestamp, readback_result, readback_error = readback_match(
+    readback_ok, readback_message_id, discord_timestamp, readback_result, match_details, readback_error = readback_match(
         args, text, sent_message_id
     )
     readback_at = utc_now_iso()
@@ -1101,6 +1148,7 @@ def perform_publish_card(args: argparse.Namespace) -> tuple[int, dict[str, Any],
         sent_at,
         readback_at,
         readback_ok,
+        match_details,
         readback_error,
     )
     append_jsonl(args.proof_log, row)

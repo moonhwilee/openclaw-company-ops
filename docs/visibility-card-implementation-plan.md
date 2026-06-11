@@ -22,6 +22,8 @@ that the Operations Lead composes from the same facts in one transition.
   optional human-readable `근거`, and `다음`.
 - Completion card: `✅ [완료]`, with `결과`, `기준 대비`, `금비 판정`, `확인`,
   optional human-readable `근거`, and `다음`.
+- Revision-required card: `⚠️ [수정필요]`, with `결과`, `기준 대비`,
+  `금비 판정`, `확인`, optional human-readable `근거`, and `다음`.
 - Blocker card: `⛔ [막힘]`, with `문제`, `원인`, `필요`, optional
   human-readable `근거`, and `다음`.
 
@@ -29,7 +31,7 @@ that the Operations Lead composes from the same facts in one transition.
 
 - `📋 [ASSIGNED_DETAIL]`: goal, scope, criteria, cautions, and report format.
 - `📦 [RESULT_READY]`: result, evidence, verification, risks, and next action.
-- `✅ [ACCEPTED]`, `🔁 [REVISE]`, or `⛔ [BLOCKED_DETAIL]`: decision, reason, evidence or blocker,
+- `✅ [ACCEPTED]`, `⚠️ [REVISE]`, or `⛔ [BLOCKED_DETAIL]`: decision, reason, evidence or blocker,
   and next action.
 
 ## Header Icon Policy
@@ -56,18 +58,23 @@ Default status icons:
 
 - `📌 [요청]`: owner-visible assignment/request.
 - `✅ [완료]`: owner-visible completion after an accepted team review.
+- `⚠️ [수정필요]`: owner-visible revision-required closeout after Operations
+  Lead review.
 - `⛔ [막힘]`: owner-visible blocker.
 - `📋 [ASSIGNED_DETAIL]`: detailed team assignment.
 - `▶️ [STARTED]`: team execution has started.
+- `🧭 [PROGRESS]`: normal source-backed checkpoint progress.
+- `🔄 [PROGRESS]`: retry or re-run checkpoint inside a goal/convergence loop.
+- `⚠️ [PROGRESS]`: at-risk checkpoint before `RESULT_READY`.
 - `📦 [RESULT_READY]`: team result is ready for Operations Lead review.
 - `✅ [ACCEPTED]`: Operations Lead accepted the team result.
-- `🔁 [REVISE]`: Operations Lead requests revision.
+- `⚠️ [REVISE]`: Operations Lead requests revision after review.
 - `⛔ [BLOCKED_DETAIL]`: detailed team blocker.
 
 Alternatives considered: request can use `📝` or `➡️`; completion can use `🟢`
-or `🏁`; blocker can use `🛑` or `⚠️`; result-ready can use `📤` or `🔎`;
-revision can use `🛠️` or `✏️`. The defaults above are intentionally compact
-and high-contrast for quick Discord scanning.
+or `🏁`; blocker can use `🛑`; result-ready can use `📤` or `🔎`; revision can
+use `🛠️` or `✏️`. The defaults above reserve retry/loop icons for
+`[PROGRESS]` checkpoints and use warning icons for closeout revision states.
 
 ## Composer Boundary
 

@@ -302,7 +302,10 @@ Recommended event types:
 - `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `CHECKPOINT`, `RESULT_READY`,
   `ACCEPTED`, `REVISE`, `BLOCKED_DETAIL`.
 - `CHECKPOINT` is for long-running live progress between `STARTED` and
-  `RESULT_READY`.
+  `RESULT_READY`; it renders as `[PROGRESS]`, with `🔄` reserved for retry or
+  improvement-loop checkpoints and `⚠️` for at-risk checkpoints.
+- `REVISE` / `NEEDS_REVISION` are post-review closeout states, not in-progress
+  loop transitions; they render with `⚠️`.
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 

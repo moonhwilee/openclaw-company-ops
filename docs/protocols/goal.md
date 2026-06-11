@@ -68,7 +68,7 @@ happening:
   checkpoint, next expected checkpoint, and source artifact or evidence pointer
   when one exists.
 - If the work is a `goal` or `convergence` loop, include `--mode goal` or
-  `--mode convergence`, `--round`, and `--phase-index`. The dashboard renders
+  `--mode convergence`, `--round <round-number>`, and `--phase-index`. The dashboard renders
   these as `R<round> · P<phase-index>/<phase-total> · <slice>` when a total is
   known, or `R<round> · P<phase-index> · <slice>` when the total is not known.
   The renderer does not clamp or ellipsize source progress text; keep the slice

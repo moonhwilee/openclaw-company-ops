@@ -914,7 +914,7 @@ def run_discord_card_smoke() -> None:
         ]
     )
     require_success(revenue_revise, "discord revenue revise card")
-    if "🔁 [REVISE] WU-260605-905 · 💼 revenue" not in revenue_revise.stdout:
+    if "⚠️ [REVISE] WU-260605-905 · 💼 revenue" not in revenue_revise.stdout:
         raise RuntimeError("revenue card did not include canonical team icon")
 
     revenue_revise_json = run_command(
@@ -1005,7 +1005,7 @@ def run_discord_card_smoke() -> None:
     )
     require_success(needs_revision, "discord ops-feed needs-revision card")
     needs_revision_text = json.loads(needs_revision.stdout).get("text", "")
-    if "🔁 [수정필요] WU-260605-905 · 💼 revenue" not in needs_revision_text:
+    if "⚠️ [수정필요] WU-260605-905 · 💼 revenue" not in needs_revision_text:
         raise RuntimeError("ops-feed needs-revision card did not include expected header")
 
     result_ready = run_command(
@@ -1426,6 +1426,16 @@ def run_discord_card_smoke() -> None:
         checkpoint_publish = json.loads(checkpoint_publish_result.stdout)
         checkpoint_proof = checkpoint_publish.get("publish") or {}
         required_checkpoint_proof_fields = {
+            "expected_text_sha256",
+            "expected_text_len",
+            "expected_header",
+            "expected_snippet",
+            "live_text_sha256",
+            "live_text_len",
+            "live_header",
+            "live_snippet",
+            "match_basis",
+            "text_hash_match",
             "mode",
             "round",
             "show_round",
@@ -2203,6 +2213,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             RuntimeError("label-only sync should not edit already-current Project fields")
         )
         label_fetches = {"count": 0}
+        audit_rows: list[dict[str, Any]] = []
 
         def fake_fetch_issue_labels(args: argparse.Namespace, parts: dict[str, str]) -> set[str]:
             label_fetches["count"] += 1
@@ -2213,6 +2224,7 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         label_commands: list[list[str]] = []
         project_sync_module.fetch_issue_labels = fake_fetch_issue_labels
         project_sync_module.run_text_command = lambda command, timeout: label_commands.append(command) or ""
+        project_sync_module.append_audit = lambda path, row: audit_rows.append(row)
         label_apply = project_sync_module.apply_work_units(
             argparse.Namespace(
                 no_create_missing_project_item=False,
@@ -2237,6 +2249,20 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             raise RuntimeError(f"project sync issue label action removed wrong labels: {label_action}")
         if not label_commands or "issue" not in label_commands[0] or "edit" not in label_commands[0]:
             raise RuntimeError("project sync issue label action did not use gh issue edit")
+        label_readback = label_apply.get("work_units", [{}])[0].get("readback", {})
+        if label_readback.get("desired_fields", {}).get("Status") != "Result Ready":
+            raise RuntimeError("project sync readback did not include desired field snapshot")
+        if label_readback.get("live_fields", {}).get("Status") != "Result Ready":
+            raise RuntimeError("project sync readback did not include live field snapshot")
+        if not audit_rows or audit_rows[-1].get("readback", {}).get("live_fields", {}).get("Status") != "Result Ready":
+            raise RuntimeError("project sync audit did not persist live field snapshot")
+        label_snapshot = label_apply.get("work_units", [{}])[0].get("issue_labels", {}).get("readback", {})
+        if label_snapshot.get("desired_managed_labels") != ["decision-needed", "result-ready"]:
+            raise RuntimeError("project sync issue labels did not persist desired managed labels")
+        if label_snapshot.get("live_managed_labels") != ["decision-needed", "result-ready"]:
+            raise RuntimeError("project sync issue labels did not persist live managed labels")
+        if audit_rows[-1].get("issue_labels", {}).get("readback", {}).get("live_managed_labels") != ["decision-needed", "result-ready"]:
+            raise RuntimeError("project sync audit did not persist issue label readback snapshot")
 
         planned_accepted = {
             **planned_github,
@@ -2527,6 +2553,65 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             f"project sync dry-run did not format explicit round first: {show_round_fields.get('Progress')}"
         )
 
+    prefixed_round_root = artifact_root.parent / "prefixed-round-artifacts"
+    shutil.copytree(artifact_root / work_unit_id, prefixed_round_root / work_unit_id)
+    prefixed_round_progress = prefixed_round_root / work_unit_id / "progress.jsonl"
+    prefixed_round_progress.write_text(
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "started",
+                "source_ref": str(prefixed_round_root / work_unit_id / "assignment.md"),
+                "transition_at": "2026-06-06T12:00:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n"
+        +
+        json.dumps(
+            {
+                "work_unit_id": work_unit_id,
+                "transition_kind": "checkpoint",
+                "phase_index": "3",
+                "phase_total": "3",
+                "phase": "verify operating path",
+                "mode": "goal",
+                "round": "R1",
+                "show_round": True,
+                "transition_at": "2026-06-06T12:45:00Z",
+                "recorded_by": "operations-lead",
+            },
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    prefixed_round_result = run_command(
+        [
+            sys.executable,
+            str(PROJECT_SYNC),
+            "project-sync",
+            "dry-run",
+            "--ledger",
+            str(ledger),
+            "--artifact-root",
+            str(prefixed_round_root),
+            "--work-unit-id",
+            work_unit_id,
+            "--field-map",
+            str(field_map),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(prefixed_round_result, "project sync prefixed round progress dry-run")
+    prefixed_round_fields = json.loads(prefixed_round_result.stdout)["work_units"][0]["desired_fields"]
+    if prefixed_round_fields.get("Progress") != "R1 · P3/3 · verify operating path":
+        raise RuntimeError(
+            f"project sync dry-run double-prefixed round display: {prefixed_round_fields.get('Progress')}"
+        )
+
     goal_round_root = artifact_root.parent / "goal-round-artifacts"
     shutil.copytree(artifact_root / work_unit_id, goal_round_root / work_unit_id)
     goal_round_progress = goal_round_root / work_unit_id / "progress.jsonl"
@@ -2713,6 +2798,45 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("goal checkpoint accepted missing round metadata")
     if "goal progress requires --round" not in checkpoint_missing_round.stderr:
         raise RuntimeError("goal checkpoint missing-round rejection did not explain the metadata requirement")
+    checkpoint_invalid_round = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "checkpoint",
+            "--work-unit-id",
+            work_unit_id,
+            "--output-root",
+            str(checkpoint_root),
+            "--team",
+            "build-lab",
+            "--status",
+            "Goal loop checkpoint has invalid round.",
+            "--current-slice",
+            "converge implementation",
+            "--next",
+            "Continue the next goal slice.",
+            "--mode",
+            "goal",
+            "--round",
+            "next",
+            "--phase-index",
+            "2",
+            "--phase",
+            "converge implementation",
+            "--source-ref",
+            "local-smoke://checkpoint",
+            "--transition-at",
+            "2026-06-06T12:56:45Z",
+            "--format",
+            "json",
+            "--dry-run",
+        ]
+    )
+    if checkpoint_invalid_round.returncode == 0:
+        raise RuntimeError("goal checkpoint accepted invalid round metadata")
+    if "goal progress requires --round as a positive number" not in checkpoint_invalid_round.stderr:
+        raise RuntimeError("goal checkpoint invalid-round rejection did not explain the metadata requirement")
     after_checkpoint = checkpoint_progress.read_text(encoding="utf-8") if checkpoint_progress.exists() else ""
     if after_checkpoint != before_checkpoint:
         raise RuntimeError("checkpoint dry-run mutated progress.jsonl")
@@ -2847,6 +2971,11 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
             "--output-root",
             str(handoff_root),
             "--dry-run",
+            "--preflight",
+            "--openclaw-max-concurrent",
+            "10",
+            "--openclaw-subagents-max-concurrent",
+            "20",
             "--format",
             "json",
         ]
@@ -2868,6 +2997,13 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("handoff source context manifest did not validate the source ref")
     if handoff_payload.get("plan", {}).get("source_context", {}).get("required_count") != 1:
         raise RuntimeError("handoff plan did not include source context summary")
+    preflight_payload = handoff_payload.get("preflight") or {}
+    if preflight_payload.get("status") != "OK":
+        raise RuntimeError(f"handoff preflight did not pass: {preflight_payload}")
+    if preflight_payload.get("setup_checks", [{}])[0].get("name") not in {"project_sync_mode", "project_field_map"}:
+        raise RuntimeError("handoff preflight did not include deterministic setup checks")
+    if handoff_payload.get("llm_calls") != 0:
+        raise RuntimeError("handoff preflight/dry-run reported LLM calls")
     if (handoff_root / "WU-260606-906").exists():
         raise RuntimeError("handoff dry-run wrote persistent artifacts")
 
@@ -5867,8 +6003,16 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         summary_close = summary_payload.get("work_card_issue_close") or {}
         if summary_payload.get("status") != "published" or summary_result.get("sync_state") != "attempted_ok":
             raise RuntimeError("GitHub Work Card summary publish did not report attempted_ok")
+        summary_readback = summary_result.get("readback") or {}
+        if summary_readback.get("target") != "work_card_summary" or not summary_readback.get("ok"):
+            raise RuntimeError("GitHub Work Card summary publish did not persist body readback snapshot")
+        if not summary_readback.get("desired", {}).get("body_sha256") or not summary_readback.get("live", {}).get("body_sha256"):
+            raise RuntimeError("GitHub Work Card summary readback did not include desired/live body hashes")
         if summary_close.get("sync_state") != "attempted_ok" or summary_close.get("state") != "closed":
             raise RuntimeError("accepted GitHub Work Card issue close did not report attempted_ok")
+        close_readback = summary_close.get("readback") or {}
+        if close_readback.get("target") != "issue_close" or close_readback.get("desired", {}).get("state") != "closed":
+            raise RuntimeError("accepted GitHub Work Card issue close did not persist desired/live state snapshot")
         marker_count = sum(
             1
             for comment in summary_comments

@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from progress_display import ROUND_VISIBLE_MODES, render_progress_display, should_show_round
+from progress_display import ROUND_VISIBLE_MODES, normalize_round_value, render_progress_display, should_show_round
 from result_ready_gate import result_ready_gate
 
 
@@ -250,6 +250,8 @@ def validate_progress_metadata(row: dict[str, Any]) -> str:
         return ""
     if not str(row.get("round") or "").strip():
         return f"{mode} progress requires --round"
+    if not normalize_round_value(row.get("round")):
+        return f"{mode} progress requires --round as a positive number, e.g. 1"
     if not str(row.get("phase_index") or "").strip():
         return f"{mode} progress requires --phase-index"
     return ""
@@ -758,11 +760,11 @@ def markdown_details(summary: str, body: str) -> str:
 def criteria_evidence_summary_label(done_mapping: str) -> str:
     criterion_count = len(re.findall(r"(?im)^\s*-\s*Criterion\s*:", done_mapping))
     statuses = [
-        match.group(1).strip().rstrip(".").lower()
+        clean_markdown_value(match.group(1).strip().rstrip(".")).lower()
         for match in re.finditer(r"(?im)^\s*-\s*Status\s*:\s*(.+?)\s*$", done_mapping)
     ]
     total = criterion_count or len(statuses)
-    met = sum(1 for status in statuses if status in {"met", "pass", "passed"})
+    met = sum(1 for status in statuses if status in {"met", "pass", "passed"} or status.startswith("met "))
     if total:
         return f"Show criteria evidence: {met}/{total} met"
     return "Show criteria evidence"
@@ -976,6 +978,17 @@ def assignment_requires_live_visibility(assignment: dict[str, Any]) -> bool:
 def canonical_json_hash(value: dict[str, Any]) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def text_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def compact_text_preview(value: str, limit: int = 200) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 3].rstrip() + "..."
 
 
 def file_sha256(path: Path) -> str:
@@ -2154,20 +2167,21 @@ def public_install_preflight_checks(args: argparse.Namespace) -> tuple[list[dict
     return checks, blockers
 
 
-def capacity_check(args: argparse.Namespace) -> int:
-    agent_count = args.company_ops_agent_count
+def build_preflight_payload(args: argparse.Namespace) -> dict[str, Any]:
+    agent_count = getattr(args, "company_ops_agent_count", DEFAULT_COMPANY_OPS_AGENT_COUNT)
+    reserved_slots = getattr(args, "reserved_slots", DEFAULT_CAPACITY_RESERVED_SLOTS)
     if agent_count < 1:
-        print("error: --company-ops-agent-count must be >= 1", file=sys.stderr)
-        return 1
-    if args.reserved_slots < 0:
-        print("error: --reserved-slots must be >= 0", file=sys.stderr)
-        return 1
+        raise ValueError("--company-ops-agent-count must be >= 1")
+    if reserved_slots < 0:
+        raise ValueError("--reserved-slots must be >= 0")
     recommended_main = recommended_main_concurrency(agent_count)
     recommended_subagents = recommended_subagent_concurrency(agent_count)
     max_concurrent, subagents_max, warnings, config_source = openclaw_capacity_values(args)
     effective_max = max_concurrent if max_concurrent is not None else recommended_main
-    cap = active_wu_cap(effective_max, args.reserved_slots)
-    capacity = active_wu_capacity(args.artifact_root.expanduser(), args.work_unit_id)
+    cap = active_wu_cap(effective_max, reserved_slots)
+    artifact_root = getattr(args, "artifact_root", DEFAULT_ARTIFACT_ROOT)
+    work_unit = str(getattr(args, "work_unit_id", "") or "")
+    capacity = active_wu_capacity(artifact_root.expanduser(), work_unit)
     host_warnings: list[str] = []
     if max_concurrent is None:
         host_warnings.append(
@@ -2200,7 +2214,7 @@ def capacity_check(args: argparse.Namespace) -> int:
         "recommended": {
             "agents.defaults.maxConcurrent": recommended_main,
             "agents.defaults.subagents.maxConcurrent": recommended_subagents,
-            "reserved_slots": args.reserved_slots,
+            "reserved_slots": reserved_slots,
         },
         "current": {
             "agents.defaults.maxConcurrent": max_concurrent,
@@ -2230,6 +2244,15 @@ def capacity_check(args: argparse.Namespace) -> int:
             )
         ),
     }
+    return payload
+
+
+def capacity_check(args: argparse.Namespace) -> int:
+    try:
+        payload = build_preflight_payload(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
     else:
@@ -2427,6 +2450,28 @@ def create_github_work_card(spec: dict[str, Any], output_dir: Path) -> str:
     if not created_url:
         raise RuntimeError("gh issue create did not return a Work Card URL")
     return created_url
+
+
+def handoff_preflight_args(args: argparse.Namespace, spec: dict[str, Any]) -> argparse.Namespace:
+    project_sync_field_map = str(getattr(args, "project_sync_field_map", "") or "").strip()
+    return argparse.Namespace(
+        artifact_root=args.output_root.expanduser(),
+        work_unit_id=spec["work_unit_id"],
+        company_ops_agent_count=getattr(args, "company_ops_agent_count", DEFAULT_COMPANY_OPS_AGENT_COUNT),
+        reserved_slots=getattr(args, "reserved_slots", DEFAULT_CAPACITY_RESERVED_SLOTS),
+        config_json=getattr(args, "config_json", None),
+        openclaw_max_concurrent=getattr(args, "openclaw_max_concurrent", None),
+        openclaw_subagents_max_concurrent=getattr(args, "openclaw_subagents_max_concurrent", None),
+        project_sync_mode="required" if project_sync_field_map else "disabled",
+        project_sync_field_map=project_sync_field_map,
+        proof_log="",
+        team_target=spec["targets"]["team_detail"],
+        ops_target=spec["targets"]["ops_feed"],
+        require_discord_targets=True,
+        adapter_command="",
+        require_adapter_command=False,
+        role_context="operations-lead",
+    )
 
 
 def render_handoff_assignment(context: dict[str, Any]) -> str:
@@ -2720,6 +2765,7 @@ def write_handoff_files(
     ops_card: dict[str, Any],
     team_card: dict[str, Any],
     source_context_manifest: dict[str, Any],
+    preflight_payload: dict[str, Any] | None = None,
     *,
     force: bool,
 ) -> dict[str, str]:
@@ -2730,6 +2776,8 @@ def write_handoff_files(
         "ops_card": output_dir / "ops-assigned-card.json",
         "team_card": output_dir / "team-assigned-card.json",
     }
+    if preflight_payload is not None:
+        paths["handoff_preflight"] = output_dir / "handoff-preflight.json"
     if not force:
         existing = [str(path) for path in paths.values() if path.exists()]
         if existing:
@@ -2742,6 +2790,18 @@ def write_handoff_files(
     )
     paths["ops_card"].write_text(json.dumps({"card": ops_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     paths["team_card"].write_text(json.dumps({"card": team_card}, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    if preflight_payload is not None:
+        snapshot = {
+            "version": 1,
+            "source": "handoff --preflight publish-time snapshot",
+            "current_truth": False,
+            "captured_at": utc_now_iso(),
+            "preflight": preflight_payload,
+        }
+        paths["handoff_preflight"].write_text(
+            json.dumps(snapshot, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
     return {key: str(value) for key, value in paths.items()}
 
 
@@ -2874,6 +2934,18 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     if not spec["work_card"]:
         spec["work_card"] = f"planned Work Card in {spec['work_card_repo']}"
 
+    preflight_payload: dict[str, Any] | None = None
+    if getattr(args, "preflight", False):
+        try:
+            preflight_payload = build_preflight_payload(handoff_preflight_args(args, spec))
+        except ValueError as exc:
+            print(f"error: handoff preflight failed: {exc}", file=sys.stderr)
+            return 1
+        if preflight_payload.get("status") == "BLOCKED":
+            blockers = "; ".join(str(item) for item in preflight_payload.get("setup_blockers", []))
+            print(f"error: handoff preflight blocked: {blockers or 'blocked setup check'}", file=sys.stderr)
+            return 1
+
     try:
         source_context_manifest = build_source_context_manifest(spec, output_dir)
         if source_context_manifest["missing_required_refs"]:
@@ -2925,6 +2997,8 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
             "mode": "warning-only mirror",
         },
     }
+    if preflight_payload is not None:
+        plan["preflight"] = preflight_payload
     if args.dry_run:
         payload = {
             "plan": plan,
@@ -2933,6 +3007,8 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
             "team_card": team_card,
             "ops_text": ops_text,
             "team_text": team_text,
+            "preflight": preflight_payload,
+            "llm_calls": 0,
         }
         if args.format == "json":
             print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
@@ -2944,7 +3020,15 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        paths = write_handoff_files(output_dir, rendered, ops_card, team_card, source_context_manifest, force=args.force)
+        paths = write_handoff_files(
+            output_dir,
+            rendered,
+            ops_card,
+            team_card,
+            source_context_manifest,
+            preflight_payload=preflight_payload,
+            force=args.force,
+        )
     except (OSError, FileExistsError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -3588,6 +3672,48 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
     sync_state = parsed.get("sync_state")
     if not isinstance(sync_state, str) or not sync_state.strip():
         sync_state = "attempted_ok" if code == 0 else "failed"
+
+    def compact_issue_labels(value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {}
+        readback = value.get("readback") if isinstance(value.get("readback"), dict) else {}
+        compact = {
+            "result": value.get("result", ""),
+            "add": value.get("add", []),
+            "remove": value.get("remove", []),
+            "readback": {
+                "target": readback.get("target", "issue_labels"),
+                "ok": readback.get("ok", False),
+                "sync_state": readback.get("sync_state", ""),
+                "desired_managed_labels": readback.get("desired_managed_labels", []),
+                "current_managed_labels": readback.get("current_managed_labels", []),
+                "live_managed_labels": readback.get("live_managed_labels", []),
+                "full_current_labels_sha256": readback.get("full_current_labels_sha256", ""),
+                "full_live_labels_sha256": readback.get("full_live_labels_sha256", ""),
+                "checked": readback.get("checked", []),
+                "mismatches": readback.get("mismatches", []),
+            },
+        }
+        if value.get("reason"):
+            compact["reason"] = value.get("reason", "")
+        if value.get("error"):
+            compact["error"] = value.get("error", "")
+        return compact
+
+    compact_work_units = []
+    for unit in parsed.get("work_units", []) if isinstance(parsed.get("work_units"), list) else []:
+        if not isinstance(unit, dict):
+            continue
+        compact_work_units.append(
+            {
+                "work_unit_id": unit.get("work_unit_id", ""),
+                "work_card": unit.get("work_card", ""),
+                "project_item_id": unit.get("project_item_id", ""),
+                "result": unit.get("result", ""),
+                "readback": unit.get("readback", {}),
+                "issue_labels": compact_issue_labels(unit.get("issue_labels", {})),
+            }
+        )
     return {
         "enabled": True,
         "required": required_sync,
@@ -3597,6 +3723,7 @@ def run_project_sync(args: argparse.Namespace) -> dict[str, Any]:
         "sync_state": sync_state,
         "summary": parsed.get("summary", {}),
         "readback": parsed.get("readback", {}),
+        "work_units": compact_work_units,
         "error": output if code != 0 else "",
     }
 
@@ -3912,7 +4039,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         f"--work-unit-id {args.work_unit_id} --output-root {args.artifact_root} "
         f"--team {args.team} --status <status> --current-slice <current-slice> "
         "--next <next-action> --source-ref <source-ref> "
-        "--mode <mode> --round <round> --phase <phase> "
+        "--mode <mode> --round <round-number> --phase <phase> "
         "--phase-index <phase-index> --phase-total <phase-total> "
         f"--target {team_detail_target} --channel discord --account default "
         f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
@@ -5356,6 +5483,7 @@ def publish_work_card_summary_comment(
         if rendered["marker"] in str(comment.get("body") or ""):
             existing = comment
             break
+    operation = "update" if existing else "create"
     if existing:
         comment_id = existing.get("id")
         code, response, error = run_gh_api(
@@ -5368,8 +5496,38 @@ def publish_work_card_summary_comment(
     if code != 0:
         state.update({"ok": False, "sync_state": "comment_write_failed", "error": error})
         return state
-    if not isinstance(response, dict) or rendered["marker"] not in str(response.get("body") or ""):
+    live_body = str(response.get("body") or "") if isinstance(response, dict) else ""
+    marker_present = rendered["marker"] in live_body
+    desired_hash = text_sha256(body)
+    live_hash = text_sha256(live_body)
+    readback = {
+        "target": "work_card_summary",
+        "ok": bool(marker_present and live_hash == desired_hash),
+        "sync_state": "attempted_ok" if marker_present and live_hash == desired_hash else "readback_mismatch",
+        "operation": operation,
+        "desired": {
+            "body_sha256": desired_hash,
+            "body_length": len(body),
+            "marker": rendered["marker"],
+            "snippet": compact_text_preview(body),
+        },
+        "live": {
+            "body_sha256": live_hash,
+            "body_length": len(live_body),
+            "marker_present": marker_present,
+            "snippet": compact_text_preview(live_body),
+        },
+        "checked": ["marker", "body_sha256"],
+        "mismatches": [],
+        "refs": {},
+    }
+    if live_hash != desired_hash:
+        readback["mismatches"].append({"field": "body_sha256", "desired": desired_hash, "live": live_hash})
+    if not marker_present:
+        readback["mismatches"].append({"field": "marker", "desired": rendered["marker"], "live": "missing"})
+    if not isinstance(response, dict) or not readback["ok"]:
         state.update({"ok": False, "sync_state": "readback_mismatch", "error": "created/updated comment readback did not contain managed marker"})
+        state["readback"] = readback
         return state
     state.update(
         {
@@ -5379,6 +5537,13 @@ def publish_work_card_summary_comment(
             "comment_url": response.get("html_url") or response.get("url") or "",
             "marker": rendered["marker"],
             "rendered_summary": rendered["summary"],
+            "readback": {
+                **readback,
+                "refs": {
+                    "comment_id": response.get("id"),
+                    "comment_url": response.get("html_url") or response.get("url") or "",
+                },
+            },
         }
     )
     return state
@@ -5411,8 +5576,26 @@ def close_accepted_work_card_issue(args: argparse.Namespace, item: dict[str, Any
         state.update({"ok": False, "sync_state": "issue_close_failed", "error": error})
         return state
     live_state = str((response or {}).get("state") or "").lower() if isinstance(response, dict) else ""
+    desired_state = {"state": "closed", "state_reason": "completed"}
+    live = {
+        "state": live_state,
+        "state_reason": str((response or {}).get("state_reason") or "") if isinstance(response, dict) else "",
+        "closed_at": str((response or {}).get("closed_at") or "") if isinstance(response, dict) else "",
+    }
+    readback = {
+        "target": "issue_close",
+        "ok": live_state == "closed",
+        "sync_state": "attempted_ok" if live_state == "closed" else "readback_mismatch",
+        "desired": desired_state,
+        "live": live,
+        "checked": ["state"],
+        "mismatches": [],
+        "refs": {},
+    }
     if live_state != "closed":
+        readback["mismatches"].append({"field": "state", "desired": "closed", "live": live_state or "unknown"})
         state.update({"ok": False, "sync_state": "readback_mismatch", "error": f"issue state readback was {live_state or 'unknown'}"})
+        state["readback"] = readback
         return state
     state.update(
         {
@@ -5420,6 +5603,12 @@ def close_accepted_work_card_issue(args: argparse.Namespace, item: dict[str, Any
             "sync_state": "attempted_ok",
             "issue_url": (response or {}).get("html_url", "") if isinstance(response, dict) else "",
             "state": live_state,
+            "readback": {
+                **readback,
+                "refs": {
+                    "issue_url": (response or {}).get("html_url", "") if isinstance(response, dict) else "",
+                },
+            },
         }
     )
     return state
@@ -6569,6 +6758,20 @@ def build_parser() -> argparse.ArgumentParser:
     handoff.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
     handoff.add_argument("--readback-limit", type=int, default=10, help="Recent message count for readback")
     handoff.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Run deterministic setup/capacity checks before dry-run or publish; does not alter the handoff spec",
+    )
+    handoff.add_argument("--company-ops-agent-count", type=int, default=DEFAULT_COMPANY_OPS_AGENT_COUNT)
+    handoff.add_argument("--reserved-slots", type=int, default=DEFAULT_CAPACITY_RESERVED_SLOTS)
+    handoff.add_argument("--config-json", type=Path, help="Optional OpenClaw config JSON for offline preflight")
+    handoff.add_argument("--openclaw-max-concurrent", type=int, help="Override current agents.defaults.maxConcurrent")
+    handoff.add_argument(
+        "--openclaw-subagents-max-concurrent",
+        type=int,
+        help="Override current agents.defaults.subagents.maxConcurrent",
+    )
+    handoff.add_argument(
         "--project-sync-field-map",
         default="",
         help="Optional Project field-map JSON; runs mirror sync after successful handoff publish",
@@ -6645,7 +6848,7 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--phase", default="", help="Current phase label")
     progress.add_argument("--phase-index", default="", help="Current phase number or label")
     progress.add_argument("--phase-total", default="", help="Known total phase count, if any")
-    progress.add_argument("--round", default="", help="Current convergence round, if applicable")
+    progress.add_argument("--round", default="", help="Current convergence round number, e.g. 1")
     progress.add_argument(
         "--show-round",
         action="store_true",
@@ -6680,7 +6883,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
     start.add_argument("--phase-index", default="", help="Current phase number or label for dashboard Progress")
     start.add_argument("--phase-total", default="", help="Known total phase count, if any")
-    start.add_argument("--round", default="", help="Current goal/convergence round")
+    start.add_argument("--round", default="", help="Current goal/convergence round number, e.g. 1")
     start.add_argument("--source-ref", required=True, help="Source artifact reference for the start decision")
     start.add_argument("--next", default="Publish checkpoint before RESULT_READY if work runs long.", help="Discord next action")
     start.add_argument("--transition-at", default="", help="UTC ISO timestamp, default: now")
@@ -6764,7 +6967,7 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
     dispatch.add_argument("--phase-index", default="", help="Current phase number or label for dashboard Progress")
     dispatch.add_argument("--phase-total", default="", help="Known total phase count, if any")
-    dispatch.add_argument("--round", default="", help="Current goal/convergence round")
+    dispatch.add_argument("--round", default="", help="Current goal/convergence round number, e.g. 1")
     dispatch.add_argument(
         "--capacity-max-concurrent",
         type=int,
@@ -6862,7 +7065,7 @@ def build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument("--phase", default="", help="Current phase label for dashboard Progress")
     checkpoint.add_argument("--phase-index", default="", help="Current phase number or label")
     checkpoint.add_argument("--phase-total", default="", help="Known total phase count, if any")
-    checkpoint.add_argument("--round", default="", help="Current convergence round, if applicable")
+    checkpoint.add_argument("--round", default="", help="Current convergence round number, e.g. 1")
     checkpoint.add_argument(
         "--show-round",
         action="store_true",

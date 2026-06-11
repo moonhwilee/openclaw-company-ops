@@ -771,7 +771,10 @@ Recommended visibility kinds:
 - `#team-*`: `ASSIGNED_DETAIL`, `STARTED`, `CHECKPOINT`, `RESULT_READY`,
   `ACCEPTED`, `REVISE`, `BLOCKED_DETAIL`.
 - `CHECKPOINT` is for long-running live progress between `STARTED` and
-  `RESULT_READY`.
+  `RESULT_READY`; it renders as `[PROGRESS]`, with retry/re-run loops shown as
+  `🔄 [PROGRESS]` and at-risk checkpoints as `⚠️ [PROGRESS]`.
+- `REVISE` / `NEEDS_REVISION` are post-review closeout states and render as
+  `⚠️ [REVISE]` / `⚠️ [수정필요]`, not as in-progress retry loops.
 - `#ops-alerts`: `CLAIM_STALE`, `SESSION_MISMATCH`,
   `COMPACTION_RECOVERY_SUSPECTED`.
 

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 ROUND_VISIBLE_MODES = {"goal", "convergence"}
 
 AT_RISK_STATES = {"at-risk", "at_risk", "risk", "blocked", "blocker", "blocked_progress"}
 RETRY_STATES = {"retry", "re-run", "rerun", "re_run", "retrying"}
+ROUND_RE = re.compile(r"^R?([1-9][0-9]*)$", re.IGNORECASE)
 
 
 def truthy(value: Any) -> bool:
@@ -24,6 +26,14 @@ def should_show_round(mode: str, explicit_show_round: Any) -> bool:
 
 def normalized_state(value: Any) -> str:
     return str(value or "").strip().lower()
+
+
+def normalize_round_value(value: Any) -> str:
+    raw = str(value or "").strip()
+    match = ROUND_RE.fullmatch(raw)
+    if not match:
+        return ""
+    return match.group(1)
 
 
 def progress_icon(row: dict[str, Any]) -> str:
@@ -45,7 +55,11 @@ def progress_parts(row: dict[str, Any]) -> tuple[str, str, str]:
     total = str(row.get("phase_total") or "").strip()
 
     prefix = f"P{index}/{total}" if index and total else f"P{index}" if index else ""
-    round_part = f"R{round_value}" if round_value and should_show_round(mode, row.get("show_round")) else ""
+    normalized_round = normalize_round_value(round_value)
+    if normalized_round and should_show_round(mode, row.get("show_round")):
+        round_part = f"R{normalized_round}"
+    else:
+        round_part = ""
     label = current_slice or phase
     return round_part, prefix, label
 

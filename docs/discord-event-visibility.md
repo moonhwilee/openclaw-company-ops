@@ -473,12 +473,13 @@ Use these event names consistently.
 - `ASSIGNED_DETAIL`: detailed Team Lead assignment and done criteria.
 - `STARTED`: Team Lead started or claimed execution.
 - `CHECKPOINT`: long-running progress card between `STARTED` and
-  `RESULT_READY`, used at slice boundaries or the 10-15 minute checkpoint
-  interval.
+  `RESULT_READY`, rendered as `[PROGRESS]` with `🧭` for ordinary progress,
+  `🔄` for retry/re-run loop checkpoints, or `⚠️` for at-risk checkpoints.
 - `RESULT_READY`: Team Lead submitted result, evidence, or verification
   candidates.
 - `ACCEPTED`: Operations Lead accepted the result after review.
-- `REVISE`: Operations Lead requires revision.
+- `REVISE`: Operations Lead requires revision after review; this is a
+  closeout/review state, not an in-progress retry loop.
 - `BLOCKED_DETAIL`: blocker details, missing evidence, or required owner input.
 
 `#ops-alerts` alert kinds:
@@ -504,9 +505,12 @@ Default team icons:
 Default status icons:
 
 - `📌 [요청]` / `✅ [완료]` / `⛔ [막힘]`
-- `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / `⏱️ [CHECKPOINT]` /
+- `⚠️ [수정필요]` for owner-facing revision-required closeout.
+- `📋 [ASSIGNED_DETAIL]` / `▶️ [STARTED]` / `🧭 [PROGRESS]` /
+  `🔄 [PROGRESS]` for retry/re-run checkpoints / `⚠️ [PROGRESS]` for at-risk
+  checkpoints /
   `📦 [RESULT_READY]`
-- `✅ [ACCEPTED]` / `🔁 [REVISE]` / `⛔ [BLOCKED_DETAIL]`
+- `✅ [ACCEPTED]` / `⚠️ [REVISE]` / `⛔ [BLOCKED_DETAIL]`
 
 Discord is the limiting surface. Visibility card output must fit into one
 Discord message by default. If the body is too long, compact it before sending:
@@ -824,6 +828,9 @@ operating state.
 Use `ACCEPTED` or `REVISE` in the team detail trail only after Operations Lead
 review. Use `COMPLETED` in `#ops-feed` only when the owner-facing result summary
 is accepted. Use `NEEDS_REVISION` in `#ops-feed` after a team-detail `REVISE`.
+Use `CHECKPOINT`/`[PROGRESS]` for goal-loop round changes, retry/re-run, and
+improvement-loop visibility before `RESULT_READY`; do not use `REVISE` for
+in-progress loop transition notes.
 
 The Discord visibility message may summarize the decision, but the decision
 artifact or final Operations Lead review remains the authority.
