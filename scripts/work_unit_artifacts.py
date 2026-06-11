@@ -867,6 +867,12 @@ def safe_source_artifact_ref(value: str | Path, *, work_unit_id: str) -> str:
     if re.match(r"^[a-z][a-z0-9+.-]*://", raw, flags=re.IGNORECASE):
         return raw
     path = Path(raw).expanduser()
+    parts = path.parts
+    if work_unit_id in parts:
+        work_unit_index = len(parts) - 1 - list(reversed(parts)).index(work_unit_id)
+        suffix = Path(*parts[work_unit_index + 1 :]) if work_unit_index + 1 < len(parts) else Path("")
+        if str(suffix):
+            return (DEFAULT_ARTIFACT_ROOT / work_unit_id / suffix).as_posix()
     repo_root = Path.cwd().resolve()
     candidates = [path]
     if not path.is_absolute():
@@ -879,7 +885,6 @@ def safe_source_artifact_ref(value: str | Path, *, work_unit_id: str) -> str:
             continue
     if path.name in ARTIFACTS or path.name in {DEFAULT_PROOF_LOG_NAME, "progress.jsonl"}:
         return (DEFAULT_ARTIFACT_ROOT / work_unit_id / path.name).as_posix()
-    parts = path.parts
     if "docs" in parts:
         docs_index = parts.index("docs")
         return Path(*parts[docs_index:]).as_posix()
@@ -1399,7 +1404,14 @@ def operations_lead_status(artifact_root: Path, work_unit: str) -> dict[str, Any
     }
 
 
-def print_mutation_blocked(action: str, work_unit: str, blockers: list[str], *, format_name: str = "text") -> None:
+def print_mutation_blocked(
+    action: str,
+    work_unit: str,
+    blockers: list[str],
+    *,
+    artifact_root: Path | None = None,
+    format_name: str = "text",
+) -> None:
     payload = {
         "status": "mutation-blocked",
         "work_unit_id": work_unit,
@@ -1412,6 +1424,8 @@ def print_mutation_blocked(action: str, work_unit: str, blockers: list[str], *, 
         if ":" in blocker:
             payload["blocker_class"] = blocker.split(":", 1)[0]
             break
+    if artifact_root is not None:
+        payload["ol_status"] = operations_lead_status(artifact_root, work_unit)
     if format_name == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
         return
@@ -3987,7 +4001,7 @@ def dispatch_work_unit(args: argparse.Namespace) -> int:
         return 1
     blockers = work_unit_mutation_blockers(artifact_root, args.work_unit_id, "dispatch")
     if blockers:
-        print_mutation_blocked("dispatch", args.work_unit_id, blockers, format_name=args.format)
+        print_mutation_blocked("dispatch", args.work_unit_id, blockers, artifact_root=artifact_root, format_name=args.format)
         return 1
     assignment = parse_markdown_source(artifact_dir / "assignment.md")
     if not assignment.get("exists"):
@@ -4181,7 +4195,7 @@ def start_work_unit(args: argparse.Namespace) -> int:
         return 1
     blockers = work_unit_mutation_blockers(artifact_root, args.work_unit_id, "start")
     if blockers:
-        print_mutation_blocked("start", args.work_unit_id, blockers, format_name=args.format)
+        print_mutation_blocked("start", args.work_unit_id, blockers, artifact_root=artifact_root, format_name=args.format)
         return 1
     assignment = parse_markdown_source(artifact_dir / "assignment.md")
     if not assignment.get("exists"):
@@ -4297,7 +4311,7 @@ def checkpoint_work_unit(args: argparse.Namespace) -> int:
         return 1
     blockers = work_unit_mutation_blockers(args.output_root.expanduser(), args.work_unit_id, "checkpoint")
     if blockers:
-        print_mutation_blocked("checkpoint", args.work_unit_id, blockers, format_name=args.format)
+        print_mutation_blocked("checkpoint", args.work_unit_id, blockers, artifact_root=args.output_root.expanduser(), format_name=args.format)
         return 1
     if not args.dry_run and not args.publish:
         print("error: checkpoint requires --dry-run or --publish", file=sys.stderr)
@@ -4574,7 +4588,7 @@ def closeout_delegate_wake_work_unit(args: argparse.Namespace) -> int:
         return 1
     blockers = work_unit_mutation_blockers(artifact_root, args.work_unit_id, "delegate-wake")
     if blockers:
-        print_mutation_blocked("delegate-wake", args.work_unit_id, blockers, format_name=args.format)
+        print_mutation_blocked("delegate-wake", args.work_unit_id, blockers, artifact_root=artifact_root, format_name=args.format)
         return 1
     transition_at = args.transition_at or utc_now_iso()
     args.transition_at = transition_at
@@ -4639,7 +4653,7 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         allow_result_ready_idempotency=bool(args.publish and existing_result_ready and not args.force),
     )
     if blockers:
-        print_mutation_blocked("result-ready", args.work_unit_id, blockers, format_name=args.format)
+        print_mutation_blocked("result-ready", args.work_unit_id, blockers, artifact_root=artifact_root, format_name=args.format)
         return 1
     if args.publish and existing_result_ready and not args.force:
         payload = {

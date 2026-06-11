@@ -4461,6 +4461,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     )
     if duplicate_delegate_wake.returncode == 0:
         raise RuntimeError("closeout delegate wake accepted duplicate wake without --force")
+    duplicate_delegate_wake_payload = json.loads(duplicate_delegate_wake.stdout)
+    if duplicate_delegate_wake_payload.get("ol_status", {}).get("status") != "delegate-wake-enqueued":
+        raise RuntimeError("duplicate delegate wake block did not include delegate OL status")
 
     delegate_accept_adapter = work_dir / "accept_closeout_delegate_adapter.py"
     delegate_accept_adapter.write_text(
@@ -5077,6 +5080,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     late_result_payload = json.loads(late_result_ready_after_decision.stdout)
     if "terminal_decided" not in " ".join(late_result_payload.get("blockers", [])):
         raise RuntimeError("terminal decision result-ready block did not explain terminal_decided")
+    if late_result_payload.get("ol_status", {}).get("status") != "terminal-decided":
+        raise RuntimeError("terminal decision result-ready block did not include terminal OL status")
 
     late_checkpoint_after_decision = run_command(
         [
@@ -5108,6 +5113,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     late_checkpoint_payload = json.loads(late_checkpoint_after_decision.stdout)
     if "terminal_decided" not in " ".join(late_checkpoint_payload.get("blockers", [])):
         raise RuntimeError("terminal decision checkpoint block did not explain terminal_decided")
+    if late_checkpoint_payload.get("ol_status", {}).get("status") != "terminal-decided":
+        raise RuntimeError("terminal decision checkpoint block did not include terminal OL status")
 
     closeout_stage_guard_dir = create_artifacts(args, inbox_work_dir, "WU-260607-161", "build-lab")
     mark_artifact_started(closeout_stage_guard_dir)
@@ -5157,6 +5164,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     closeout_stage_block_payload = json.loads(result_ready_during_closeout.stdout)
     if "closeout_in_progress" not in " ".join(closeout_stage_block_payload.get("blockers", [])):
         raise RuntimeError("closeout stage result-ready block did not explain closeout_in_progress")
+    if closeout_stage_block_payload.get("ol_status", {}).get("status") != "closeout-in-progress":
+        raise RuntimeError("closeout stage result-ready block did not include closeout OL status")
 
     delegate_takeover_dir = create_artifacts(args, inbox_work_dir, "WU-260607-162", "build-lab")
     mark_artifact_started(delegate_takeover_dir)
