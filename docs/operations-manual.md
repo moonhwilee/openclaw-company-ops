@@ -425,12 +425,21 @@ Race control:
   a revision or reopen.
 - Guarded closeout publish records a narrow stage file named
   `closeout-<decision>-stage.json`. The stage progresses through `started`,
-  `team-published`, `visibility-published`, and `published`. Final
-  `decision.md` is written only after team-detail final review and owner-facing
-  ops-feed closeout publish both succeed. If publish fails mid-way, rerun the
-  same Work Unit/decision/commit request in foreground; the command may skip
-  matching already-published proof rows and continue instead of duplicating
-  visibility or requiring manual source edits.
+  `team-published`, `visibility-published`, `project-sync-needed`,
+  `work-card-summary-needed`, `work-card-close-needed`, and `published`.
+  Final `decision.md` is written only after team-detail final review and
+  owner-facing ops-feed closeout publish both succeed. If publish fails
+  mid-way, rerun the same Work Unit/decision/commit request in foreground; the
+  command may skip matching already-published proof rows and continue instead
+  of duplicating visibility or requiring manual source edits.
+- Guarded closeout publish writes `closeout-source-index.json` after the
+  direct source scan. The index is derived and pointer-only: source artifact
+  paths, hashes, proof row hashes, progress row hashes, and criteria line
+  pointers. It is not a source of truth, must not contain accept/revise/block
+  judgment text, and must be ignored if missing, stale, or mismatched.
+- `handoff-timing.json` and `closeout-timing.json` are diagnostic-only local
+  timing metadata. They record command step durations without external calls,
+  LLM calls, or wait loops and must not be used as proof authority.
 
 Goal/convergence revision boundary:
 

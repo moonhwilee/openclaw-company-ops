@@ -36,9 +36,13 @@ exists:
 - `decision.md`
 - `progress.jsonl`
 - `visibility-proof.jsonl`
+- `handoff-preflight.json`
+- `handoff-timing.json`
 - `dispatch.json`
 - `closeout-delegate-wake.json`
 - `closeout-commit-request.json`
+- `closeout-source-index.json`
+- `closeout-timing.json`
 - `closeout-<decision>-stage.json`
 - Discord card JSON files
 
@@ -47,6 +51,19 @@ Handoff spec drafts may live next to Work Unit directories as
 
 Project sync audit is intentionally separate from repo-local Work Unit artifacts:
 `~/.openclaw/state/openclaw-company-ops/project-sync-audit.jsonl`.
+
+`handoff-timing.json` and `closeout-timing.json` are diagnostic metadata only.
+They record local command step durations from `time.perf_counter()` so
+operators can distinguish local rendering, source-context, publish,
+Project-sync, summary-comment, and issue-close cost. They do not call external
+services, add waits, or change source-truth decisions.
+
+`closeout-source-index.json` is a derived closeout pointer index only. It may
+record source artifact paths, hashes, line pointers, proof row hashes, and row
+counts from the direct source scan, but it is not a source of truth and must not
+contain accept/revise/block decisions, natural-language judgment summaries, or
+external mirror cache data. If it is missing, stale, or mismatched, consumers
+must ignore it and inspect the source artifacts directly.
 
 ## Distribution Boundary
 

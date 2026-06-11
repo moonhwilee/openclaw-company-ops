@@ -3004,6 +3004,13 @@ def run_project_sync_smoke(args: argparse.Namespace, ledger: Path, artifact_root
         raise RuntimeError("handoff preflight did not include deterministic setup checks")
     if handoff_payload.get("llm_calls") != 0:
         raise RuntimeError("handoff preflight/dry-run reported LLM calls")
+    timing = handoff_payload.get("timing") or {}
+    if timing.get("command") != "work-unit handoff" or not isinstance(timing.get("total_ms"), int):
+        raise RuntimeError("handoff dry-run did not report command timing")
+    timing_steps = [step.get("step") for step in timing.get("steps") or []]
+    for expected_step in ("validate_spec", "preflight", "source_context", "render_artifacts", "render_discord_cards"):
+        if expected_step not in timing_steps:
+            raise RuntimeError(f"handoff dry-run timing missing step: {expected_step}")
     if (handoff_root / "WU-260606-906").exists():
         raise RuntimeError("handoff dry-run wrote persistent artifacts")
 
@@ -5539,6 +5546,26 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     accept_payload = json.loads(closeout_accept.stdout)
     if accept_payload.get("status") != "decision-ready":
         raise RuntimeError(f"closeout accept dry-run expected decision-ready, got {accept_payload.get('status')}")
+    closeout_timing = accept_payload.get("timing") or {}
+    if closeout_timing.get("command") != "work-unit closeout" or not isinstance(closeout_timing.get("total_ms"), int):
+        raise RuntimeError("closeout dry-run did not report command timing")
+    closeout_timing_steps = [step.get("step") for step in closeout_timing.get("steps") or []]
+    for expected_step in ("apply_commit_request", "read_source_artifacts", "read_closeout_stage", "build_source_index", "render_decision"):
+        if expected_step not in closeout_timing_steps:
+            raise RuntimeError(f"closeout dry-run timing missing step: {expected_step}")
+    source_index_preview = accept_payload.get("source_index") or {}
+    if source_index_preview.get("source_index_status") != "generated":
+        raise RuntimeError("closeout dry-run did not return a generated source index preview")
+    if source_index_preview.get("source_resolution_mode") != "direct_source_scan":
+        raise RuntimeError("closeout source index did not preserve direct_source_scan mode")
+    if source_index_preview.get("derived") is not True or source_index_preview.get("not_source_of_truth") is not True:
+        raise RuntimeError("closeout source index did not declare the derived/non-authoritative boundary")
+    if source_index_preview.get("policy", {}).get("contains_final_decision") is not False:
+        raise RuntimeError("closeout source index policy allowed final decisions")
+    if source_index_preview.get("external_calls_added") != 0 or source_index_preview.get("llm_calls_added") != 0:
+        raise RuntimeError("closeout source index reported extra external or LLM calls")
+    if (ready_late / "closeout-source-index.json").exists():
+        raise RuntimeError("closeout dry-run wrote closeout-source-index.json")
     disabled_summary = accept_payload.get("work_card_summary") or {}
     if disabled_summary.get("sync_state") != "not_configured" or disabled_summary.get("ok") is not False:
         raise RuntimeError("disabled Work Card summary mode did not report not_configured without ok")
@@ -5613,7 +5640,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("GitHub Work Card summary comment did not include source findings")
     if "### Criteria / Evidence" not in planned_body or "Evidence is source-backed and decision-ready" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not include done criteria mapping")
-    if "<summary>Show criteria evidence: 1/1 met</summary>" not in planned_body:
+    if "### Guarded Closeout Proof" not in planned_body or "Show guarded closeout proof" not in planned_body:
+        raise RuntimeError("GitHub Work Card summary comment did not include guarded closeout proof context")
+    if "<summary>Show Team Lead evidence criteria: 1/1 met before closeout</summary>" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not collapse Criteria / Evidence with a deterministic summary")
     if "<summary>Show source artifacts: 3 refs</summary>" not in planned_body:
         raise RuntimeError("GitHub Work Card summary comment did not collapse Source Artifacts with a deterministic summary")
@@ -6003,6 +6032,21 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         summary_close = summary_payload.get("work_card_issue_close") or {}
         if summary_payload.get("status") != "published" or summary_result.get("sync_state") != "attempted_ok":
             raise RuntimeError("GitHub Work Card summary publish did not report attempted_ok")
+        source_index_path = summary_payload.get("source_index_path", "")
+        if not source_index_path or not Path(source_index_path).exists():
+            raise RuntimeError("GitHub Work Card summary publish did not write closeout-source-index.json")
+        source_index = json.loads(Path(source_index_path).read_text(encoding="utf-8"))
+        if source_index.get("not_source_of_truth") is not True or source_index.get("derived") is not True:
+            raise RuntimeError("published closeout source index did not declare non-authoritative derived status")
+        if source_index.get("policy", {}).get("contains_natural_language_summary") is not False:
+            raise RuntimeError("published closeout source index policy allowed natural-language summaries")
+        if source_index.get("external_calls_added") != 0 or source_index.get("llm_calls_added") != 0:
+            raise RuntimeError("published closeout source index reported extra external or LLM calls")
+        if source_index.get("pointers", {}).get("proof", {}).get("result_ready", {}).get("count") != 1:
+            raise RuntimeError("published closeout source index did not preserve RESULT_READY proof pointer count")
+        stage_source_index = json.loads((summary_publish_wu / "closeout-accept-stage.json").read_text(encoding="utf-8")).get("source_index") or {}
+        if stage_source_index.get("status") != "generated" or not stage_source_index.get("path"):
+            raise RuntimeError("closeout stage did not record source index status/path")
         summary_readback = summary_result.get("readback") or {}
         if summary_readback.get("target") != "work_card_summary" or not summary_readback.get("ok"):
             raise RuntimeError("GitHub Work Card summary publish did not persist body readback snapshot")
@@ -6028,7 +6072,9 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             raise RuntimeError("GitHub Work Card summary publish truncated source findings too aggressively")
         if "### Criteria / Evidence" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not include Criteria / Evidence")
-        if "<summary>Show criteria evidence: 1/1 met</summary>" not in summary_comments[-1].get("body", ""):
+        if "### Guarded Closeout Proof" not in summary_comments[-1].get("body", ""):
+            raise RuntimeError("GitHub Work Card summary publish did not include guarded closeout proof")
+        if "<summary>Show Team Lead evidence criteria: 1/1 met before closeout</summary>" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not collapse Criteria / Evidence")
         if "<summary>Show source artifacts: 3 refs</summary>" not in summary_comments[-1].get("body", ""):
             raise RuntimeError("GitHub Work Card summary publish did not collapse Source Artifacts")

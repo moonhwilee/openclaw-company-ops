@@ -141,6 +141,11 @@ small:
   can still leave `project-sync-needed` as a separate dashboard repair state.
   If GitHub close/readback fails, closeout leaves `work-card-close-needed` or
   another explicit recoverable stage instead of reporting full convergence.
+- Guarded closeout writes `closeout-source-index.json` as a derived
+  pointer-only source index. It helps operators find source artifacts, proof
+  rows, progress rows, and criteria line pointers, but it is never source truth
+  and must not be used to infer accept/revise/block decisions. Missing, stale,
+  or mismatched indexes mean inspect the source artifacts directly.
 - `Last proof or last source update` is a dashboard text mirror. Keep source
   artifact timestamps in UTC, but let `project-sync` display the value in the
   runner machine's local timezone. This field should contain timestamps only,

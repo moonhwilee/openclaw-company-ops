@@ -55,6 +55,7 @@ WORK_CARD_SUMMARY_PLACEHOLDER_FRAGMENTS = (
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
 DEFAULT_ARTIFACT_ROOT = Path("docs/work-units")
+CLOSEOUT_SOURCE_INDEX_FILENAME = "closeout-source-index.json"
 DEFAULT_PROJECT_FIELD_MAP = Path("~/.openclaw/state/openclaw-company-ops/project-field-map.json")
 DEFAULT_PROJECT_LEDGER = Path("~/.openclaw/state/openclaw-company-ops/claims/ledger.json")
 DEFAULT_PROJECT_AUDIT_LOG = Path("~/.openclaw/state/openclaw-company-ops/project-sync-audit.jsonl")
@@ -215,6 +216,40 @@ def work_unit_id(value: str) -> str:
 
 def utc_now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+class CommandTiming:
+    """Small per-command stopwatch for diagnosing Company Ops foreground cost."""
+
+    def __init__(self, command: str) -> None:
+        self.command = command
+        self.started_at = utc_now_iso()
+        self._start = time.perf_counter()
+        self._last = self._start
+        self._steps: list[dict[str, Any]] = []
+
+    def mark(self, step: str) -> None:
+        now = time.perf_counter()
+        self._steps.append(
+            {
+                "step": step,
+                "step_ms": int(round((now - self._last) * 1000)),
+                "total_ms": int(round((now - self._start) * 1000)),
+            }
+        )
+        self._last = now
+
+    def snapshot(self) -> dict[str, Any]:
+        now = time.perf_counter()
+        return {
+            "version": 1,
+            "command": self.command,
+            "started_at": self.started_at,
+            "captured_at": utc_now_iso(),
+            "total_ms": int(round((now - self._start) * 1000)),
+            "steps": list(self._steps),
+            "overhead": "local perf_counter and one small JSON artifact; no network, LLM, or wait loop",
+        }
 
 
 def progress_row_from_args(
@@ -766,8 +801,77 @@ def criteria_evidence_summary_label(done_mapping: str) -> str:
     total = criterion_count or len(statuses)
     met = sum(1 for status in statuses if status in {"met", "pass", "passed"} or status.startswith("met "))
     if total:
-        return f"Show criteria evidence: {met}/{total} met"
-    return "Show criteria evidence"
+        return f"Show Team Lead evidence criteria: {met}/{total} met before closeout"
+    return "Show Team Lead evidence criteria before closeout"
+
+
+def closeout_proof_details(
+    args: argparse.Namespace,
+    *,
+    project_sync: dict[str, Any] | None = None,
+    team_publish: dict[str, Any] | None = None,
+    owner_publish: dict[str, Any] | None = None,
+    work_card_issue_close: dict[str, Any] | None = None,
+) -> str:
+    lines = [
+        f"- Decision source: `{DECISION_STATUS_BY_DECISION[args.decision]}` in `decision.md`.",
+    ]
+    if team_publish:
+        lines.append(
+            "- Team final review visibility: "
+            f"`{FINAL_REVIEW_BY_DECISION[args.decision]}` "
+            f"readback_ok=`{bool(team_publish.get('readback_ok'))}` "
+            f"text_hash_match=`{bool(team_publish.get('text_hash_match'))}`."
+        )
+    else:
+        lines.append(f"- Team final review visibility: planned `{FINAL_REVIEW_BY_DECISION[args.decision]}`.")
+    if owner_publish:
+        lines.append(
+            "- Owner closeout visibility: "
+            f"`{OWNER_CLOSEOUT_BY_DECISION[args.decision]}` "
+            f"readback_ok=`{bool(owner_publish.get('readback_ok'))}` "
+            f"text_hash_match=`{bool(owner_publish.get('text_hash_match'))}`."
+        )
+    else:
+        lines.append(f"- Owner closeout visibility: planned `{OWNER_CLOSEOUT_BY_DECISION[args.decision]}`.")
+    if project_sync:
+        issue_labels = project_sync.get("issue_labels") or {}
+        label_readback = issue_labels.get("readback") if isinstance(issue_labels, dict) else {}
+        lines.append(
+            "- Project final mirror: "
+            f"sync_state=`{project_sync.get('sync_state', 'unknown')}` "
+            f"ok=`{bool(project_sync.get('ok'))}`."
+        )
+        if isinstance(label_readback, dict) and label_readback.get("checked"):
+            lines.append(
+                "- Managed issue labels: "
+                f"desired=`{label_readback.get('desired_managed_labels', [])}` "
+                f"live=`{label_readback.get('live_managed_labels', [])}` "
+                f"ok=`{bool(label_readback.get('ok'))}`."
+            )
+    elif getattr(args, "project_sync_field_map", ""):
+        lines.append("- Project final mirror: planned from closeout source state.")
+    else:
+        lines.append("- Project final mirror: not configured for this closeout.")
+    if args.decision == "accept":
+        if work_card_issue_close and work_card_issue_close.get("sync_state") not in {"not_attempted", "dry_run_planned"}:
+            readback = work_card_issue_close.get("readback") or {}
+            lines.append(
+                "- Work Card issue close: "
+                f"sync_state=`{work_card_issue_close.get('sync_state')}` "
+                f"ok=`{bool(work_card_issue_close.get('ok'))}` "
+                f"live_state=`{(readback.get('live') or {}).get('state', '')}`."
+            )
+        else:
+            lines.append(
+                "- Work Card issue close: next gate after summary-comment readback; "
+                "when performed, final readback is recorded in the closeout stage artifact."
+            )
+    lines.append(
+        "- Work Card summary comment: this comment is managed by a stable marker and "
+        "body hash readback; final readback is recorded in the closeout stage artifact."
+    )
+    return markdown_details("Show guarded closeout proof", "\n".join(lines))
 
 
 def source_artifacts_details(
@@ -866,15 +970,19 @@ def safe_source_artifact_ref(value: str | Path, *, work_unit_id: str) -> str:
     raw = str(value or "").strip()
     if not raw:
         return ""
+    fragment = ""
+    if "#" in raw and "://" not in raw:
+        raw, fragment = raw.split("#", 1)
+        fragment = "#" + fragment
     if re.match(r"^[a-z][a-z0-9+.-]*://", raw, flags=re.IGNORECASE):
-        return raw
+        return raw + fragment
     path = Path(raw).expanduser()
     parts = path.parts
     if work_unit_id in parts:
         work_unit_index = len(parts) - 1 - list(reversed(parts)).index(work_unit_id)
         suffix = Path(*parts[work_unit_index + 1 :]) if work_unit_index + 1 < len(parts) else Path("")
         if str(suffix):
-            return (DEFAULT_ARTIFACT_ROOT / work_unit_id / suffix).as_posix()
+            return (DEFAULT_ARTIFACT_ROOT / work_unit_id / suffix).as_posix() + fragment
     repo_root = Path.cwd().resolve()
     candidates = [path]
     if not path.is_absolute():
@@ -882,18 +990,18 @@ def safe_source_artifact_ref(value: str | Path, *, work_unit_id: str) -> str:
     for candidate in candidates:
         try:
             resolved = candidate.resolve(strict=False)
-            return resolved.relative_to(repo_root).as_posix()
+            return resolved.relative_to(repo_root).as_posix() + fragment
         except ValueError:
             continue
     if path.name in ARTIFACTS or path.name in {DEFAULT_PROOF_LOG_NAME, "progress.jsonl"}:
-        return (DEFAULT_ARTIFACT_ROOT / work_unit_id / path.name).as_posix()
+        return (DEFAULT_ARTIFACT_ROOT / work_unit_id / path.name).as_posix() + fragment
     if "docs" in parts:
         docs_index = parts.index("docs")
-        return Path(*parts[docs_index:]).as_posix()
+        return Path(*parts[docs_index:]).as_posix() + fragment
     for index, part in enumerate(parts):
         if WORK_UNIT_RE.match(part):
-            return (DEFAULT_ARTIFACT_ROOT / Path(*parts[index:])).as_posix()
-    return path.name or raw
+            return (DEFAULT_ARTIFACT_ROOT / Path(*parts[index:])).as_posix() + fragment
+    return (path.name or raw) + fragment
 
 
 def source_field_value(
@@ -1149,6 +1257,228 @@ def artifact_hashes_for_closeout_delegate(artifact_dir: Path, work_unit_id: str)
         DEFAULT_PROOF_LOG_NAME: file_sha256(proof_path),
         "result_ready_proof_rows": [canonical_json_hash(row) for row in proof_rows],
     }
+
+
+def source_artifact_metadata(path: Path, *, work_unit_id: str) -> dict[str, Any]:
+    ref = safe_source_artifact_ref(path, work_unit_id=work_unit_id)
+    entry: dict[str, Any] = {
+        "path": ref,
+        "exists": path.exists(),
+        "sha256": "",
+        "size_bytes": 0,
+        "line_count": 0,
+    }
+    if not path.exists() or not path.is_file():
+        return entry
+    stat = path.stat()
+    entry["size_bytes"] = stat.st_size
+    if stat.st_size > SOURCE_CONTEXT_HASH_MAX_BYTES:
+        entry.update({"sha256": "skipped-large-file", "line_count": -1})
+        return entry
+    text = path.read_text(encoding="utf-8")
+    entry.update(
+        {
+            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "line_count": len(text.splitlines()),
+        }
+    )
+    return entry
+
+
+def markdown_section_line_refs(path: Path, heading: str) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    if path.stat().st_size > SOURCE_CONTEXT_HASH_MAX_BYTES:
+        return []
+    heading_key = heading.strip().lower()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    capture = False
+    refs: list[dict[str, Any]] = []
+    for line_number, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            current = stripped.lstrip("#").strip().lower()
+            if capture:
+                break
+            capture = current == heading_key
+            continue
+        if not capture:
+            continue
+        if stripped.startswith("- Criterion:") or stripped.startswith("- Evidence:"):
+            refs.append(
+                {
+                    "line": line_number,
+                    "kind": "criterion" if stripped.startswith("- Criterion:") else "evidence",
+                    "line_sha256": hashlib.sha256(line.encode("utf-8")).hexdigest(),
+                }
+            )
+    return refs
+
+
+def proof_pointer_index(proof_path: Path, work_unit_id: str) -> dict[str, Any]:
+    if proof_path.exists() and proof_path.stat().st_size > SOURCE_CONTEXT_HASH_MAX_BYTES:
+        return {
+            "path": safe_source_artifact_ref(proof_path, work_unit_id=work_unit_id),
+            "work_unit_rows": -1,
+            "warnings": ["source index proof pointer scan skipped: file exceeds local scan cap"],
+            "scan_capped": True,
+            "result_ready": {"count": -1, "refs": []},
+            "final_review": {"count": -1, "refs": []},
+            "owner_closeout": {"count": -1, "refs": []},
+        }
+    rows, warnings = proof_rows_for_work_unit(proof_path, work_unit_id)
+    result_ready_rows = [
+        row for row in rows if row.get("surface") == "team-detail" and row.get("kind") == "RESULT_READY"
+    ]
+    final_review_rows = [
+        row for row in rows if row.get("surface") == "team-detail" and str(row.get("kind")) in FINAL_REVIEW_KINDS
+    ]
+    owner_closeout_rows = [
+        row
+        for row in rows
+        if row.get("surface") == "ops-feed" and str(row.get("kind")) in set(CLOSEOUT_BY_FINAL_REVIEW.values())
+    ]
+
+    def row_refs(selected: list[dict[str, Any]]) -> list[dict[str, str]]:
+        return [
+            {
+                "proof_id": str(row.get("proof_id") or row.get("card_id") or ""),
+                "kind": str(row.get("kind") or ""),
+                "surface": str(row.get("surface") or ""),
+                "row_sha256": canonical_json_hash(row),
+            }
+            for row in selected
+        ]
+
+    return {
+        "path": safe_source_artifact_ref(proof_path, work_unit_id=work_unit_id),
+        "work_unit_rows": len(rows),
+        "warnings": warnings,
+        "scan_capped": False,
+        "result_ready": {"count": len(result_ready_rows), "refs": row_refs(result_ready_rows)},
+        "final_review": {"count": len(final_review_rows), "refs": row_refs(final_review_rows)},
+        "owner_closeout": {"count": len(owner_closeout_rows), "refs": row_refs(owner_closeout_rows)},
+    }
+
+
+def progress_pointer_index(progress_path: Path, work_unit_id: str) -> dict[str, Any]:
+    if progress_path.exists() and progress_path.stat().st_size > SOURCE_CONTEXT_HASH_MAX_BYTES:
+        return {
+            "path": safe_source_artifact_ref(progress_path, work_unit_id=work_unit_id),
+            "work_unit_rows": -1,
+            "latest_transition_at": "",
+            "warnings": ["source index progress pointer scan skipped: file exceeds local scan cap"],
+            "scan_capped": True,
+            "refs": [],
+        }
+    rows, warnings = read_jsonl_rows(progress_path)
+    refs: list[dict[str, str]] = []
+    latest_transition_at = ""
+    for row in rows:
+        if str(row.get("work_unit_id") or "") not in {"", work_unit_id}:
+            continue
+        transition_at = str(row.get("transition_at") or row.get("updated_at") or "")
+        if transition_at:
+            latest_transition_at = transition_at
+        refs.append(
+            {
+                "transition_kind": normalized_state(str(row.get("transition_kind") or "")),
+                "transition_at": transition_at,
+                "row_sha256": canonical_json_hash(row),
+            }
+        )
+    return {
+        "path": safe_source_artifact_ref(progress_path, work_unit_id=work_unit_id),
+        "work_unit_rows": len(refs),
+        "latest_transition_at": latest_transition_at,
+        "warnings": warnings,
+        "scan_capped": False,
+        "refs": refs[-20:],
+    }
+
+
+def build_closeout_source_index(
+    args: argparse.Namespace,
+    item: dict[str, Any],
+    artifact_dir: Path,
+    *,
+    stage_path: Path | None = None,
+    stage_status: str = "",
+) -> dict[str, Any]:
+    work_unit_id = args.work_unit_id
+    source_paths = {
+        "assignment": artifact_dir / "assignment.md",
+        "claim": artifact_dir / "claim.md",
+        "evidence": artifact_dir / "evidence.md",
+        "decision": artifact_dir / "decision.md",
+        "progress": artifact_dir / "progress.jsonl",
+        "proof": artifact_dir / DEFAULT_PROOF_LOG_NAME,
+    }
+    artifacts = {
+        name: source_artifact_metadata(path, work_unit_id=work_unit_id)
+        for name, path in source_paths.items()
+    }
+    generated_from_hashes = {
+        data["path"]: data["sha256"]
+        for data in artifacts.values()
+        if data.get("exists") and data.get("sha256")
+    }
+    evidence_refs = markdown_section_line_refs(source_paths["evidence"], "Done Criteria Mapping")
+    source_index_status = "generated"
+    missing = sorted(name for name, data in artifacts.items() if name != "decision" and not data.get("exists"))
+    if missing:
+        source_index_status = "missing"
+    return {
+        "version": 1,
+        "work_unit_id": work_unit_id,
+        "generated_at": utc_now_iso(),
+        "derived": True,
+        "not_source_of_truth": True,
+        "source_resolution_mode": "direct_source_scan",
+        "source_index_status": source_index_status,
+        "valid_only_if_hashes_match_current_sources": True,
+        "external_calls_added": 0,
+        "llm_calls_added": 0,
+        "policy": {
+            "pointer_only": True,
+            "contains_final_decision": False,
+            "contains_natural_language_summary": False,
+            "may_replace_source_artifacts": False,
+            "consumers_must_ignore_on_missing_stale_or_mismatch": True,
+        },
+        "generated_from_hashes": generated_from_hashes,
+        "artifacts": artifacts,
+        "pointers": {
+            "evidence": {
+                "path": artifacts["evidence"]["path"],
+                "done_criteria_mapping": {
+                    "criterion_refs": [ref for ref in evidence_refs if ref["kind"] == "criterion"],
+                    "evidence_refs": [ref for ref in evidence_refs if ref["kind"] == "evidence"],
+                },
+            },
+            "proof": proof_pointer_index(source_paths["proof"], work_unit_id),
+            "progress": progress_pointer_index(source_paths["progress"], work_unit_id),
+            "closeout_stage": {
+                "path": safe_source_artifact_ref(stage_path, work_unit_id=work_unit_id) if stage_path else "",
+                "status": stage_status,
+            },
+            "readiness": {
+                "result_ready": bool(item.get("result_ready")),
+                "result_ready_source": safe_source_artifact_ref(
+                    str(item.get("result_ready_source") or ""), work_unit_id=work_unit_id
+                ),
+                "decision_final": bool(item.get("decision_final")),
+                "conflict_reason_present": bool(item.get("conflict_reason")),
+                "stale_reason_present": bool(item.get("stale_reason")),
+            },
+        },
+    }
+
+
+def write_closeout_source_index(artifact_dir: Path, source_index: dict[str, Any]) -> Path:
+    path = artifact_dir / CLOSEOUT_SOURCE_INDEX_FILENAME
+    path.write_text(json.dumps(source_index, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
 
 
 def guarded_closeout_contract(
@@ -2766,6 +3096,7 @@ def write_handoff_files(
     team_card: dict[str, Any],
     source_context_manifest: dict[str, Any],
     preflight_payload: dict[str, Any] | None = None,
+    timing_payload: dict[str, Any] | None = None,
     *,
     force: bool,
 ) -> dict[str, str]:
@@ -2798,11 +3129,19 @@ def write_handoff_files(
             "captured_at": utc_now_iso(),
             "preflight": preflight_payload,
         }
+        if timing_payload:
+            snapshot["timing"] = timing_payload
         paths["handoff_preflight"].write_text(
             json.dumps(snapshot, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
     return {key: str(value) for key, value in paths.items()}
+
+
+def write_command_timing_artifact(output_dir: Path, name: str, timing: dict[str, Any]) -> Path:
+    path = output_dir / name
+    path.write_text(json.dumps(timing, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
 
 
 def publish_handoff_card(
@@ -2915,11 +3254,13 @@ def publish_handoff_sequence(args: argparse.Namespace, spec: dict[str, Any], pat
 
 
 def handoff_work_unit(args: argparse.Namespace) -> int:
+    timing = CommandTiming("work-unit handoff")
     try:
         spec = validate_handoff_spec(read_json_file(args.spec))
     except (OSError, ValueError, argparse.ArgumentTypeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    timing.mark("validate_spec")
     if not args.dry_run and not args.publish:
         print("error: handoff requires --dry-run or --publish", file=sys.stderr)
         return 1
@@ -2945,14 +3286,18 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
             blockers = "; ".join(str(item) for item in preflight_payload.get("setup_blockers", []))
             print(f"error: handoff preflight blocked: {blockers or 'blocked setup check'}", file=sys.stderr)
             return 1
+    timing.mark("preflight")
 
     try:
         source_context_manifest = build_source_context_manifest(spec, output_dir)
         if source_context_manifest["missing_required_refs"]:
             missing = ", ".join(entry.get("ref", "<empty>") for entry in source_context_manifest["missing_required_refs"])
             raise RuntimeError(f"missing required source refs: {missing}")
+        timing.mark("source_context")
         rendered = render_handoff_artifacts(spec, output_dir, created_at)
+        timing.mark("render_artifacts")
         ops_card, team_card, ops_text, team_text = handoff_card_payloads(spec)
+        timing.mark("render_discord_cards")
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -2970,12 +3315,16 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     if args.publish and spec["work_card"].startswith("planned Work Card in "):
         try:
             spec["work_card"] = create_github_work_card(spec, output_dir)
+            timing.mark("create_work_card")
             source_context_manifest = build_source_context_manifest(spec, output_dir)
             if source_context_manifest["missing_required_refs"]:
                 missing = ", ".join(entry.get("ref", "<empty>") for entry in source_context_manifest["missing_required_refs"])
                 raise RuntimeError(f"missing required source refs: {missing}")
+            timing.mark("refresh_source_context")
             rendered = render_handoff_artifacts(spec, output_dir, created_at)
+            timing.mark("rerender_artifacts")
             ops_card, team_card, ops_text, team_text = handoff_card_payloads(spec)
+            timing.mark("rerender_discord_cards")
         except RuntimeError as exc:
             print(f"error: Work Card creation failed: {exc}", file=sys.stderr)
             return 1
@@ -3000,6 +3349,7 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
     if preflight_payload is not None:
         plan["preflight"] = preflight_payload
     if args.dry_run:
+        timing.mark("compose_dry_run_payload")
         payload = {
             "plan": plan,
             "source_context_manifest": source_context_manifest,
@@ -3008,6 +3358,7 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
             "ops_text": ops_text,
             "team_text": team_text,
             "preflight": preflight_payload,
+            "timing": timing.snapshot(),
             "llm_calls": 0,
         }
         if args.format == "json":
@@ -3027,26 +3378,38 @@ def handoff_work_unit(args: argparse.Namespace) -> int:
             team_card,
             source_context_manifest,
             preflight_payload=preflight_payload,
+            timing_payload=timing.snapshot(),
             force=args.force,
         )
+        timing.mark("write_source_artifacts")
     except (OSError, FileExistsError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     publish_code, publish_payload, publish_error = publish_handoff_sequence(args, spec, paths, proof_log)
+    timing.mark("publish_visibility")
     project_sync = {"enabled": False}
     if publish_code == 0:
         project_sync = publish_payload.get("initial_project_sync") or run_project_sync(args)
+        timing.mark("project_sync")
         if project_sync.get("enabled") and not project_sync.get("ok"):
             print(f"warning: Project handoff sync failed: {project_sync.get('error')}", file=sys.stderr)
     else:
         print(publish_error or "error: handoff publish failed", file=sys.stderr)
+    timing_snapshot = timing.snapshot()
+    if publish_code == 0:
+        try:
+            timing_path = write_command_timing_artifact(output_dir, "handoff-timing.json", timing_snapshot)
+            paths["handoff_timing"] = str(timing_path)
+        except OSError as exc:
+            print(f"warning: handoff timing artifact write failed: {exc}", file=sys.stderr)
 
     payload = {
         "plan": plan,
         "paths": paths,
         "publish": publish_payload.get("sequence", []),
         "project_sync": project_sync,
+        "timing": timing_snapshot,
     }
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
@@ -5352,6 +5715,7 @@ def render_work_card_summary_comment(
     *,
     decided_at: str,
     decision_path: Path,
+    closeout_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     summary, failures = decision_ready_summary(item, args.decision, args.reason)
     if failures:
@@ -5363,6 +5727,14 @@ def render_work_card_summary_comment(
     criteria_evidence = markdown_details(
         criteria_evidence_summary_label(summary["done_criteria_mapping"]),
         summary["done_criteria_mapping"],
+    )
+    closeout_context = closeout_context or {}
+    closeout_proof = closeout_proof_details(
+        args,
+        project_sync=closeout_context.get("project_sync"),
+        team_publish=closeout_context.get("team_publish"),
+        owner_publish=closeout_context.get("owner_publish"),
+        work_card_issue_close=closeout_context.get("work_card_issue_close"),
     )
     source_artifacts = source_artifacts_details(
         evidence_ref=evidence_ref,
@@ -5385,6 +5757,9 @@ Source of truth: source artifacts, not this GitHub comment.
 
 ### Key Findings
 {summary["findings"]}
+
+### Guarded Closeout Proof
+{closeout_proof}
 
 ### Criteria / Evidence
 {criteria_evidence}
@@ -5460,6 +5835,7 @@ def publish_work_card_summary_comment(
     *,
     decided_at: str,
     decision_path: Path,
+    closeout_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     state = work_card_summary_state(args, item)
     if not state["required"]:
@@ -5467,7 +5843,13 @@ def publish_work_card_summary_comment(
     if state["error"]:
         state["ok"] = False
         return state
-    rendered = render_work_card_summary_comment(args, item, decided_at=decided_at, decision_path=decision_path)
+    rendered = render_work_card_summary_comment(
+        args,
+        item,
+        decided_at=decided_at,
+        decision_path=decision_path,
+        closeout_context=closeout_context,
+    )
     if not rendered.get("ok"):
         state.update({"ok": False, "sync_state": "source_summary_invalid", "error": rendered.get("error", "")})
         return state
@@ -5969,6 +6351,7 @@ def write_closeout_stage(
 
 
 def closeout_dry_run(args: argparse.Namespace) -> int:
+    timing = CommandTiming("work-unit closeout")
     artifact_root = args.artifact_root.expanduser()
     artifact_dir = artifact_root / args.work_unit_id
     closeout_exit_code = 0
@@ -5979,6 +6362,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
         print("error: closeout requires --dry-run or --publish", file=sys.stderr)
         return 1
     commit_request, commit_request_failures = apply_closeout_commit_request(args)
+    timing.mark("apply_commit_request")
     if commit_request_failures:
         payload = {
             "dry_run": bool(args.dry_run),
@@ -5986,6 +6370,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
             "work_unit_id": args.work_unit_id,
             "commit_request": commit_request,
             "decision_failures": commit_request_failures,
+            "timing": timing.snapshot(),
             "would_write_decision": False,
             "would_publish_team_final_review": False,
             "would_publish_owner_closeout": False,
@@ -6008,9 +6393,19 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
     try:
         with CloseoutLock(lock_path):
             item = build_work_unit_readiness(artifact_root, args.work_unit_id)
+            timing.mark("read_source_artifacts")
             stage_path = artifact_dir / f"closeout-{args.decision.replace('_', '-')}-stage.json" if args.decision else None
             stage_payload = read_closeout_stage(stage_path) if stage_path else {}
             partial_resume = closeout_stage_allows_resume(stage_payload, args, item)
+            timing.mark("read_closeout_stage")
+            source_index_preview = build_closeout_source_index(
+                args,
+                item,
+                artifact_dir,
+                stage_path=stage_path,
+                stage_status=str(stage_payload.get("status") or ""),
+            )
+            timing.mark("build_source_index")
             status = "ready"
             next_action = "Operations Lead reviews source artifacts before any decision write."
             if item["decision_final"]:
@@ -6064,6 +6459,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         return 1
                     decision_decided_at = args.transition_at or utc_now_iso()
                     decision_preview = render_closeout_decision(args, item, decision_decided_at)
+                    timing.mark("render_decision")
                     summary_state = work_card_summary_state(args, item)
                     if summary_state["required"] and not summary_state["error"]:
                         rendered_summary = render_work_card_summary_comment(
@@ -6071,6 +6467,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                             item,
                             decided_at=decision_decided_at,
                             decision_path=artifact_dir / "decision.md",
+                            closeout_context={"work_card_issue_close": {"sync_state": "dry_run_planned"}},
                         )
                         work_card_summary_preview = {
                             **summary_state,
@@ -6086,6 +6483,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         work_card_issue_close_preview["sync_state"] = "dry_run_planned"
                     status = "decision-ready"
                     next_action = "Publish records decision.md, team final review, and owner closeout."
+                    timing.mark("render_closeout_preview")
 
             payload = {
                 "dry_run": bool(args.dry_run),
@@ -6103,6 +6501,9 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "decision_preview": decision_preview,
                 "work_card_summary": work_card_summary_preview,
                 "work_card_issue_close": work_card_issue_close_preview,
+                "source_index": source_index_preview,
+                "source_index_path": "",
+                "would_write_source_index": bool(args.publish and args.decision and not decision_failures),
                 "commit_request": commit_request,
                 "closeout_stage": stage_payload,
                 "partial_resume": partial_resume,
@@ -6113,6 +6514,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                 "would_publish_owner_closeout": bool(args.decision and not decision_failures),
                 "would_mutate_project": bool(args.project_sync_field_map and args.publish and not decision_failures),
                 "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
+                "timing": timing.snapshot(),
                 "next_action": next_action,
                 "checks": {
                     "source_artifacts_reread": True,
@@ -6137,6 +6539,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         decided_at=decided_at,
                         extra={"decision_path": str(decision_path)},
                     )
+                    timing.mark("write_started_stage")
                 card_paths = write_closeout_card_files(
                     artifact_dir,
                     args,
@@ -6144,6 +6547,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     owner_card,
                     allow_existing=partial_resume,
                 )
+                timing.mark("write_closeout_cards")
                 expected_final_review = FINAL_REVIEW_BY_DECISION[args.decision]
                 expected_owner_closeout = OWNER_CLOSEOUT_BY_DECISION[args.decision]
                 if proof_contains_only_expected(item["final_reviews"], expected_final_review):
@@ -6159,6 +6563,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     if team_code != 0:
                         print(team_error or "error: team final review publish failed", file=sys.stderr)
                         return 1
+                timing.mark("publish_team_final_review")
                 write_closeout_stage(
                     stage_path,
                     args=args,
@@ -6183,6 +6588,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     if owner_code != 0:
                         print(owner_error or "error: owner closeout publish failed", file=sys.stderr)
                         return 1
+                timing.mark("publish_owner_closeout")
                 write_closeout_stage(
                     stage_path,
                     args=args,
@@ -6196,7 +6602,9 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     },
                 )
                 decision_path.write_text(decision_preview, encoding="utf-8")
+                timing.mark("write_decision")
                 project_sync = run_project_sync(args)
+                timing.mark("project_sync")
                 if project_sync.get("required") and not project_sync.get("ok"):
                     print(f"error: Project closeout sync failed: {project_sync.get('error')}", file=sys.stderr)
                     stage_status = "project-sync-needed"
@@ -6214,7 +6622,14 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         item,
                         decided_at=decided_at,
                         decision_path=decision_path,
+                        closeout_context={
+                            "team_publish": team_publish.get("publish", {}),
+                            "owner_publish": owner_publish.get("publish", {}),
+                            "project_sync": project_sync,
+                            "work_card_issue_close": work_card_issue_close_state(args, item),
+                        },
                     )
+                    timing.mark("work_card_summary")
                     if work_card_summary.get("required") and not work_card_summary.get("ok"):
                         print(
                             f"error: Work Card summary failed: {work_card_summary.get('error')}",
@@ -6228,6 +6643,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     work_card_summary.get("required") and not work_card_summary.get("ok")
                 ):
                     work_card_issue_close = close_accepted_work_card_issue(args, item)
+                    timing.mark("work_card_issue_close")
                     if work_card_issue_close.get("required") and not work_card_issue_close.get("ok"):
                         print(
                             f"error: Work Card issue close failed: {work_card_issue_close.get('error')}",
@@ -6236,6 +6652,25 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         if stage_status == "published":
                             stage_status = "work-card-close-needed"
                         closeout_exit_code = 1
+                source_index = build_closeout_source_index(
+                    args,
+                    item,
+                    artifact_dir,
+                    stage_path=stage_path,
+                    stage_status=stage_status,
+                )
+                source_index_path = None
+                try:
+                    source_index_path = write_closeout_source_index(artifact_dir, source_index)
+                    timing.mark("write_source_index")
+                except OSError as exc:
+                    print(f"warning: closeout source index write failed: {exc}", file=sys.stderr)
+                timing_snapshot = timing.snapshot()
+                timing_path = None
+                try:
+                    timing_path = write_command_timing_artifact(artifact_dir, "closeout-timing.json", timing_snapshot)
+                except OSError as exc:
+                    print(f"warning: closeout timing artifact write failed: {exc}", file=sys.stderr)
                 write_closeout_stage(
                     stage_path,
                     args=args,
@@ -6250,8 +6685,22 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                         "project_sync_required": bool(project_sync.get("required")),
                         "work_card_summary": work_card_summary,
                         "work_card_issue_close": work_card_issue_close,
+                        "source_index": {
+                            "path": str(source_index_path) if source_index_path else "",
+                            "status": source_index.get("source_index_status", "missing"),
+                            "source_resolution_mode": source_index.get("source_resolution_mode", "direct_source_scan"),
+                            "not_source_of_truth": True,
+                        },
+                        "timing": timing_snapshot,
+                        "timing_path": str(timing_path) if timing_path else "",
                     },
                 )
+                timing.mark("write_final_stage")
+                try:
+                    final_timing_path = write_command_timing_artifact(artifact_dir, "closeout-timing.json", timing.snapshot())
+                    timing_path = timing_path or final_timing_path
+                except OSError as exc:
+                    print(f"warning: closeout timing artifact update failed: {exc}", file=sys.stderr)
                 publish_payload = {
                     **payload,
                     "dry_run": False,
@@ -6264,6 +6713,11 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
                     "project_sync": project_sync,
                     "work_card_summary": work_card_summary,
                     "work_card_issue_close": work_card_issue_close,
+                    "source_index": source_index,
+                    "source_index_path": str(source_index_path) if source_index_path else "",
+                    "would_write_source_index": bool(source_index_path),
+                    "timing": timing.snapshot(),
+                    "timing_path": str(timing_path) if timing_path else "",
                 }
                 publish_payload["ol_status"] = operations_lead_status(artifact_root, args.work_unit_id)
     except RuntimeError as exc:

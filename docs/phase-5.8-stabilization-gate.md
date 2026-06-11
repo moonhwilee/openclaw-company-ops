@@ -1096,6 +1096,13 @@ Slice C, guarded closeout integration:
 - On publish with summary mode `required`, create or update the managed comment,
   read it back, and record the comment id/url or failure state in the closeout
   stage/proof.
+- On publish, write `closeout-source-index.json` from the direct source scan.
+  It is a derived pointer index only: source artifact paths, hashes, proof row
+  hashes, progress row hashes, and criteria line pointers. It must not contain
+  final judgment text, natural-language rationale, or external mirror cache
+  state.
+- On dry-run, report the planned source-index payload without writing
+  `closeout-source-index.json`.
 - If the source decision publishes but the required comment or readback fails,
   do not roll back the source decision. Leave the closeout stage in an explicit
   visibility state such as `work-card-summary-needed`, return nonzero, and do
@@ -1109,7 +1116,8 @@ Slice D, public-safety and non-truth guarantees:
   must not make an extra LLM call; if LLM-polished summaries are ever added,
   they require an explicit opt-in phase and must still be source-backed.
 - Inbox, status, closeout readiness, and dashboard derivation must never read
-  GitHub comments as source truth.
+  GitHub comments, timing artifacts, or `closeout-source-index.json` as source
+  truth.
 - Do not add a daemon, background reconciler, hidden retry queue, automatic
   archive, label automation, or GitHub issue body rewrite in this phase.
 
@@ -1122,6 +1130,9 @@ Acceptance:
 - Publish with a GitHub Work Card and summary mode `required` creates or updates
   exactly one marker-managed comment, reads it back, and records the comment
   reference in source closeout proof.
+- Publish writes `closeout-source-index.json`; dry-run does not. The index
+  declares `derived`, `not_source_of_truth`, `source_resolution_mode:
+  direct_source_scan`, and zero added external/LLM calls.
 - The managed comment includes explicit `Key Findings` and
   `Criteria / Evidence` sections so owner-facing review does not hide the
   actual findings behind a generic "N findings found" sentence.
