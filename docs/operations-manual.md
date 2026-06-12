@@ -806,6 +806,12 @@ Decision for maintainer inspection. That comment is never source truth and must
 not be read by status, inbox, Project sync, result-ready, or closeout decision
 derivation.
 
+The result summary may show a derived `Team Lead evidence criteria: x/y met
+before closeout` counter for operator UX. That counter is parsed from the Team
+Lead's Evidence & Result Record `Done Criteria Mapping` before closeout, accepts
+both `- Status:` and indented `Status:` lines, and is not the Operations Lead's
+final closeout decision.
+
 Reserve any other comments for human review notes or external collaborator
 context that cannot live in source artifacts.
 

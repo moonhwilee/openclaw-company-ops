@@ -58,6 +58,12 @@ operators can distinguish local rendering, source-context, publish,
 Project-sync, summary-comment, and issue-close cost. They do not call external
 services, add waits, or change source-truth decisions.
 
+The final Work Card summary comment may include a derived Team Lead evidence
+criteria counter such as `6/6 met before closeout`. It is an operator-facing
+display of the pre-closeout `Done Criteria Mapping`, not a closeout decision.
+Both bullet-prefixed `- Status:` and indented `Status:` lines are valid mapping
+formats.
+
 `closeout-source-index.json` is a derived closeout pointer index only. It may
 record source artifact paths, hashes, line pointers, proof row hashes, and row
 counts from the direct source scan, but it is not a source of truth and must not
