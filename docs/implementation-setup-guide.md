@@ -697,6 +697,58 @@ launchd, or any background job by itself. Automatic `#ops-alerts` delivery is
 also deferred until a separate delivery gate accepts channel, suppression, and
 readback behavior.
 
+## Work Unit Alert Scan Setup
+
+Status: Repo-local command supported, report-only; scheduled activation requires
+a separate gate
+
+`work-unit alert-scan` reads Work Unit source artifacts and reports stalled or
+abnormal execution candidates. It is separate from Pulse Monitor:
+
+- Pulse checks claim ledger/session freshness.
+- alert-scan checks Work Unit artifact progress, dispatch, result-ready proof,
+  failure records, and retry/drop/takeover progress rows.
+
+Manual foreground scan:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan --format json
+```
+
+Discord dry-run:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan \
+  --discord \
+  --dry-run \
+  --target channel:<ops-alerts-channel-id> \
+  --format json
+```
+
+Live Discord send:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan \
+  --discord \
+  --target channel:<ops-alerts-channel-id>
+```
+
+Deploying the command with Company Ops only installs the foreground capability.
+It does not create a cron job, launchd job, daemon, retry path, takeover path,
+or automatic Discord delivery. To make it actively monitor, register a bounded
+one-shot caller separately and pass the explicit `#ops-alerts` target.
+
+Allowed local writes:
+
+- `~/.openclaw/state/openclaw-company-ops/alerts/alerts.jsonl`
+- `~/.openclaw/state/openclaw-company-ops/alerts/suppress-state.json`
+
+Forbidden:
+
+- Work Unit source artifact mutation.
+- GitHub issue or Project mutation.
+- Automatic retry, takeover, closeout, drop cleanup, or branch/worktree cleanup.
+
 ## Discord Visibility Setup
 
 Status: Repo-local visibility formatter supported, pre-dogfood visibility required

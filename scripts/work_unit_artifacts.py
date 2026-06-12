@@ -19,6 +19,7 @@ from typing import Any
 
 from progress_display import ROUND_VISIBLE_MODES, normalize_round_value, render_progress_display, should_show_round
 from result_ready_gate import result_ready_gate
+from work_unit_alert_scan import add_alert_scan_parser
 
 
 ARTIFACTS = ("assignment.md", "claim.md", "evidence.md", "decision.md")
@@ -7139,6 +7140,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     work_unit = subparsers.add_parser("work-unit", help="Manage Work Unit artifacts")
     work_unit_subparsers = work_unit.add_subparsers(dest="action")
+    add_alert_scan_parser(work_unit_subparsers)
     capacity = work_unit_subparsers.add_parser(
         "capacity-check",
         help="Read-only Company Ops capacity preflight",

@@ -494,6 +494,37 @@ check` as a manual/foreground Operations Lead capability. Scheduled Pulse stays
 deferred until a later explicit activation gate; the installer must not create
 cron, launchd, daemon, or automatic alert delivery.
 
+### Work Unit Alert Scan
+
+Status: Repo-local command supported, report-only
+
+`work-unit alert-scan` scans Work Unit source artifacts for stalled or abnormal
+execution signals. It complements Pulse: Pulse checks claim freshness, while
+alert-scan checks the Work Unit artifact trail.
+
+Current practice:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan --format json
+```
+
+Live Discord reporting is explicit foreground operation:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan \
+  --discord \
+  --target channel:<ops-alerts-channel-id>
+```
+
+Packaging this command makes it available in Company Ops, but does not make it
+run continuously. A separate approved caller, such as OpenClaw cron or launchd,
+is required before Company Ops is actively monitoring on a schedule.
+
+The scanner may write only local alert audit/suppression state under
+`~/.openclaw/state/openclaw-company-ops/alerts/`. It must not mutate Work Unit
+source artifacts, retry, take over, close issues, update Project fields, or
+treat Discord as source truth.
+
 ### Discord Ops Bridge
 
 Status: Visibility formatter supported, publisher gated

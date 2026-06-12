@@ -351,11 +351,12 @@ Activation priority after Phase 4 follows the Phase 5 sub-gates in
    judgment.
 8. Phase 5.6 records that current visibility surfaces are not duplicate
    alerts: Dashboard is the status board, Discord is proof/event visibility,
-   result-ready inbox is the review queue, and Pulse is stalled-work detection.
-   Manual/foreground Pulse checks are accepted, but scheduled Pulse activation
-   is deferred with trigger. Automatic `#ops-alerts` Pulse publish remains
-   deferred until a separate delivery gate accepts channel, suppression, and
-   readback behavior.
+   result-ready inbox is the review queue, Pulse is claim freshness detection,
+   and `work-unit alert-scan` is Work Unit artifact progress detection.
+   Manual/foreground Pulse checks and alert-scan runs are accepted, but
+   scheduled activation remains a separate gate. Automatic `#ops-alerts`
+   publishing remains deferred unless a caller is explicitly registered with
+   channel, suppression, and readback behavior.
 9. Phase 5.7 locked the surfaces allowed to enter packaging/public v1.
 
 ## Recommended Channels
@@ -795,8 +796,10 @@ or claim entry.
 
 ## Alert Events
 
-Manual Day-0 alerts are human-triggered. Future Pulse Monitor alerts may be
-automated.
+Manual Day-0 alerts are human-triggered. Repo-local `work-unit alert-scan` can
+also publish a foreground `#ops-alerts` summary when the operator passes an
+explicit target. Future scheduled Pulse or alert-scan alerts require separate
+activation.
 
 Allowed alert events:
 
@@ -806,6 +809,27 @@ Allowed alert events:
 
 Alert events are prompts for review, not recovery actions. They must not
 restart, reassign, cancel, or close work.
+
+Work Unit alert-scan events:
+
+- `stale_progress`
+- `result_missing`
+- `failure_recorded`
+- `drop_or_retry_recorded`
+
+Run a foreground Work Unit scan before any scheduled activation:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan --format json
+```
+
+Live Discord reporting must use an explicit target:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan \
+  --discord \
+  --target channel:<ops-alerts-channel-id>
+```
 
 Format Pulse Monitor alert JSON before posting it manually:
 

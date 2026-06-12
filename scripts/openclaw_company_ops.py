@@ -31,6 +31,7 @@ def print_help() -> None:
     print()
     print("examples:")
     print("  python3 scripts/openclaw_company_ops.py work-unit create --help")
+    print("  python3 scripts/openclaw_company_ops.py work-unit alert-scan --format json")
     print("  python3 scripts/openclaw_company_ops.py preflight --format json")
     print("  python3 scripts/openclaw_company_ops.py claim status --help")
     print("  python3 scripts/openclaw_company_ops.py status work-unit --help")

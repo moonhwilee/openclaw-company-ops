@@ -25,6 +25,7 @@ DISPATCH_SESSIONS_SEND = SCRIPT_DIR / "openclaw_dispatch_sessions_send.py"
 CLOSEOUT_DELEGATE_SESSIONS_SEND = SCRIPT_DIR / "openclaw_closeout_delegate_sessions_send.py"
 CLAIMS = SCRIPT_DIR / "ops_claim_ledger.py"
 PULSE = SCRIPT_DIR / "pulse_monitor.py"
+ALERT_SCAN = SCRIPT_DIR / "work_unit_alert_scan.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
 PROJECT_SYNC = SCRIPT_DIR / "project_sync.py"
 HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
@@ -530,6 +531,79 @@ def run_pulse_ok(args: argparse.Namespace, ledger: Path, snapshot: Path) -> None
     require_success(result, "pulse check")
     if result.stdout.strip() != "OK no alerts":
         raise RuntimeError(f"pulse check expected no alerts, got: {result.stdout.strip()}")
+
+
+def run_alert_scan_smoke(args: argparse.Namespace, work_dir: Path) -> None:
+    stale_artifacts = create_artifacts(args, work_dir, "WU-260605-903", "build-lab")
+    mark_artifact_started(stale_artifacts, work_unit_id="WU-260605-903")
+    write_json(
+        stale_artifacts / "dispatch.json",
+        {
+            "status": "accepted",
+            "session_ref": "agent:build-lab:company-ops-build-lab-wu-260605-903",
+            "dispatched_at": "2026-06-07T01:00:00Z",
+            "accepted_proof": {
+                "status": "accepted",
+                "accepted_at": "2026-06-07T01:00:00Z",
+                "session_ref": "agent:build-lab:company-ops-build-lab-wu-260605-903",
+            },
+        },
+    )
+
+    result = run_command(
+        [
+            sys.executable,
+            str(ALERT_SCAN),
+            "work-unit",
+            "alert-scan",
+            "--artifact-root",
+            str(stale_artifacts.parent),
+            "--work-unit-id",
+            "WU-260605-903",
+            "--now",
+            "2026-06-07T03:01:00Z",
+            "--normal-stale-minutes",
+            "60",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(result, "work-unit alert-scan json")
+    payload = json.loads(result.stdout)
+    event_types = {event.get("event_type") for event in payload.get("events", [])}
+    if "stale_progress" not in event_types:
+        raise RuntimeError(f"alert-scan did not report stale_progress: {payload}")
+    if payload.get("policy", {}).get("auto_action") != "report_only":
+        raise RuntimeError("alert-scan policy did not stay report-only")
+    if not (stale_artifacts / "dispatch.json").exists():
+        raise RuntimeError("alert-scan mutated or removed dispatch.json")
+
+    dry_run = run_command(
+        [
+            sys.executable,
+            str(ALERT_SCAN),
+            "work-unit",
+            "alert-scan",
+            "--artifact-root",
+            str(stale_artifacts.parent),
+            "--work-unit-id",
+            "WU-260605-903",
+            "--now",
+            "2026-06-07T03:01:00Z",
+            "--normal-stale-minutes",
+            "60",
+            "--discord",
+            "--dry-run",
+            "--target",
+            "channel:ops-alerts-smoke",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(dry_run, "work-unit alert-scan discord dry-run")
+    dry_run_payload = json.loads(dry_run.stdout)
+    if dry_run_payload.get("discord", {}).get("status") != "dry-run":
+        raise RuntimeError("alert-scan discord dry-run did not report dry-run status")
 
 
 def update_result_ready(ledger: Path, claim_ref: str, artifact_dir: Path) -> None:
@@ -6714,6 +6788,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
             },
         )
         run_pulse_ok(args, ledger, snapshot)
+        run_alert_scan_smoke(args, work_dir)
         run_hook_guard_smoke()
         run_async_work_unit_policy_smoke()
         assert_no_legacy_closeout_delegate_names()
@@ -6741,6 +6816,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
     print(f"PASS multi-team smoke work_dir={work_dir}")
     print(
         "checked artifact generation, two independent claims, pulse no-alert check, "
+        "read-only Work Unit alert-scan stale detection and Discord dry-run, "
         "repo-local hook guard fixtures, "
         "async Work Unit policy docs, "
         "collapsible Work Card operational sections, "

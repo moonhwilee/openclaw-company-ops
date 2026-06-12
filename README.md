@@ -162,6 +162,8 @@ guess targets, or grant permissions on the user's behalf.
 - [Discord Event Visibility](docs/discord-event-visibility.md)
 - [Visibility Card Implementation Plan](docs/visibility-card-implementation-plan.md)
 - [Company Dashboard Timing](docs/company-dashboard-timing.md)
+- [Automation Design](docs/automation-design.md)
+- [Runtime Failure And Alerting](docs/runtime-failure-and-alerting.md)
 - [Post-Setup Realization Plan](docs/post-setup-plan.md)
 - [Work Unit Artifacts](docs/work-units/README.md)
 
@@ -194,4 +196,5 @@ guess targets, or grant permissions on the user's behalf.
   helpers, amendment apply/record, automatic closeout, automatic ops-alerts
   publishing, hidden orchestrators, and fallback truth sources out of public v1
   unless a later explicit gate changes that decision. Foreground `work-unit
-  closeout --dry-run/--publish` remains an accepted Operations Lead surface.
+  alert-scan` and foreground `work-unit closeout --dry-run/--publish` remain
+  accepted Operations Lead surfaces.
