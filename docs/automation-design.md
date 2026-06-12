@@ -409,7 +409,7 @@ Tests:
 
 Deliverable:
 
-- Optional launchd/cron setup guide.
+- Optional macOS LaunchAgent setup guide, with cron as a non-macOS fallback.
 - No scheduled job installed by default.
 - Bootstrap step that can guide, preview, and explicitly install local schedules
   after preflight passes.
@@ -434,8 +434,16 @@ Scheduling rules:
 - Auth/rate-limit/schema failures write audit and owner-visible failure report.
 - Alert-scan schedules must use `--discord-on-alerts-only`; positive OK
   messages are manual smoke output, not recurring notification output.
-- Bootstrap may write a launchd/cron registration only after explicit operator
-  confirmation of interval, target, command path, and log/state paths.
+- On macOS, bootstrap should register approved schedules as user LaunchAgents
+  under `~/Library/LaunchAgents/`, not OpenClaw agent-turn cron. This keeps the
+  periodic check mechanical and avoids spending an LLM turn every 10 minutes.
+- Bootstrap may write and load a LaunchAgent, or a cron fallback on non-macOS,
+  only after explicit operator confirmation of interval, target, command path,
+  label, plist/log path, and state path.
+- The recommended dogfood LaunchAgent label for Work Unit alert-scan is
+  `com.geumbi.company-ops-alert-scan`; the command must be the same foreground
+  `company-ops work-unit alert-scan --discord --discord-on-alerts-only ...`
+  invocation.
 
 Forbidden:
 

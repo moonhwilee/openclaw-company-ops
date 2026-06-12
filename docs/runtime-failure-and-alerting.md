@@ -88,10 +88,11 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
   --target channel:<ops-alerts-channel-id>
 ```
 
-For periodic operation, register a bounded one-shot caller such as OpenClaw cron
-or launchd. The registered job should run the same foreground command, use an
-explicit target, use `--discord-on-alerts-only`, and rely on suppression state
-to prevent repeated noise:
+For periodic operation, register a bounded one-shot caller. On macOS, prefer a
+user LaunchAgent under `~/Library/LaunchAgents/`; cron is a fallback for
+non-macOS environments. The registered job should run the same foreground
+command, use an explicit target, use `--discord-on-alerts-only`, and rely on
+suppression state to prevent repeated noise:
 
 ```bash
 python3 scripts/openclaw_company_ops.py work-unit alert-scan \
@@ -104,6 +105,10 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
 Registering a periodic caller changes the operating state from "available
 manual command" to "actively monitoring." Until that caller exists, Company Ops
 does not continuously scan.
+
+Bootstrap may create or load the LaunchAgent only after preflight and explicit
+operator confirmation of the label, plist path, command, interval, target, log
+paths, and alert state path.
 
 ## Local Operating State
 

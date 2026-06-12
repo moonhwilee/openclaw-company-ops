@@ -739,8 +739,10 @@ or automatic Discord delivery. To make it actively monitor, register a bounded
 one-shot caller separately and pass the explicit `#ops-alerts` target.
 
 Bootstrap guidance should offer, but not silently enable, a recurring alert-scan
-caller after Discord target and local state paths pass preflight. The recurring
-command must avoid positive OK-message noise:
+caller after Discord target and local state paths pass preflight. On macOS, the
+bootstrap path should use a user LaunchAgent under `~/Library/LaunchAgents/`;
+cron is a fallback for non-macOS environments. The recurring command must avoid
+positive OK-message noise:
 
 ```bash
 python3 scripts/openclaw_company_ops.py work-unit alert-scan \
@@ -752,7 +754,9 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
 
 Suggested local interval: every 10 minutes for dogfood, with alert suppression
 enabled by the scanner. Public packaging should expose the interval as a setup
-choice and default to disabled until the operator confirms.
+choice and default to disabled until the operator confirms. The confirmation
+screen should show the LaunchAgent label, plist path, command, target, interval,
+stdout/stderr log paths, and alert state path before writing or loading the job.
 
 Allowed local writes:
 
