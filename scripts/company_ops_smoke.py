@@ -138,6 +138,18 @@ def run_work_card_body_collapsible_smoke(work_dir: Path) -> None:
         raise RuntimeError("Source Artifacts details did not adapt to additional refs")
     if "- Run Log: docs/work-units/WU-260607-199/run.log" not in source_artifacts:
         raise RuntimeError("Source Artifacts details did not preserve additional refs")
+    bulletless_status_mapping = (
+        "- Criterion: First criterion.\n"
+        "  Status: met.\n"
+        "  Evidence: source one.\n"
+        "- Criterion: Second criterion.\n"
+        "  Status: met.\n"
+        "  Evidence: source two.\n"
+    )
+    if module.criteria_evidence_summary_label(bulletless_status_mapping) != (
+        "Show Team Lead evidence criteria: 2/2 met before closeout"
+    ):
+        raise RuntimeError("Criteria evidence summary did not count bulletless Status lines")
 
 
 def run_handoff_initial_project_hydrate_smoke(work_dir: Path) -> None:

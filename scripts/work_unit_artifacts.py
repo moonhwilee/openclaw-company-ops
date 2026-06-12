@@ -796,7 +796,7 @@ def criteria_evidence_summary_label(done_mapping: str) -> str:
     criterion_count = len(re.findall(r"(?im)^\s*-\s*Criterion\s*:", done_mapping))
     statuses = [
         clean_markdown_value(match.group(1).strip().rstrip(".")).lower()
-        for match in re.finditer(r"(?im)^\s*-\s*Status\s*:\s*(.+?)\s*$", done_mapping)
+        for match in re.finditer(r"(?im)^\s*(?:-\s*)?Status\s*:\s*(.+?)\s*$", done_mapping)
     ]
     total = criterion_count or len(statuses)
     met = sum(1 for status in statuses if status in {"met", "pass", "passed"} or status.startswith("met "))
