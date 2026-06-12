@@ -411,23 +411,31 @@ Deliverable:
 
 - Optional launchd/cron setup guide.
 - No scheduled job installed by default.
+- Bootstrap step that can guide, preview, and explicitly install local schedules
+  after preflight passes.
 
 Example schedule intent:
 
 ```text
 */5 * * * * company-ops github issue-inbox stage --limit 20 --max-runtime 60 --format json
 */5 * * * * company-ops project-sync cron-once --sync-issue-labels --max-runtime 60 --format json
+*/10 * * * * company-ops work-unit alert-scan --discord --discord-on-alerts-only --target channel:<ops-alerts-channel-id> --format json
 ```
 
 Scheduling rules:
 
 - Start with one-shot commands only.
 - Install schedule only after Phase 1 through Phase 6 tests pass.
-- Default interval: 5 minutes.
+- Default interval: 5 minutes for intake/project sync; 10 minutes for
+  Work Unit alert-scan.
 - Minimum interval: 3 minutes unless explicitly approved.
 - Each command has its own lock.
 - Stale lock is reported, not automatically deleted.
 - Auth/rate-limit/schema failures write audit and owner-visible failure report.
+- Alert-scan schedules must use `--discord-on-alerts-only`; positive OK
+  messages are manual smoke output, not recurring notification output.
+- Bootstrap may write a launchd/cron registration only after explicit operator
+  confirmation of interval, target, command path, and log/state paths.
 
 Forbidden:
 

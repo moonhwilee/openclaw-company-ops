@@ -522,9 +522,20 @@ def cmd_alert_scan(args: argparse.Namespace) -> int:
     discord_result: dict[str, Any] | None = None
     if args.discord:
         message = format_discord_message(payload)
-        code, data, error = send_discord(args, message)
+        if args.discord_on_alerts_only and not payload["events"]:
+            code, data, error = 0, {"skipped": True, "reason": "no_alerts"}, ""
+        else:
+            code, data, error = send_discord(args, message)
         discord_result = {
-            "status": "sent" if code == 0 and not args.dry_run else "dry-run" if args.dry_run else "failed",
+            "status": (
+                "skipped_no_alerts"
+                if args.discord_on_alerts_only and not payload["events"]
+                else "sent"
+                if code == 0 and not args.dry_run
+                else "dry-run"
+                if args.dry_run
+                else "failed"
+            ),
             "target": args.target,
             "error": error,
             "response": data,
@@ -578,6 +589,11 @@ def add_alert_scan_parser(work_unit_subparsers: argparse._SubParsersAction[argpa
     alert_scan.add_argument("--record", action="store_true", help="Record audit/suppress state without sending Discord")
     alert_scan.add_argument("--audit-log", type=Path, help="JSONL audit log path, default: <state-dir>/alerts.jsonl")
     alert_scan.add_argument("--discord", action="store_true", help="Send alert summary to Discord target")
+    alert_scan.add_argument(
+        "--discord-on-alerts-only",
+        action="store_true",
+        help="With --discord, skip the Discord send when no alerts are visible",
+    )
     alert_scan.add_argument("--target", default="", help="Discord target, for example channel:<id>")
     alert_scan.add_argument("--channel", default="discord", help="OpenClaw message channel")
     alert_scan.add_argument("--account", default="", help="OpenClaw account id")

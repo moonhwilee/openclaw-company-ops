@@ -517,8 +517,17 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
 ```
 
 Packaging this command makes it available in Company Ops, but does not make it
-run continuously. A separate approved caller, such as OpenClaw cron or launchd,
-is required before Company Ops is actively monitoring on a schedule.
+run continuously. Bootstrap should guide an optional approved caller, such as
+OpenClaw cron or launchd, before Company Ops is actively monitoring on a
+schedule. The recurring command must use alert-only Discord delivery:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan \
+  --discord \
+  --discord-on-alerts-only \
+  --target channel:<ops-alerts-channel-id> \
+  --format json
+```
 
 The scanner may write only local alert audit/suppression state under
 `~/.openclaw/state/openclaw-company-ops/alerts/`. It must not mutate Work Unit

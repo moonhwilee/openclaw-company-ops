@@ -605,6 +605,34 @@ def run_alert_scan_smoke(args: argparse.Namespace, work_dir: Path) -> None:
     if dry_run_payload.get("discord", {}).get("status") != "dry-run":
         raise RuntimeError("alert-scan discord dry-run did not report dry-run status")
 
+    no_alert_dry_run = run_command(
+        [
+            sys.executable,
+            str(ALERT_SCAN),
+            "work-unit",
+            "alert-scan",
+            "--artifact-root",
+            str(stale_artifacts.parent),
+            "--work-unit-id",
+            "WU-260605-903",
+            "--now",
+            "2026-06-07T01:10:00Z",
+            "--normal-stale-minutes",
+            "60",
+            "--discord",
+            "--discord-on-alerts-only",
+            "--dry-run",
+            "--target",
+            "channel:ops-alerts-smoke",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(no_alert_dry_run, "work-unit alert-scan no-alert discord dry-run")
+    no_alert_payload = json.loads(no_alert_dry_run.stdout)
+    if no_alert_payload.get("discord", {}).get("status") != "skipped_no_alerts":
+        raise RuntimeError("alert-scan no-alert cron mode did not skip Discord send")
+
 
 def update_result_ready(ledger: Path, claim_ref: str, artifact_dir: Path) -> None:
     require_success(

@@ -90,7 +90,16 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
 
 For periodic operation, register a bounded one-shot caller such as OpenClaw cron
 or launchd. The registered job should run the same foreground command, use an
-explicit target, and rely on suppression state to prevent repeated noise.
+explicit target, use `--discord-on-alerts-only`, and rely on suppression state
+to prevent repeated noise:
+
+```bash
+python3 scripts/openclaw_company_ops.py work-unit alert-scan \
+  --discord \
+  --discord-on-alerts-only \
+  --target channel:<ops-alerts-channel-id> \
+  --format json
+```
 
 Registering a periodic caller changes the operating state from "available
 manual command" to "actively monitoring." Until that caller exists, Company Ops
@@ -163,6 +172,10 @@ The scanner must not:
 ## Discord Policy
 
 Default target is operator-provided `#ops-alerts`.
+
+Use `--discord-on-alerts-only` for scheduled callers. Without it, a live Discord
+run sends a positive `[OK]` report even when there are no alerts, which is useful
+for manual smoke but too noisy for recurring operation.
 
 Repeated alerts are suppressed by event key:
 
