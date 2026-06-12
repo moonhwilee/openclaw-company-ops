@@ -409,7 +409,7 @@ Tests:
 
 Deliverable:
 
-- Optional macOS LaunchAgent setup guide, with cron as a non-macOS fallback.
+- Optional OS-native schedule setup guide.
 - No scheduled job installed by default.
 - Bootstrap step that can guide, preview, and explicitly install local schedules
   after preflight passes.
@@ -434,20 +434,23 @@ Scheduling rules:
 - Auth/rate-limit/schema failures write audit and owner-visible failure report.
 - Alert-scan schedules must use `--discord-on-alerts-only`; positive OK
   messages are manual smoke output, not recurring notification output.
-- On macOS, bootstrap should register approved schedules as user LaunchAgents
-  under `~/Library/LaunchAgents/`, not OpenClaw agent-turn cron. This keeps the
-  periodic check mechanical and avoids spending an LLM turn every 10 minutes.
-- Bootstrap may write and load a LaunchAgent, or a cron fallback on non-macOS,
-  only after explicit operator confirmation of interval, target, command path,
-  label, plist/log path, and state path.
-- The recommended dogfood LaunchAgent label for Work Unit alert-scan is
-  `com.geumbi.company-ops-alert-scan`; the command must be the same foreground
+- Bootstrap should register approved schedules through the host OS scheduler,
+  not OpenClaw agent-turn cron. The periodic check should stay mechanical and
+  should not spend an LLM turn every 10 minutes.
+- Supported scheduler bindings should be explicit by OS:
+  - macOS: user LaunchAgent under `~/Library/LaunchAgents/`.
+  - Linux: systemd user timer when available, otherwise cron.
+- Bootstrap may write and load the OS scheduler registration only after
+  explicit operator confirmation of interval, target, command path, scheduler
+  kind, scheduler artifact path, log paths, and state path.
+- The recommended dogfood schedule name for Work Unit alert-scan is
+  `company-ops-alert-scan`; the command must be the same foreground
   `company-ops work-unit alert-scan --discord --discord-on-alerts-only ...`
   invocation.
 
 Forbidden:
 
-- Installing launchd/cron during package setup without explicit approval.
+- Installing OS scheduler jobs during package setup without explicit approval.
 - Scheduler that performs promotion or dispatch.
 - Scheduler that rewrites source artifacts.
 

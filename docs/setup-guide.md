@@ -518,9 +518,10 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
 
 Packaging this command makes it available in Company Ops, but does not make it
 run continuously. Bootstrap should guide an optional approved caller before
-Company Ops is actively monitoring on a schedule. On macOS, use a user
-LaunchAgent under `~/Library/LaunchAgents/`; use cron only as a non-macOS
-fallback. The recurring command must use alert-only Discord delivery:
+Company Ops is actively monitoring on a schedule. Use the host OS scheduler:
+macOS user LaunchAgent, Linux systemd user timer when available, and cron only
+when it is the practical native binding. The recurring command must use
+alert-only Discord delivery:
 
 ```bash
 python3 scripts/openclaw_company_ops.py work-unit alert-scan \
@@ -535,9 +536,9 @@ The scanner may write only local alert audit/suppression state under
 source artifacts, retry, take over, close issues, update Project fields, or
 treat Discord as source truth.
 
-Before bootstrap writes or loads a LaunchAgent, it must show the operator the
-label, plist path, command, interval, target, log paths, and state path, then
-require explicit confirmation.
+Before bootstrap writes or loads a scheduler registration, it must show the
+operator the scheduler kind, artifact path, command, interval, target, log
+paths, and state path, then require explicit confirmation.
 
 ### Discord Ops Bridge
 

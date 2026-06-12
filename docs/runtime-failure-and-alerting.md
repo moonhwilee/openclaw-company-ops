@@ -62,7 +62,7 @@ commit or package build as the rest of the Company Ops CLI:
 - this document and the README document index.
 
 That makes the command available anywhere this Company Ops repository or package
-is installed. It does not, by itself, install a daemon, cron job, LaunchAgent, or
+is installed. It does not, by itself, install a daemon, OS scheduler job, or
 automatic Discord delivery.
 
 ## Activation Model
@@ -88,11 +88,12 @@ python3 scripts/openclaw_company_ops.py work-unit alert-scan \
   --target channel:<ops-alerts-channel-id>
 ```
 
-For periodic operation, register a bounded one-shot caller. On macOS, prefer a
-user LaunchAgent under `~/Library/LaunchAgents/`; cron is a fallback for
-non-macOS environments. The registered job should run the same foreground
-command, use an explicit target, use `--discord-on-alerts-only`, and rely on
-suppression state to prevent repeated noise:
+For periodic operation, register a bounded one-shot caller through the host OS
+scheduler: macOS user LaunchAgent, Linux systemd user timer when available, and
+cron only when it is the practical native binding. The registered job should
+run the same foreground command, use an explicit target, use
+`--discord-on-alerts-only`, and rely on suppression state to prevent repeated
+noise:
 
 ```bash
 python3 scripts/openclaw_company_ops.py work-unit alert-scan \
@@ -106,9 +107,9 @@ Registering a periodic caller changes the operating state from "available
 manual command" to "actively monitoring." Until that caller exists, Company Ops
 does not continuously scan.
 
-Bootstrap may create or load the LaunchAgent only after preflight and explicit
-operator confirmation of the label, plist path, command, interval, target, log
-paths, and alert state path.
+Bootstrap may create or load the scheduler registration only after preflight
+and explicit operator confirmation of the scheduler kind, artifact path,
+command, interval, target, log paths, and alert state path.
 
 ## Local Operating State
 
@@ -118,7 +119,7 @@ Current local dogfood behavior is intentionally foreground-first:
 - a live Discord send can be run with an explicit target;
 - live sends write audit/suppression state under
   `~/.openclaw/state/openclaw-company-ops/alerts/`;
-- no cron, LaunchAgent, daemon, retry, takeover, or source mutation is installed
+- no OS scheduler job, daemon, retry, takeover, or source mutation is installed
   by this feature.
 
 The first live send used target `channel:1512413655260594307` and read back the
