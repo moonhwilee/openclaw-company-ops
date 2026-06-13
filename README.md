@@ -3,6 +3,11 @@
 OpenClaw Company Ops is a company-style operating structure for coordinating
 multiple OpenClaw agents.
 
+Company Ops turns open-ended AI agent work loops into source-backed Work Units
+with clear goals, evidence, verification, and owner decisions. Its purpose is
+not to make agents autonomous by default; it makes repeated agent execution
+accountable, recoverable, and reviewable.
+
 The core chain is:
 
 ```text
@@ -61,16 +66,18 @@ Stabilization Gate includes the distribution-critical 5.8.7 follow-up, the
 5.8.8 GitHub Work Card final-result visibility blocker, and the 5.8.9
 Discord Progress display cleanup.
 Phases 5.8.1 through 5.8.9 are implemented in the repo-local and controlled
-smoke model: canonical start/result-ready guards, final closeout lifecycle
+smoke model: canonical start/result-ready guards, goal convergence receipts,
+Draft-to-Result Ready source transition ordering, final closeout lifecycle
 convergence, fresh-session detached dispatch, capacity policy, result-ready
 closeout delegate wake, guarded `--commit-request` closeout, resumable closeout
 visibility publish, duplicate RESULT_READY suppression, closeout delegate
 replay-safe idempotency, delegated closeout authority, verify/fix authority
-boundaries, final Project readback convergence, and minimal public-install
-preflight, final Work Card summary comments, and user-facing Progress display
-are all present. Phase 6 Packaging / Public v1 can begin after owner acceptance
-of the Phase 5.8.7 boundary/convergence implementation and the Phase 5.8.8
-GitHub Work Card final-result visibility boundary.
+boundaries, manual stale-lock status/clear recovery, final Project readback
+convergence, and minimal public-install preflight, final Work Card summary
+comments, and user-facing Progress display are all present. Phase 6 Packaging /
+Public v1 can begin after owner acceptance of the Phase 5.8.7
+boundary/convergence implementation and the Phase 5.8.8 GitHub Work Card
+final-result visibility boundary.
 
 Company Ops capacity sizing is a general operating policy, not a phase-local
 patch. See [`docs/capacity-policy.md`](docs/capacity-policy.md) for OpenClaw
@@ -99,6 +106,18 @@ Repo-local tooling is available through:
 ```bash
 python3 scripts/openclaw_company_ops.py --help
 ```
+
+The owner-facing repo-local router is available through:
+
+```bash
+python3 scripts/openclaw_company_ops.py ops --help
+python3 scripts/openclaw_company_ops.py ops goal "Improve the onboarding report"
+python3 scripts/openclaw_company_ops.py ops verify "Verify docs/report.md" --source-ref docs/report.md
+```
+
+The future package should expose this as `/ops ...`, not as `/goal`, so it does
+not conflict with native OpenClaw/Codex session goal commands. See
+[`docs/command-links.md`](docs/command-links.md).
 
 This repository is the development workspace, not the installable package root.
 Use [`docs/package-boundary.md`](docs/package-boundary.md) as the current
@@ -151,6 +170,7 @@ guess targets, or grant permissions on the user's behalf.
 ## Documents
 
 - [Architecture](docs/architecture.md)
+- [Command Links](docs/command-links.md)
 - [Team Lead Protocols](docs/protocols/README.md)
 - [Role Persona Packages](docs/role-persona-packages.md)
 - [Setup Guide](docs/setup-guide.md)

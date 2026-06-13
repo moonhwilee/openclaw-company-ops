@@ -1097,8 +1097,9 @@ foreground CLI tools for deterministic source-backed operations. Do not make
 user `MEMORY.md` or `AGENTS.md` edits part of the install path.
 
 The small skill/router is the package discovery layer for owner-facing requests
-such as `/goal`, `/verify`, "verify this", or "run this as a goal". It should
-do only four things:
+such as `/ops goal`, `/ops verify`, "verify this", or "run this as a goal".
+Bare `/goal` remains reserved for native OpenClaw/Codex session goal handling.
+The router should do only four things:
 
 1. Classify the request as a supported Company Ops route or return
    `needs-ops-decision` when ambiguous.
@@ -1169,15 +1170,19 @@ Recommended replacement order:
 9. Keep scheduled Pulse activation deferred unless the Phase 5.6 trigger is
    later met. If accepted, use one-shot scheduled `pulse check`, not a
    long-running daemon by default, and suppress result-ready/decided Work Units.
-10. Defer a conservative `route --intent <text>` helper until after the
+10. Use the repo-local `ops` router as the owner-facing command link surface:
+   `/ops goal`, `/ops verify`, `/ops status`, `/ops inbox`, `/ops decide`, and
+   `/ops preflight`. Keep it as a thin adapter over existing foreground
+   commands; do not let it become a hidden orchestrator or source of truth.
+11. Defer any broader `route --intent <text>` helper until after the
    result-ready inbox and closeout-lock path are stable. Add it only if it
    remains deterministic and can return `needs-ops-decision` when ambiguous.
-11. Package the accepted surfaces as a plugin/package with a bundled small skill
+12. Package the accepted surfaces as a plugin/package with a bundled small skill
    now that Phase 5.7 has locked the included and deferred surfaces. The small
-   skill must expose the user-facing `/goal` and `/verify` style entry points as
-   routing triggers, but the generated Assignment Packet's Protocol Capsule is
-   what the Team Lead executes.
-12. Replace the manual smoke test with `smoke`.
+   skill must expose the user-facing `/ops goal` and `/ops verify` entry points
+   as routing triggers, but the generated Assignment Packet's Protocol Capsule
+   is what the Team Lead executes.
+13. Replace the manual smoke test with `smoke`.
 
 Do not leave manual commands as an alternate legacy operating path after the
 supported command is available. Keep only emergency diagnostics and explicit

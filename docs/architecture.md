@@ -8,6 +8,11 @@ OpenClaw Company Ops is a lightweight operating structure for running many
 OpenClaw-agent-led tasks without turning the system into a heavy workflow
 platform.
 
+It treats agent work as an open-ended execution loop that must stay anchored to
+source records: goals, scope, constraints, evidence, verification, and final
+owner-facing decisions. Company Ops is therefore an operating layer for making
+agent loops accountable and recoverable, not an autonomous-company runtime.
+
 It exists to make this possible:
 
 - The Operations Lead can define and assign many Work Units.
@@ -531,5 +536,6 @@ These decisions are not blockers for the architecture:
   remain outside the accepted surface.
 - The exact public-v1 package layout and install mechanism. The accepted
   direction is a Company Ops plugin or package containing a small Company Ops
-  skill plus foreground CLI tools, not installer-written user memory and not a
-  standalone skill-only or CLI-only release.
+  skill plus the namespaced `/ops` foreground CLI tools, not installer-written
+  user memory and not a standalone skill-only or CLI-only release. Bare
+  `/goal` stays reserved for native OpenClaw/Codex session goal handling.

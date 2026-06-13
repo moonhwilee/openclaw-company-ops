@@ -648,8 +648,9 @@ For distribution, use two explicit surfaces:
   filesystem mutation, dashboard sync, Discord publish, or closeout state.
 - OpenClaw plugin or package: carries the executable repo-local tools, CLI
   entrypoint, templates, smoke tests, and optional connector bindings. It is the
-  right home for `route`, `work-unit inbox`, `work-unit closeout`,
-  `project-sync`, and Discord publisher commands. It can be installed and
+  right home for `/ops goal`, `/ops verify`, `/ops status`, `/ops inbox`,
+  `/ops decide`, `/ops preflight`, `project-sync`, and Discord publisher
+  commands. It can be installed and
   versioned without editing user memory.
 
 Cold packaging judgment:
@@ -752,8 +753,9 @@ Scope:
   decision write, Project mutation, Discord publish, or owner-facing report.
 - The lock is a short-lived command guard, not a durable workflow state. The
   first implementation should fail clearly when a lock already exists, include
-  the lock path in the error, and avoid adding force-unlock behavior until a
-  separate stale-lock policy is accepted.
+  the lock path in the error, and avoid automatic unlock behavior. A later
+  accepted stale-lock policy adds explicit operator recovery through
+  `work-unit lock status` and `work-unit lock clear --reason ...`.
 - `accept` and `revise` require a source-backed `result_ready` submission.
   `blocked` does not require `result_ready`; it requires blocker source,
   reason, needed action, and next owner.
@@ -772,8 +774,11 @@ Scope:
   `needs-ops-decision` rather than guessing or calling an LLM.
 
 Decision output: foreground inbox, official result-ready publish, and explicit
-closeout decision commands are accepted for multi-WU operation. Route helper and
-stale-lock recovery remain separate decisions.
+closeout decision commands are accepted for multi-WU operation. Route helper
+remains a separate decision. Stale-lock recovery was later narrowed to explicit
+manual inspection and clear commands: `work-unit lock status` and
+`work-unit lock clear --reason ...`; automatic TTL deletion remains out of
+scope.
 
 No-go boundaries:
 
@@ -1281,6 +1286,9 @@ Scope:
 - Implemented a 5.8.9 Discord Progress display cleanup after the GitHub visibility
   gate: render long-work checkpoint cards as user-facing two-line `PROGRESS`
   updates while preserving internal `CHECKPOINT` proof events, the
+  goal convergence receipt gate, Draft-to-Result Ready source transition
+  ordering, repair-needed round checkpoint rule, and manual stale-lock
+  status/clear recovery.
   `work-unit checkpoint` command, and `transition_kind=checkpoint`.
 
 Acceptance gate:

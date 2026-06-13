@@ -228,6 +228,45 @@ Rollback:
 - Remove the local staging root after confirming no promoted candidates depend
   on it.
 
+### Candidate Review UX Boundary
+
+Automation v1 optimizes for owner-readable intake, not autonomous execution. A
+staged candidate helps the Operations Lead decide whether to promote, drop, or
+request missing input. It is not source truth, Work Unit evidence, or an
+Operations Lead decision artifact.
+
+Candidate review summaries should be compact and decision-shaped:
+
+- `URL`: canonical source issue, PR, or Project item.
+- `What`: plain-language description of the request or recovery candidate.
+- `Why now`: why the item is worth owner or Operations Lead attention.
+- `Risk`: low, medium, high, or manual-required, with one short reason.
+- `Proof`: source facts observed during intake, not Work Unit verification.
+- `Blocker`: missing input, access, product choice, or source inconsistency.
+- `Next`: one narrow next choice such as `approve`, `drop`, `needs-access`, or
+  `needs-owner-choice`.
+
+Owner-facing questions must be narrow enough to answer without redoing triage.
+Do not ask broad questions such as "what should we do with this issue?" when
+the candidate can be framed as approve, drop, provide exact access, or choose a
+documented option.
+
+`required_checks` describe the verification a promoted Work Unit would need;
+automation v1 does not perform full proof. For user-facing, runtime, or external
+integration candidates, name the expected live proof or the exact waiver/input
+that would be required after promotion.
+
+Automation authority stays simple:
+
+- `scan`: read trigger and mirror surfaces only.
+- `stage`: write non-authoritative local candidate files only.
+- `promote`: after owner approval, convert the candidate through official
+  foreground Work Unit draft or handoff commands.
+
+Execution permissions such as commit, push, PR update, merge, close, release,
+or external mutation are not automation intake permissions. They belong only to
+the promoted Work Unit's Assignment Packet and Mutation Authority.
+
 ### Phase 3: Candidate Policy And Review UX
 
 Deliverable:

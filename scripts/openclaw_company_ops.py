@@ -10,6 +10,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROUTES = {
+    "ops": ("ops_router.py", False),
     "work-unit": ("work_unit_artifacts.py", True),
     "claim": ("ops_claim_ledger.py", True),
     "pulse": ("pulse_monitor.py", True),
@@ -30,6 +31,11 @@ def print_help() -> None:
     print(f"commands: {commands}")
     print()
     print("examples:")
+    print("  python3 scripts/openclaw_company_ops.py ops goal Improve the onboarding report --team build-lab")
+    print("  python3 scripts/openclaw_company_ops.py ops verify docs/report.md --source-ref docs/report.md")
+    print("  python3 scripts/openclaw_company_ops.py ops status WU-260606-001")
+    print("  python3 scripts/openclaw_company_ops.py ops inbox")
+    print("  python3 scripts/openclaw_company_ops.py ops preflight --format json")
     print("  python3 scripts/openclaw_company_ops.py work-unit create --help")
     print("  python3 scripts/openclaw_company_ops.py work-unit alert-scan --format json")
     print("  python3 scripts/openclaw_company_ops.py preflight --format json")

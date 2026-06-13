@@ -198,13 +198,25 @@ There is no one-subagent path. If the Team Lead uses subagents, use at least
 two complementary subagents within the budget so the result is meaningfully
 different from solo Team Lead execution.
 
-Before invoking `work-unit result-ready`, update the Evidence & Result Record to
-`Status: Result Ready`. A draft evidence file must remain in repair-needed
-state and should not publish a `RESULT_READY` proof.
+Before invoking `work-unit result-ready` for goal mode, write
+`goal-convergence-receipt.json` for this exact Work Unit. It must include
+integer `unresolved_debt_count: 0`, `assignment_criteria_count` equal to the
+number of Done Criteria plus Verification Criteria in this Assignment Packet,
+and one unique `criterion_id` entry per criterion. The `criterion_id` set must
+exactly match the generated ids from this packet (`done-1`, `verification-1`,
+etc.) with no missing or extra ids. Keep the Evidence & Result Record in
+`Status: Draft` until the official result-ready publish command performs the
+guarded `Status: Result Ready` source transition. A draft evidence file without
+a valid convergence receipt remains repair-needed and must not publish a
+`RESULT_READY` proof.
 
 For `goal` mode, do not stop after one failed verification. Plan once, then
 repeat implementation or improvement and verification until a `stop_only_on`
-condition is true.
+condition is true. If a criterion is `fail` or `unknown`, or the result-ready
+gate returns repair-needed, keep the same Work Unit, increment the
+goal/convergence round, and use the `checkpoint_contract` when present to
+publish a source-backed `CHECKPOINT` before retrying result-ready. Do not create
+a new Work Unit or reset progress to represent a repair round.
 
 Planning is required for `goal`, but it should be proportional. Small Work
 Units can use a concise 1-3 bullet plan; risky or multi-step Work Units need a

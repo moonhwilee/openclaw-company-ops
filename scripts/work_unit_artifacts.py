@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import tempfile
@@ -1800,7 +1801,12 @@ def build_closeout_delegate_payload(
     args.closeout_delegate_session_key = session_key
     source_ref = args.source_ref or item["evidence_path"]
     team_target = latest_visibility_target(artifact_dir, args.work_unit_id, "team-detail", "<team-detail-target>")
-    ops_target = latest_visibility_target(artifact_dir, args.work_unit_id, "ops-feed", "<ops-feed-target>")
+    ops_target = latest_visibility_target(
+        artifact_dir,
+        args.work_unit_id,
+        "ops-feed",
+        getattr(args, "ops_target", "") or "<ops-feed-target>",
+    )
     payload = {
         "protocol": "company_ops_closeout_delegate_wake_v1",
         "work_unit_id": args.work_unit_id,
@@ -2951,9 +2957,25 @@ There is no one-subagent path. If the Team Lead uses subagents, use at least
 two complementary subagents within the budget so the result is meaningfully
 different from solo Team Lead execution.
 
-Before invoking `work-unit result-ready`, update the Evidence & Result Record to
-`Status: Result Ready`. A draft evidence file must remain in repair-needed
-state and should not publish a `RESULT_READY` proof.
+Before invoking `work-unit result-ready` for goal mode, write
+`goal-convergence-receipt.json` for this exact Work Unit. It must include
+integer `unresolved_debt_count: 0`, `assignment_criteria_count` equal to the
+number of Done Criteria plus Verification Criteria in this Assignment Packet,
+and one unique `criterion_id` entry per criterion. The `criterion_id` set must
+exactly match the generated ids from this packet (`done-1`, `verification-1`,
+etc.) with no missing or extra ids. Keep the Evidence & Result Record in
+`Status: Draft` until the official result-ready publish command performs the
+guarded `Status: Result Ready` source transition. A draft evidence file without
+a valid convergence receipt remains repair-needed and must not publish a
+`RESULT_READY` proof.
+
+For `goal` mode, do not stop after one failed verification. Plan once, then
+repeat implementation or improvement and verification until a `stop_only_on`
+condition is true. If a criterion is `fail` or `unknown`, or the result-ready
+gate returns repair-needed, keep the same Work Unit, increment the
+goal/convergence round, and use the `checkpoint_contract` when present to
+publish a source-backed `CHECKPOINT` before retrying result-ready. Do not create
+a new Work Unit or reset progress to represent a repair round.
 
 ## Expected Outputs
 
@@ -4387,7 +4409,7 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
         f"--work-unit-id {args.work_unit_id} --artifact-root {args.artifact_root} "
         f"--team {args.team} --result <result-summary> --evidence {evidence_path} "
         f"--verification <verification-summary> --source-ref {evidence_path} "
-        f"--target {team_detail_target} --channel discord --account default "
+        f"--target {team_detail_target} --ops-target {getattr(args, 'ops_target', '<ops-feed-target>')} --channel discord --account default "
         f"--project-sync-field-map {DEFAULT_PROJECT_FIELD_MAP} "
         f"--project-sync-ledger {DEFAULT_PROJECT_LEDGER} "
         f"--project-sync-audit-log {DEFAULT_PROJECT_AUDIT_LOG} "
@@ -4468,8 +4490,10 @@ def dispatch_packet(args: argparse.Namespace, assignment: dict[str, Any], artifa
             "Use repo_root when resolving relative source paths.",
             "Do not mutate outside the assigned Work Unit scope.",
             "Follow the Assignment Packet subagent_budget as a prompt/packet contract; do not exceed 5 without explicit approval.",
-            "Set Evidence & Result Record status to Result Ready before calling the result-ready command.",
+            "For goal mode, write goal-convergence-receipt.json for this Work Unit with integer unresolved_debt_count=0, assignment_criteria_count matching Done plus Verification criteria, and criterion_id values exactly matching the generated Assignment Packet ids such as done-1 and verification-1 before calling the result-ready command.",
+            "Keep Evidence & Result Record status Draft until the official result-ready publish command performs the guarded Result Ready source transition.",
             "Run result_ready_contract.dry_run_command before result_ready_contract.command; if setup is missing, report a source-backed blocker instead of improvising success.",
+            "If goal verification or the result-ready gate returns repair-needed, continue the same Work Unit, increment the goal/convergence round, and use checkpoint_contract before retrying result-ready when checkpoint publishing is available.",
             "For long goal/progress updates, run checkpoint_contract.dry_run_command before checkpoint_contract.command so Discord CHECKPOINT and Project Progress mirror stay in sync.",
             "Return result evidence through the result-ready path with a fresh closeout delegate wake.",
             "Replace <result-summary> and <verification-summary> with concrete text before running the result-ready command.",
@@ -5038,6 +5062,43 @@ def result_ready_card(args: argparse.Namespace, item: dict[str, Any]) -> tuple[d
     return card_from_command(command, "result-ready")
 
 
+def maybe_recover_closeout_delegate_wake(
+    args: argparse.Namespace,
+    *,
+    artifact_root: Path,
+    artifact_dir: Path,
+    transition_at: str,
+) -> tuple[int, dict[str, Any]]:
+    ol_status = operations_lead_status(artifact_root, args.work_unit_id)
+    if args.closeout_delegate_runtime == "none":
+        return 0, {
+            "mode": "skipped",
+            "reason": "closeout delegate runtime is none",
+            "ol_status": ol_status,
+        }
+    if ol_status.get("status") != "result-ready-waiting-review":
+        return 0, {
+            "mode": "skipped",
+            "reason": f"Operations Lead status is {ol_status.get('status')}",
+            "ol_status": ol_status,
+        }
+    return perform_closeout_delegate_wake(
+        args,
+        artifact_root=artifact_root,
+        artifact_dir=artifact_dir,
+        transition_at=transition_at,
+    )
+
+
+def mark_evidence_result_ready(evidence_path: Path) -> None:
+    text = evidence_path.read_text(encoding="utf-8")
+    if STATUS_RE.search(text):
+        updated = STATUS_RE.sub("Status: Result Ready", text, count=1)
+    else:
+        updated = "Status: Result Ready\n\n" + text
+    evidence_path.write_text(updated, encoding="utf-8")
+
+
 def perform_closeout_delegate_wake(
     args: argparse.Namespace,
     *,
@@ -5216,10 +5277,26 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         print("error: --publish requires --target", file=sys.stderr)
         return 1
 
-    pre_gate = result_ready_gate(artifact_root, args.work_unit_id, require_live_visibility=False)
+    proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
+    existing_proofs, proof_warnings = proof_rows_for_work_unit(proof_log, args.work_unit_id)
+    existing_result_ready = [
+        row
+        for row in existing_proofs
+        if row.get("surface") == "team-detail"
+        and row.get("kind") == "RESULT_READY"
+        and row.get("readback_ok") is not False
+    ]
+    pre_gate = result_ready_gate(
+        artifact_root,
+        args.work_unit_id,
+        evidence_status_override="Result Ready",
+        require_live_visibility=False,
+        allow_draft_evidence_with_convergence_receipt=True,
+    )
     if not pre_gate["ready"]:
-        print_gate_failure("result-ready pre-publish gate failed", pre_gate)
-        return 1
+        if not (args.publish and existing_result_ready and not args.force):
+            print_gate_failure("result-ready pre-publish gate failed", pre_gate)
+            return 1
     if args.source_ref and not local_source_ref_exists(args.source_ref, artifact_dir):
         print(f"error: result-ready source_ref does not exist: {args.source_ref}", file=sys.stderr)
         return 1
@@ -5234,15 +5311,6 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    proof_log = args.proof_log.expanduser() if args.proof_log else artifact_dir / DEFAULT_PROOF_LOG_NAME
-    existing_proofs, proof_warnings = proof_rows_for_work_unit(proof_log, args.work_unit_id)
-    existing_result_ready = [
-        row
-        for row in existing_proofs
-        if row.get("surface") == "team-detail"
-        and row.get("kind") == "RESULT_READY"
-        and row.get("readback_ok") is not False
-    ]
     blockers = work_unit_mutation_blockers(
         artifact_root,
         args.work_unit_id,
@@ -5252,32 +5320,6 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
     if blockers:
         print_mutation_blocked("result-ready", args.work_unit_id, blockers, artifact_root=artifact_root, format_name=args.format)
         return 1
-    if args.publish and existing_result_ready and not args.force:
-        payload = {
-            "dry_run": False,
-            "status": "already-result-ready",
-            "work_unit_id": args.work_unit_id,
-            "pre_publish_gate": pre_gate,
-            "existing_result_ready_count": len(existing_result_ready),
-            "latest_result_ready": existing_result_ready[-1],
-            "would_publish_result_ready": False,
-            "would_mutate_project": False,
-            "delegate_wake": {
-                "mode": "skipped",
-                "reason": "existing RESULT_READY proof makes this retry idempotent",
-            },
-            "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
-            "next_action": (
-                "Use work-unit inbox --result-ready or work-unit delegate-wake "
-                "to recover closeout delegate setup if closeout has not started."
-            ),
-        }
-        if args.format == "json":
-            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
-        else:
-            print(f"already result-ready {args.work_unit_id}: {existing_result_ready[-1].get('proof_id', '')}")
-            print(f"next: {payload['next_action']}")
-        return 0
     if args.dry_run:
         payload = {
             "dry_run": True,
@@ -5310,24 +5352,127 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
             print("\nDRY-RUN result-ready: source gate passed; no Discord proof or Project mirror mutated.")
         return 0
 
-    publish_code, publish_payload, publish_error = publish_card(args, card, proof_log)
-    if publish_code != 0:
-        print(publish_error or "error: result-ready publish failed", file=sys.stderr)
-        return 1
+    lock_path = artifact_dir / ".result-ready.lock"
+    try:
+        with CloseoutLock(lock_path, metadata={"work_unit_id": args.work_unit_id, "operation": "result-ready"}):
+            locked_existing_proofs, _locked_proof_warnings = proof_rows_for_work_unit(proof_log, args.work_unit_id)
+            locked_existing_result_ready = [
+                row
+                for row in locked_existing_proofs
+                if row.get("surface") == "team-detail"
+                and row.get("kind") == "RESULT_READY"
+                and row.get("readback_ok") is not False
+            ]
+            locked_pre_gate = result_ready_gate(
+                artifact_root,
+                args.work_unit_id,
+                evidence_status_override="Result Ready",
+                require_live_visibility=False,
+                allow_draft_evidence_with_convergence_receipt=True,
+            )
+            if not locked_pre_gate["ready"]:
+                if not (locked_existing_result_ready and not args.force):
+                    print_gate_failure("result-ready locked pre-publish gate failed", locked_pre_gate)
+                    return 1
+            pre_gate = locked_pre_gate
+            if locked_existing_result_ready and not args.force:
+                evidence_reconciled = False
+                existing_post_gate = result_ready_gate(
+                    artifact_root,
+                    args.work_unit_id,
+                    require_live_visibility=True,
+                    require_started_visibility=False,
+                )
+                if not existing_post_gate["ready"]:
+                    projected_existing_post_gate = result_ready_gate(
+                        artifact_root,
+                        args.work_unit_id,
+                        evidence_status_override="Result Ready",
+                        require_live_visibility=True,
+                        require_started_visibility=False,
+                        allow_draft_evidence_with_convergence_receipt=True,
+                        allow_draft_evidence_with_existing_result_ready=True,
+                    )
+                    if projected_existing_post_gate["ready"]:
+                        mark_evidence_result_ready(artifact_dir / "evidence.md")
+                        evidence_reconciled = True
+                        existing_post_gate = result_ready_gate(
+                            artifact_root,
+                            args.work_unit_id,
+                            require_live_visibility=True,
+                            require_started_visibility=False,
+                        )
+                if not existing_post_gate["ready"]:
+                    print_gate_failure("result-ready existing-proof gate failed", existing_post_gate)
+                    return 1
+                retry_delegate_wake_code, retry_delegate_wake = maybe_recover_closeout_delegate_wake(
+                    args,
+                    artifact_root=artifact_root,
+                    artifact_dir=artifact_dir,
+                    transition_at=args.transition_at or utc_now_iso(),
+                )
+                retry_status = commit_request_text(retry_delegate_wake.get("status")) if isinstance(retry_delegate_wake, dict) else ""
+                payload = {
+                    "dry_run": False,
+                    "status": "already-result-ready" if retry_delegate_wake_code == 0 else retry_status or "delegate-wake setup-needed",
+                    "work_unit_id": args.work_unit_id,
+                    "pre_publish_gate": pre_gate,
+                    "existing_result_ready_count": len(locked_existing_result_ready),
+                    "latest_result_ready": locked_existing_result_ready[-1],
+                    "post_publish_gate": existing_post_gate,
+                    "evidence_reconciled": evidence_reconciled,
+                    "would_publish_result_ready": False,
+                    "would_mutate_project": False,
+                    "delegate_wake": retry_delegate_wake,
+                    "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
+                    "next_action": (
+                        "RESULT_READY proof already exists; closeout delegate recovery was attempted "
+                        "only if source state was still waiting for Operations Lead review."
+                    ),
+                    "lock_path": str(lock_path),
+                    "lock_released": True,
+                }
+                if args.format == "json":
+                    print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+                else:
+                    print(f"already result-ready {args.work_unit_id}: {locked_existing_result_ready[-1].get('proof_id', '')}")
+                    print(f"next: {payload['next_action']}")
+                    if retry_delegate_wake_code != 0:
+                        print(f"warning: closeout delegate wake failed: {retry_delegate_wake.get('reason')}", file=sys.stderr)
+                return retry_delegate_wake_code
 
-    post_gate = result_ready_gate(artifact_root, args.work_unit_id, require_live_visibility=True)
-    if not post_gate["ready"]:
-        print_gate_failure("result-ready post-publish proof gate failed", post_gate)
+            publish_code, publish_payload, publish_error = publish_card(args, card, proof_log)
+            if publish_code != 0:
+                print(publish_error or "error: result-ready publish failed", file=sys.stderr)
+                return 1
+
+            projected_post_gate = result_ready_gate(
+                artifact_root,
+                args.work_unit_id,
+                evidence_status_override="Result Ready",
+                require_live_visibility=True,
+                allow_draft_evidence_with_convergence_receipt=True,
+            )
+            if not projected_post_gate["ready"]:
+                print_gate_failure("result-ready post-publish proof gate failed", projected_post_gate)
+                return 1
+            mark_evidence_result_ready(artifact_dir / "evidence.md")
+            post_gate = result_ready_gate(artifact_root, args.work_unit_id, require_live_visibility=True)
+            if not post_gate["ready"]:
+                print_gate_failure("result-ready post-publish proof gate failed", post_gate)
+                return 1
+            project_sync = run_project_sync(args)
+            if project_sync.get("enabled") and not project_sync.get("ok"):
+                print(f"warning: Project result-ready sync failed: {project_sync.get('error')}", file=sys.stderr)
+            delegate_wake_code, delegate_wake = perform_closeout_delegate_wake(
+                args,
+                artifact_root=artifact_root,
+                artifact_dir=artifact_dir,
+                transition_at=args.transition_at or utc_now_iso(),
+            )
+    except RuntimeError as exc:
+        print(f"error: result-ready lock unavailable: {exc}", file=sys.stderr)
         return 1
-    project_sync = run_project_sync(args)
-    if project_sync.get("enabled") and not project_sync.get("ok"):
-        print(f"warning: Project result-ready sync failed: {project_sync.get('error')}", file=sys.stderr)
-    delegate_wake_code, delegate_wake = perform_closeout_delegate_wake(
-        args,
-        artifact_root=artifact_root,
-        artifact_dir=artifact_dir,
-        transition_at=args.transition_at or utc_now_iso(),
-    )
     delegate_wake_status = commit_request_text(delegate_wake.get("status")) if isinstance(delegate_wake, dict) else ""
 
     payload = {
@@ -5339,6 +5484,8 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
         "post_publish_gate": post_gate,
         "project_sync": project_sync,
         "delegate_wake": delegate_wake,
+        "lock_path": str(lock_path),
+        "lock_released": True,
         "ol_status": operations_lead_status(artifact_root, args.work_unit_id),
     }
     if args.format == "json":
@@ -5351,9 +5498,10 @@ def result_ready_work_unit(args: argparse.Namespace) -> int:
 
 
 class CloseoutLock:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, metadata: dict[str, Any] | None = None) -> None:
         self.path = path
         self.acquired = False
+        self.metadata = metadata or {}
 
     def __enter__(self) -> "CloseoutLock":
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -5362,15 +5510,194 @@ class CloseoutLock:
         except FileExistsError as exc:
             raise RuntimeError(f"closeout lock already exists: {self.path}") from exc
         self.acquired = True
+        metadata = {
+            "pid": os.getpid(),
+            "acquired_at": utc_now_iso(),
+            "hostname": socket.gethostname(),
+            "path": str(self.path),
+            **self.metadata,
+        }
+        (self.path / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         if not self.acquired:
             return
         try:
+            metadata_path = self.path / "metadata.json"
+            if metadata_path.exists():
+                metadata_path.unlink()
             self.path.rmdir()
         except FileNotFoundError:
             pass
+
+
+LOCK_OPERATION_PATHS = {
+    "result-ready": ".result-ready.lock",
+    "closeout": ".closeout.lock",
+}
+
+
+def work_unit_lock_path(args: argparse.Namespace) -> Path:
+    if getattr(args, "lock_path", None):
+        return args.lock_path.expanduser()
+    return args.artifact_root.expanduser() / args.work_unit_id / LOCK_OPERATION_PATHS[args.operation]
+
+
+def process_is_running(pid: object) -> bool | None:
+    if isinstance(pid, bool):
+        return None
+    try:
+        normalized = int(pid)
+    except (TypeError, ValueError):
+        return None
+    if normalized <= 0:
+        return None
+    try:
+        os.kill(normalized, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def build_lock_status(lock_path: Path) -> dict[str, Any]:
+    metadata_path = lock_path / "metadata.json"
+    metadata: dict[str, Any] = {}
+    metadata_error = ""
+    if metadata_path.exists():
+        try:
+            loaded = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                metadata = loaded
+            else:
+                metadata_error = "metadata.json is not an object"
+        except (OSError, json.JSONDecodeError) as exc:
+            metadata_error = str(exc)
+    acquired_at = str(metadata.get("acquired_at") or "")
+    age_seconds: int | None = None
+    if acquired_at:
+        try:
+            age_seconds = max(0, int((dt.datetime.now(dt.timezone.utc) - parse_timestamp(acquired_at)).total_seconds()))
+        except ValueError:
+            metadata_error = metadata_error or f"invalid acquired_at: {acquired_at}"
+    children: list[str] = []
+    if lock_path.exists() and lock_path.is_dir():
+        children = sorted(child.name for child in lock_path.iterdir())
+    pid_running = process_is_running(metadata.get("pid"))
+    stale_candidate = bool(lock_path.exists() and pid_running is False)
+    return {
+        "lock_path": str(lock_path),
+        "exists": lock_path.exists(),
+        "is_dir": lock_path.is_dir(),
+        "metadata_path": str(metadata_path),
+        "metadata": metadata,
+        "metadata_error": metadata_error,
+        "age_seconds": age_seconds,
+        "pid_running": pid_running,
+        "children": children,
+        "stale_candidate": stale_candidate,
+    }
+
+
+def work_unit_lock_status(args: argparse.Namespace) -> int:
+    lock_path = work_unit_lock_path(args)
+    payload = {
+        "status": "lock-present" if lock_path.exists() else "lock-absent",
+        "work_unit_id": args.work_unit_id,
+        "operation": args.operation,
+        "lock": build_lock_status(lock_path),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+    lock = payload["lock"]
+    if not lock["exists"]:
+        print(f"lock absent: {lock_path}")
+        return 0
+    stale = " stale-candidate" if lock["stale_candidate"] else ""
+    print(f"lock present{stale}: {lock_path}")
+    print(f"pid: {lock['metadata'].get('pid', 'unknown')} running={lock['pid_running']}")
+    print(f"acquired_at: {lock['metadata'].get('acquired_at', 'unknown')} age_seconds={lock['age_seconds']}")
+    if lock["metadata_error"]:
+        print(f"metadata_error: {lock['metadata_error']}")
+    return 0
+
+
+def work_unit_lock_clear(args: argparse.Namespace) -> int:
+    lock_path = work_unit_lock_path(args)
+    status = build_lock_status(lock_path)
+    if not status["exists"]:
+        payload = {
+            "status": "lock-absent",
+            "work_unit_id": args.work_unit_id,
+            "operation": args.operation,
+            "lock": status,
+            "cleared": False,
+        }
+        if args.format == "json":
+            print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+        else:
+            print(f"lock absent: {lock_path}")
+        return 0
+    if not status["is_dir"]:
+        print(f"error: lock path is not a directory: {lock_path}", file=sys.stderr)
+        return 1
+    if status["pid_running"] is True and not args.force:
+        print("error: lock owner process appears to be running; rerun with --force only after manual verification", file=sys.stderr)
+        return 1
+    unexpected_children = [child for child in status["children"] if child != "metadata.json"]
+    if unexpected_children:
+        print(f"error: lock directory contains unexpected files: {', '.join(unexpected_children)}", file=sys.stderr)
+        return 1
+    try:
+        metadata_path = lock_path / "metadata.json"
+        if metadata_path.exists():
+            metadata_path.unlink()
+        lock_path.rmdir()
+    except OSError as exc:
+        print(f"error: could not clear lock: {exc}", file=sys.stderr)
+        return 1
+    artifact_dir = args.artifact_root.expanduser() / args.work_unit_id
+    progress_source_ref = artifact_dir / "progress.jsonl"
+    progress_path = append_progress_row(
+        artifact_dir,
+        {
+            "work_unit_id": args.work_unit_id,
+            "transition_kind": "lock-clear",
+            "mode": "",
+            "phase": "",
+            "phase_index": "",
+            "phase_total": "",
+            "round": "",
+            "show_round": False,
+            "current_slice": f"{args.operation}-lock-clear",
+            "risk_state": "recovery",
+            "retry_state": "",
+            "next_checkpoint": "Retry the guarded command after confirming no competing mutation is active.",
+            "source_ref": str(progress_source_ref),
+            "proof_ref": "",
+            "transition_at": utc_now_iso(),
+            "recorded_by": args.recorded_by,
+            "reason": args.reason,
+        },
+    )
+    payload = {
+        "status": "lock-cleared",
+        "work_unit_id": args.work_unit_id,
+        "operation": args.operation,
+        "lock": status,
+        "cleared": True,
+        "reason": args.reason,
+        "progress_path": str(progress_path),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print(f"cleared lock: {lock_path}")
+        print(f"recorded recovery row: {progress_path}")
+    return 0
 
 
 def inbox_result_ready(args: argparse.Namespace) -> int:
@@ -6392,7 +6719,7 @@ def closeout_dry_run(args: argparse.Namespace) -> int:
 
     lock_path = args.lock_path.expanduser() if args.lock_path else artifact_dir / ".closeout.lock"
     try:
-        with CloseoutLock(lock_path):
+        with CloseoutLock(lock_path, metadata={"work_unit_id": args.work_unit_id, "operation": "closeout"}):
             item = build_work_unit_readiness(artifact_root, args.work_unit_id)
             timing.mark("read_source_artifacts")
             stage_path = artifact_dir / f"closeout-{args.decision.replace('_', '-')}-stage.json" if args.decision else None
@@ -6877,9 +7204,25 @@ There is no one-subagent path. If the Team Lead uses subagents, use at least
 two complementary subagents within the budget so the result is meaningfully
 different from solo Team Lead execution.
 
+Before invoking `work-unit result-ready` for goal mode, write
+`goal-convergence-receipt.json` for this exact Work Unit. It must include
+integer `unresolved_debt_count: 0`, `assignment_criteria_count` equal to the
+number of Done Criteria plus Verification Criteria in this Assignment Packet,
+and one unique `criterion_id` entry per criterion. The `criterion_id` set must
+exactly match the generated ids from this packet (`done-1`, `verification-1`,
+etc.) with no missing or extra ids. Keep the Evidence & Result Record in
+`Status: Draft` until the official result-ready publish command performs the
+guarded `Status: Result Ready` source transition. A draft evidence file without
+a valid convergence receipt remains repair-needed and must not publish a
+`RESULT_READY` proof.
+
 For `goal` mode, do not stop after one failed verification. Plan once, then
 repeat implementation or improvement and verification until a `stop_only_on`
-condition is true.
+condition is true. If a criterion is `fail` or `unknown`, or the result-ready
+gate returns repair-needed, keep the same Work Unit and Work Card, increment the
+goal/convergence round, and use the `checkpoint_contract` when present to
+publish a source-backed `CHECKPOINT` before retrying result-ready. Do not create
+a new Work Unit or reset progress to represent a repair round.
 
 Planning is required for `goal`, but it should be proportional. Small Work
 Units can use a concise 1-3 bullet plan; risky or multi-step Work Units need a
@@ -7031,6 +7374,18 @@ Lead can decide without another broad summarization pass.
 ## Verification Performed
 
 -
+
+## Goal Convergence Receipt
+
+For goal-mode Work Units, link the machine-checkable receipt that closes every
+verification debt before result-ready:
+
+- Receipt: `goal-convergence-receipt.json`
+- Work Unit id:
+- Assignment criteria count:
+- Unresolved debt count:
+- Criterion ids: use the exact generated Assignment Packet ids (`done-1`,
+  `verification-1`, etc.) with no missing or extra ids.
 
 ## Done Criteria Mapping
 
@@ -7585,6 +7940,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"JSONL proof log path, default: <work-unit-id>/{DEFAULT_PROOF_LOG_NAME}",
     )
     result_ready.add_argument("--target", default="", help="Discord team-detail target for --publish")
+    result_ready.add_argument("--ops-target", default="", help="Discord ops-feed target for closeout delegate wake")
     result_ready.add_argument("--channel", default="discord", help="OpenClaw message channel")
     result_ready.add_argument("--account", default="", help="OpenClaw channel account id")
     result_ready.add_argument("--thread-id", default="", help="Optional Discord thread id")
@@ -7691,6 +8047,45 @@ def build_parser() -> argparse.ArgumentParser:
     delegate_wake_mode.add_argument("--dry-run", action="store_true", help="Validate and preview without delegate wake record or runtime call")
     delegate_wake_mode.add_argument("--publish", action="store_true", help="Enqueue delegate through the configured adapter and record proof")
     delegate_wake.set_defaults(func=closeout_delegate_wake_work_unit)
+
+    lock = work_unit_subparsers.add_parser(
+        "lock",
+        help="Inspect or explicitly clear a WU-scoped command lock",
+    )
+    lock_subparsers = lock.add_subparsers(dest="lock_action")
+    lock_subparsers.required = True
+    lock_status = lock_subparsers.add_parser("status", help="Report WU lock metadata without mutation")
+    lock_status.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    lock_status.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id> source artifacts",
+    )
+    lock_status.add_argument("--operation", choices=tuple(LOCK_OPERATION_PATHS), required=True)
+    lock_status.add_argument("--lock-path", type=Path, help="Optional explicit lock directory path")
+    lock_status.add_argument("--format", choices=("text", "json"), default="text")
+    lock_status.set_defaults(func=work_unit_lock_status)
+
+    lock_clear = lock_subparsers.add_parser("clear", help="Explicitly clear a stale WU lock after manual verification")
+    lock_clear.add_argument("--work-unit-id", required=True, type=work_unit_id)
+    lock_clear.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help="Root directory containing <work-unit-id> source artifacts",
+    )
+    lock_clear.add_argument("--operation", choices=tuple(LOCK_OPERATION_PATHS), required=True)
+    lock_clear.add_argument("--lock-path", type=Path, help="Optional explicit lock directory path")
+    lock_clear.add_argument("--reason", required=True, type=required, help="Operator recovery reason recorded in progress.jsonl")
+    lock_clear.add_argument("--recorded-by", default="operations-lead")
+    lock_clear.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow clearing when the recorded local pid still appears alive after external verification",
+    )
+    lock_clear.add_argument("--format", choices=("text", "json"), default="text")
+    lock_clear.set_defaults(func=work_unit_lock_clear)
 
     inbox = work_unit_subparsers.add_parser(
         "inbox",

@@ -33,13 +33,31 @@ condition is met.
 5. If verification fails or is unknown, identify the concrete gap and improve
    the work.
 6. Repeat `verify` after each improvement.
-7. Submit an Evidence & Result Record only when done criteria pass with
+7. Before submission, write `goal-convergence-receipt.json` for goal-mode Work
+   Units. It must include this Work Unit id, the Assignment Packet done plus
+   verification criterion count, and one unique `criterion_id` entry for every
+   criterion with a verdict, evidence ref, and any repair/reverify refs. The
+   `criterion_id` set must exactly match the generated Assignment Packet ids
+   (`done-1`, `verification-1`, etc.) with no missing or extra ids. It must use
+   integer `unresolved_debt_count: 0`.
+   If any criterion is `fail` or `unknown`, keep the Evidence & Result Record in
+   `Status: Draft`, write/refresh repair-needed details, and continue the same
+   Team Lead loop. Before retrying result-ready after a repair or reverify
+   cycle, increment the goal/convergence round and publish a source-backed
+   `CHECKPOINT` with `--mode goal` or `--mode convergence`, `--round`, and
+   `--phase-index` when a `checkpoint_contract` is available. This keeps the
+   same Work Unit and Work Card append-only; do not create a new Work Unit or
+   reset progress just to represent a repair round.
+8. Submit an Evidence & Result Record only when done criteria pass with
    evidence, then pass the shared Result Ready Gate before any `result_ready`
    claim, progress row, Discord `RESULT_READY`, or Project `Result Ready` mirror.
    If the gate fails, treat it as repair-needed unless the failure is a true
    missing input, authority, access, safety, budget, or source-truth blocker.
-   The Evidence & Result Record must say `Status: Result Ready`; a draft
-   evidence file is not enough for the result-ready command.
+   A repair-needed gate failure re-enters the same Team Lead loop and should be
+   followed by the next round checkpoint before another result-ready attempt
+   when checkpoint publishing is available.
+   The official result-ready command performs the guarded `Status: Result Ready`
+   source transition after the convergence receipt and source checks pass.
 
 If the goal discovers follow-up issues, route each one with severity and one of
 `direct_patch`, `docs_or_preflight`, `owner_decision`, or `observe`. This keeps

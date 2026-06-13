@@ -28,6 +28,7 @@ PULSE = SCRIPT_DIR / "pulse_monitor.py"
 ALERT_SCAN = SCRIPT_DIR / "work_unit_alert_scan.py"
 DISCORD = SCRIPT_DIR / "discord_ops.py"
 PROJECT_SYNC = SCRIPT_DIR / "project_sync.py"
+OPS_ROUTER = SCRIPT_DIR / "ops_router.py"
 HOOK_GUARD = SCRIPT_DIR.parent / ".codex" / "hooks" / "company_ops_gate.py"
 REPO_ROOT = SCRIPT_DIR.parent
 
@@ -93,6 +94,63 @@ def assert_no_legacy_closeout_delegate_names() -> None:
                 hits.append(f"{relative_path}: {token}")
     if hits:
         raise RuntimeError("legacy closeout delegate names remain in active paths: " + "; ".join(hits))
+
+
+def run_ops_router_smoke(work_dir: Path) -> None:
+    artifact_root = work_dir / "ops-router-artifacts"
+    goal_result = run_command(
+        [
+            sys.executable,
+            str(OPS_ROUTER),
+            "goal",
+            "Package the owner-facing ops command",
+            "--team",
+            "build-lab",
+            "--ops-target",
+            "local-smoke",
+            "--team-target",
+            "local-smoke",
+            "--source-ref",
+            "docs/package-boundary.md",
+            "--artifact-root",
+            str(artifact_root),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(goal_result, "ops goal dry-run")
+    goal_payload = json.loads(goal_result.stdout)
+    if goal_payload.get("status") != "ready":
+        raise RuntimeError("ops goal dry-run did not produce a ready draft")
+    if goal_payload.get("would_write_source_artifacts"):
+        raise RuntimeError("ops goal dry-run attempted to write source artifacts")
+    if not goal_payload.get("completed_handoff_spec_valid"):
+        raise RuntimeError("ops goal dry-run did not produce a valid handoff spec")
+    if goal_payload.get("handoff_spec_draft", {}).get("mode") != "goal":
+        raise RuntimeError("ops goal dry-run did not set protocol mode goal")
+
+    verify_result = run_command(
+        [
+            sys.executable,
+            str(OPS_ROUTER),
+            "verify",
+            "Verify the package boundary document",
+            "--source-ref",
+            "docs/package-boundary.md",
+            "--artifact-root",
+            str(artifact_root),
+            "--format",
+            "json",
+        ]
+    )
+    require_success(verify_result, "ops verify dry-run")
+    verify_payload = json.loads(verify_result.stdout)
+    if verify_payload.get("status") != "needs-ops-decision":
+        raise RuntimeError("ops verify dry-run should require Operations Lead routing without team targets")
+    if verify_payload.get("handoff_spec_draft", {}).get("mode") != "verify":
+        raise RuntimeError("ops verify dry-run did not set protocol mode verify")
+    if "team" not in verify_payload.get("missing_fields", []):
+        raise RuntimeError("ops verify dry-run guessed a team instead of requiring Operations Lead routing")
 
 
 def run_work_card_body_collapsible_smoke(work_dir: Path) -> None:
@@ -680,6 +738,67 @@ def mark_artifact_result_ready(artifact_dir: Path, *, recommendation: str | None
             f"Recommended decision:\n\n- {recommendation}",
         )
     evidence.write_text(evidence_text, encoding="utf-8")
+
+
+def mark_assignment_goal_mode(artifact_dir: Path) -> None:
+    assignment = artifact_dir / "assignment.md"
+    text = assignment.read_text(encoding="utf-8")
+    text = text.replace("mode: <goal|verify>", "mode: goal")
+    text = text.replace(
+        "## Done Criteria\n\nThe Work Unit can be considered ready for review when:\n\n-",
+        "## Done Criteria\n\nThe Work Unit can be considered ready for review when:\n\n"
+        "- done-1: Smoke implementation is complete.",
+    )
+    text = text.replace(
+        "## Verification Criteria\n\nEvidence or checks required for review:\n\n-",
+        "## Verification Criteria\n\nEvidence or checks required for review:\n\n"
+        "- verification-1: Smoke verification has passed.",
+    )
+    assignment.write_text(text, encoding="utf-8")
+
+
+def write_goal_convergence_receipt(
+    artifact_dir: Path,
+    *,
+    work_unit_id: str | None = None,
+    assignment_criteria_count: Any = 2,
+    unresolved_debt_count: Any = 0,
+    verdict: str = "pass",
+    final_verdict: str = "pass",
+    criteria_count: int = 2,
+    evidence_ref: str | None = None,
+    criterion_ids: list[str] | None = None,
+) -> None:
+    source_ref = evidence_ref or str(artifact_dir / "evidence.md")
+    criteria = []
+    for index in range(criteria_count):
+        criterion_id = (
+            criterion_ids[index]
+            if criterion_ids is not None and index < len(criterion_ids)
+            else "done-1" if index == 0 else f"verification-{index}"
+        )
+        criteria.append(
+            {
+                "criterion_id": criterion_id,
+                "criterion_text": "Smoke criterion is satisfied.",
+                "verdict": verdict,
+                "evidence_ref": source_ref,
+                "repair_action_ref": source_ref if verdict in {"fail", "unknown"} else "",
+                "reverify_ref": source_ref if verdict in {"fail", "unknown"} else "",
+                "final_verdict": final_verdict,
+            }
+        )
+    receipt = {
+        "status": "ready_for_result_ready",
+        "work_unit_id": work_unit_id or artifact_dir.name,
+        "assignment_criteria_count": assignment_criteria_count,
+        "unresolved_debt_count": unresolved_debt_count,
+        "criteria": criteria,
+    }
+    (artifact_dir / "goal-convergence-receipt.json").write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def proof_rows(work_unit_id: str, events: list[tuple[str, str, str, str]]) -> list[dict[str, Any]]:
@@ -3628,6 +3747,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     conflict_dir = create_artifacts(args, inbox_work_dir, "WU-260607-104", "ops")
     invalid_dir = create_artifacts(args, inbox_work_dir, "WU-260607-106", "build-lab")
     invalid_progress_dir = create_artifacts(args, inbox_work_dir, "WU-260607-107", "build-lab")
+    goal_receipt_dir = create_artifacts(args, inbox_work_dir, "WU-260607-115", "build-lab")
     start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-110", "ops")
     missing_started_dir = create_artifacts(args, inbox_work_dir, "WU-260607-111", "market")
     live_start_dir = create_artifacts(args, inbox_work_dir, "WU-260607-112", "ops")
@@ -3636,7 +3756,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     custom_session_dir = create_artifacts(args, inbox_work_dir, "WU-260607-116", "ops")
     artifact_root = inbox_work_dir / "artifacts"
 
-    for artifact_dir in (ready_late, ready_early, stale_dir, conflict_dir, invalid_dir, invalid_progress_dir):
+    for artifact_dir in (ready_late, ready_early, stale_dir, conflict_dir, invalid_dir, invalid_progress_dir, goal_receipt_dir):
         mark_artifact_started(artifact_dir)
     mark_artifact_result_ready(ready_late, recommendation="accept")
     mark_artifact_result_ready(ready_early, recommendation="revise")
@@ -3655,6 +3775,7 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         ),
         encoding="utf-8",
     )
+    mark_assignment_goal_mode(goal_receipt_dir)
     mark_artifact_result_ready(missing_started_dir, recommendation="accept")
     mark_artifact_started(adapter_dir)
     mark_artifact_started(command_adapter_dir)
@@ -4716,6 +4837,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "openclaw-agent",
             "--closeout-delegate-adapter",
             "fake",
+            "--closeout-delegate-active-cap",
+            "2",
             "--publish",
             "--format",
             "json",
@@ -4802,6 +4925,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "openclaw-agent",
             "--closeout-delegate-adapter",
             "fake",
+            "--closeout-delegate-active-cap",
+            "5",
             "--publish",
             "--format",
             "json",
@@ -4887,6 +5012,8 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
             "openclaw-agent",
             "--closeout-delegate-adapter",
             "fake",
+            "--closeout-delegate-active-cap",
+            "2",
             "--publish",
             "--format",
             "json",
@@ -5095,6 +5222,290 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     )
     if invalid_result_ready_publish.returncode == 0:
         raise RuntimeError("result-ready dry-run accepted draft evidence")
+
+    missing_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode result-ready must require a convergence receipt.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Missing receipt must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if missing_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted missing convergence receipt")
+    if "goal_convergence_receipt" not in missing_receipt_result.stderr:
+        raise RuntimeError("missing convergence receipt failure was not reported")
+
+    write_goal_convergence_receipt(goal_receipt_dir, unresolved_debt_count=1, verdict="fail", final_verdict="fail")
+    invalid_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode result-ready must reject unresolved debt.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Unresolved debt must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if invalid_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted unresolved convergence debt")
+
+    write_goal_convergence_receipt(goal_receipt_dir, work_unit_id="WU-OTHER-001")
+    wrong_work_unit_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode receipt must belong to this Work Unit.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Wrong receipt work_unit_id must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if wrong_work_unit_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted a receipt for another Work Unit")
+
+    write_goal_convergence_receipt(goal_receipt_dir, assignment_criteria_count="2")
+    loose_count_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode receipt must use strict integer counts.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "String assignment_criteria_count must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if loose_count_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted string assignment_criteria_count")
+
+    write_goal_convergence_receipt(goal_receipt_dir, unresolved_debt_count="0")
+    loose_debt_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode receipt must use strict integer unresolved debt count.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "String unresolved_debt_count must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if loose_debt_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted string unresolved_debt_count")
+
+    write_goal_convergence_receipt(goal_receipt_dir, criteria_count=1)
+    partial_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode receipt must cover every assignment criterion.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Partial criteria mapping must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if partial_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted partial criteria mapping")
+
+    write_goal_convergence_receipt(goal_receipt_dir, criterion_ids=["done-1", "verification-wrong"])
+    wrong_criterion_id_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode receipt must map the exact Assignment Packet criterion ids.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Wrong criterion_id with matching count must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if wrong_criterion_id_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted wrong criterion_id mapping")
+
+    external_receipt_ref = work_dir / "external-receipt-proof.txt"
+    external_receipt_ref.write_text("outside the Work Unit and repository\n", encoding="utf-8")
+    write_goal_convergence_receipt(goal_receipt_dir, evidence_ref=str(external_receipt_ref))
+    external_ref_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode receipt refs must stay inside allowed source roots.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "External absolute receipt ref must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if external_ref_receipt_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted external receipt evidence_ref")
+
+    write_goal_convergence_receipt(goal_receipt_dir)
+    goal_receipt_evidence_path = goal_receipt_dir / "evidence.md"
+    goal_receipt_evidence_text = goal_receipt_evidence_path.read_text(encoding="utf-8")
+    goal_receipt_evidence_path.write_text(
+        goal_receipt_evidence_text.replace("Status: Draft", "Status: Manual Day-0", 1),
+        encoding="utf-8",
+    )
+    manual_day0_evidence_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode pre-publish evidence must remain explicitly Draft.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Manual Day-0 evidence status must fail.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if manual_day0_evidence_result.returncode == 0:
+        raise RuntimeError("goal-mode result-ready dry-run accepted Manual Day-0 evidence status")
+    goal_receipt_evidence_path.write_text(goal_receipt_evidence_text, encoding="utf-8")
+
+    write_goal_convergence_receipt(goal_receipt_dir)
+    valid_receipt_result = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-115",
+            "--artifact-root",
+            str(artifact_root),
+            "--team",
+            "build-lab",
+            "--result",
+            "Goal-mode convergence receipt permits official result-ready preview.",
+            "--evidence",
+            str(goal_receipt_dir / "evidence.md"),
+            "--verification",
+            "Convergence receipt reports zero unresolved debt.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(valid_receipt_result, "goal-mode convergence receipt result-ready dry-run")
+    valid_receipt_payload = json.loads(valid_receipt_result.stdout)
+    if valid_receipt_payload.get("status") != "ready-to-publish":
+        raise RuntimeError("valid convergence receipt did not allow result-ready preview")
+    if "Status: Draft" not in (goal_receipt_dir / "evidence.md").read_text(encoding="utf-8"):
+        raise RuntimeError("goal-mode result-ready dry-run mutated draft evidence status")
 
     missing_started_result_ready = run_command(
         [
@@ -5322,6 +5733,79 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
     if (ready_late / ".closeout.lock").exists():
         raise RuntimeError("closeout dry-run left the WU lock behind")
 
+    stale_lock_path = ready_late / ".closeout.lock"
+    stale_lock_path.mkdir()
+    (stale_lock_path / "metadata.json").write_text(
+        json.dumps(
+            {
+                "pid": 99999999,
+                "acquired_at": "2026-06-07T00:00:00+00:00",
+                "hostname": "smoke-host",
+                "path": str(stale_lock_path),
+                "work_unit_id": "WU-260607-101",
+                "operation": "closeout",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lock_status = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "lock",
+            "status",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--operation",
+            "closeout",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(lock_status, "lock status")
+    lock_status_payload = json.loads(lock_status.stdout)
+    if lock_status_payload.get("status") != "lock-present":
+        raise RuntimeError("lock status did not report lock-present")
+    if lock_status_payload.get("lock", {}).get("stale_candidate") is not True:
+        raise RuntimeError("lock status did not mark dead pid lock as stale candidate")
+    lock_clear = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "lock",
+            "clear",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--operation",
+            "closeout",
+            "--reason",
+            "smoke verified stale lock owner is gone",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(lock_clear, "lock clear")
+    lock_clear_payload = json.loads(lock_clear.stdout)
+    if lock_clear_payload.get("status") != "lock-cleared":
+        raise RuntimeError("lock clear did not report lock-cleared")
+    if stale_lock_path.exists():
+        raise RuntimeError("lock clear left the stale lock directory behind")
+    progress_rows = [
+        json.loads(line)
+        for line in (ready_late / "progress.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if not any(row.get("transition_kind") == "lock-clear" for row in progress_rows):
+        raise RuntimeError("lock clear did not append a recovery progress row")
+
     result_ready_proof_before = (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8")
     result_ready_dry_run = run_command(
         [
@@ -5354,6 +5838,12 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("result-ready dry-run reported proof mutation")
     if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
         raise RuntimeError("result-ready dry-run mutated visibility proof")
+    ready_late_evidence_path = ready_late / "evidence.md"
+    ready_late_evidence_ready_text = ready_late_evidence_path.read_text(encoding="utf-8")
+    ready_late_evidence_path.write_text(
+        ready_late_evidence_ready_text.replace("Status: Result Ready", "Status: Draft", 1),
+        encoding="utf-8",
+    )
     duplicate_result_ready = run_command(
         [
             sys.executable,
@@ -5383,8 +5873,58 @@ def run_result_ready_inbox_smoke(args: argparse.Namespace, work_dir: Path) -> No
         raise RuntimeError("duplicate RESULT_READY retry did not report already-result-ready")
     if duplicate_payload.get("would_publish_result_ready") is not False:
         raise RuntimeError("duplicate RESULT_READY retry reported a publish mutation")
+    if duplicate_payload.get("evidence_reconciled") is not True:
+        raise RuntimeError("duplicate RESULT_READY retry did not reconcile draft evidence after existing proof")
+    if "Status: Result Ready" not in ready_late_evidence_path.read_text(encoding="utf-8"):
+        raise RuntimeError("duplicate RESULT_READY retry did not restore evidence Result Ready status")
     if (ready_late / "visibility-proof.jsonl").read_text(encoding="utf-8") != result_ready_proof_before:
         raise RuntimeError("duplicate RESULT_READY idempotency guard mutated visibility proof")
+    if (ready_late / ".result-ready.lock").exists():
+        raise RuntimeError("duplicate RESULT_READY idempotency guard left the WU lock behind")
+
+    duplicate_recover_wake = run_command(
+        [
+            sys.executable,
+            str(ARTIFACTS),
+            "work-unit",
+            "result-ready",
+            "--work-unit-id",
+            "WU-260607-101",
+            "--artifact-root",
+            str(artifact_root),
+            "--result",
+            "Duplicate RESULT_READY retry should recover a missing closeout delegate wake.",
+            "--evidence",
+            str(ready_late / "evidence.md"),
+            "--verification",
+            "Existing RESULT_READY proof already exists and OL review is pending.",
+            "--target",
+            "local-smoke",
+            "--ops-target",
+            "local-ops",
+            "--closeout-delegate-runtime",
+            "openclaw-agent",
+            "--closeout-delegate-adapter",
+            "fake",
+            "--closeout-delegate-active-cap",
+            "5",
+            "--publish",
+            "--format",
+            "json",
+        ]
+    )
+    require_success(duplicate_recover_wake, "result-ready duplicate retry recovers closeout delegate wake")
+    duplicate_recover_payload = json.loads(duplicate_recover_wake.stdout)
+    if duplicate_recover_payload.get("status") != "already-result-ready":
+        raise RuntimeError("duplicate RESULT_READY wake recovery did not preserve already-result-ready status")
+    if duplicate_recover_payload.get("delegate_wake", {}).get("status") != "delegate-wake-enqueued":
+        raise RuntimeError("duplicate RESULT_READY retry did not recover missing closeout delegate wake")
+    wake_record = json.loads((ready_late / "closeout-delegate-wake.json").read_text(encoding="utf-8"))
+    if wake_record.get("work_unit_id") != "WU-260607-101" or wake_record.get("status") != "delegate-wake-enqueued":
+        raise RuntimeError("duplicate RESULT_READY wake recovery wrote an invalid wake record")
+    if (ready_late / ".result-ready.lock").exists():
+        raise RuntimeError("duplicate RESULT_READY wake recovery left the WU lock behind")
+    (ready_late / "closeout-delegate-wake.json").unlink()
 
     terminal_guard_dir = create_artifacts(args, inbox_work_dir, "WU-260607-160", "build-lab")
     mark_artifact_started(terminal_guard_dir)
@@ -6820,6 +7360,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         run_hook_guard_smoke()
         run_async_work_unit_policy_smoke()
         assert_no_legacy_closeout_delegate_names()
+        run_ops_router_smoke(work_dir)
         run_work_card_body_collapsible_smoke(work_dir)
         run_handoff_initial_project_hydrate_smoke(work_dir)
         run_discord_card_smoke()
@@ -6847,6 +7388,7 @@ def cmd_multi_team(args: argparse.Namespace) -> int:
         "read-only Work Unit alert-scan stale detection and Discord dry-run, "
         "repo-local hook guard fixtures, "
         "async Work Unit policy docs, "
+        "owner-facing ops router dry-run contracts, "
         "collapsible Work Card operational sections, "
         "initial handoff Project hydration after ASSIGNED readback, "
         "purpose-specific Discord card/checkpoint composition, "

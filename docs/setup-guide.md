@@ -356,12 +356,26 @@ Use this flow before any dedicated automation exists.
 5. Operations Lead assigns one Team Lead OpenClaw Agent.
 6. Operations Lead records the initial responsibility expectation.
 7. Team Lead executes the Work Unit and directly manages its own subagents.
-8. Team Lead produces an Evidence & Result Record.
-9. Operations Lead reviews the evidence and records a decision.
-10. Work Card is closed only after the decision and evidence are linked.
+8. Team Lead produces a Draft Evidence & Result Record. In `goal` mode, Team
+   Lead also writes `goal-convergence-receipt.json` proving every Done and
+   Verification criterion passed with `unresolved_debt_count: 0`.
+9. Team Lead submits through `work-unit result-ready --dry-run` then
+   `--publish`; the official publish path performs the guarded
+   `Status: Result Ready` source transition.
+10. Operations Lead reviews the evidence and records a decision.
+11. Work Card is closed only after the decision and evidence are linked.
 
 Completion requires evidence. A status claim, Discord message, or GitHub
 comment is not enough by itself.
+
+If the result-ready gate returns `repair-needed`, keep the same Work Unit and
+Work Card, increment the goal/convergence round, publish the next source-backed
+checkpoint when available, and retry after repair. Do not create a replacement
+Work Unit or reset progress just to represent the repair round.
+
+If a command lock remains after a crash, inspect it with `work-unit lock status`
+and clear it only after manual verification with
+`work-unit lock clear --reason ...`. Do not rely on automatic TTL deletion.
 
 The daily operating procedure is documented in `docs/operations-manual.md`.
 
@@ -610,6 +624,12 @@ where the Operations Lead agent runs. The human owner keeps using natural
 language. The Operations Lead uses the bundled skill as the routing manual and
 uses the packaged foreground CLI as the ticketing, inbox, lock, dashboard, and
 visibility toolset.
+
+Owner-facing command links should use the namespaced `/ops` surface documented
+in [`command-links.md`](command-links.md). Public v1 should expose `/ops goal`,
+`/ops verify`, `/ops status`, `/ops inbox`, `/ops decide`, and `/ops preflight`
+through the packaged CLI. Do not bind Company Ops to bare `/goal`; that command
+belongs to native OpenClaw/Codex session goal handling.
 
 Project and Discord setup remains explicit foreground setup. Public v1 should
 guide users through a setup/preflight check for Project field-map readiness,

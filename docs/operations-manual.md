@@ -207,10 +207,16 @@ It defines how the Operations Lead recovers and processes ready results after
 delivery: finish or pause the active owner request first, then process ready
 results from the source-backed inbox. The inbox is the set of Work Units whose
 claim or evidence state is `result_ready` and whose team-detail trail has a
-valid `RESULT_READY` proof when live visibility is required. If `claim.md` says
-`result_ready`, the referenced Evidence & Result Record must exist and must not
-still be `Draft` or `Pending`. Progress rows used around a ready transition must
-not point at missing local `source_ref` files.
+valid `RESULT_READY` proof when live visibility is required. A Team Lead must
+keep the Evidence & Result Record in `Status: Draft` before the official
+`work-unit result-ready --publish` transition. For goal-mode Work Units, that
+publish path accepts Draft evidence only when a valid
+`goal-convergence-receipt.json` proves every Assignment Packet Done and
+Verification criterion has passed with `unresolved_debt_count: 0`; the command
+then performs the guarded `Status: Result Ready` source transition. If
+`claim.md` already says `result_ready`, the referenced Evidence & Result Record
+must exist and must not still be `Draft` or `Pending`. Progress rows used around
+a ready transition must not point at missing local `source_ref` files.
 
 The inbox is discovered from local source artifacts only: Work Unit directories
 under the configured artifact root, `claim.md`, `evidence.md`, `decision.md`,
@@ -274,10 +280,15 @@ Official `RESULT_READY` publication should use
 `work-unit result-ready --dry-run` before `work-unit result-ready --publish`.
 The command runs the shared Result Ready gate before publishing. The gate
 requires a prior `started` source event, and live Discord-bound routes require a
-valid team-detail `STARTED` proof. After publishing, the gate also requires the
-live `RESULT_READY` readback proof. This prevents the circular failure where
+valid team-detail `STARTED` proof. For goal-mode Work Units, the pre-publish
+gate must also validate `goal-convergence-receipt.json`: Work Unit id match,
+Assignment Packet criteria count match, unique criterion ids, integer
+`unresolved_debt_count: 0`, all final verdicts `pass`, and valid evidence,
+repair, and reverify refs. After publishing, the gate also requires the live
+`RESULT_READY` readback proof. This prevents the circular failure where
 RESULT_READY proof is required before the command has had a chance to create it,
-while still blocking result-ready submissions for Work Units that never started.
+while still blocking result-ready submissions for Work Units that never started
+or still have unresolved goal-convergence debt.
 
 For detached Work Units, `result-ready --publish` may also enqueue a fresh
 Work Unit-scoped closeout delegate session after successful RESULT_READY
@@ -410,8 +421,11 @@ Race control:
   owner instead.
 - The closeout lock is a short-lived command guard, not a durable workflow
   owner. If the lock already exists, the command should fail before mutation and
-  report the lock path; force-unlock behavior requires a separate stale-lock
-  policy.
+  report the lock path. Use `work-unit lock status` to inspect lock metadata.
+  If manual verification confirms the lock owner is gone, use
+  `work-unit lock clear --reason ...`; it removes only the lock directory and
+  records a recovery row. Do not use automatic TTL deletion for active
+  Operations Lead decisions.
 - If a duplicate or stale Team Lead result arrives after a decision exists,
   compare it to the existing source artifacts and report it as stale or a
   revision request. Do not reopen or overwrite accepted work automatically.
@@ -449,6 +463,12 @@ Goal/convergence revision boundary:
 - Use `work-unit checkpoint` and `progress.jsonl` rows for Team Lead-owned
   round visibility during that internal loop. In a detached path, those
   checkpoints are Team Lead execution visibility, not Operations Lead closeout.
+- If any criterion is `fail` or `unknown`, or the Result Ready gate returns
+  `repair-needed`, keep the same Work Unit and Work Card, increment the
+  goal/convergence round, and publish the next source-backed `CHECKPOINT` with
+  the dispatch packet `checkpoint_contract` when available before retrying
+  result-ready. Do not create a replacement Work Unit or reset progress just to
+  represent a repair round.
 - Operations Lead `revise` is different. It happens only after a source-backed
   `result-ready` submission is reviewed and found insufficient against the
   Assignment Packet. It produces lifecycle `revision_requested` and default
@@ -954,12 +974,14 @@ Evidence may include:
 The Evidence & Result Record must map result evidence back to the Assignment
 Packet done criteria. Status claims alone are not evidence.
 
-A `result_ready` claim without an existing non-draft Evidence & Result Record is
+A `result_ready` claim without a valid source-backed Evidence & Result Record is
 a repair-needed ready transition, not a weak ready item and not Work Unit
-failure. The shared Result Ready Gate must keep the Work Unit `In Progress`,
-avoid writing or mirroring `Result Ready`, and return structured repair hints
-until the missing source artifact, evidence, or proof is fixed. In the Project
-dashboard, keep the coarse `Status` as `In Progress`; put
+failure. For goal-mode Work Units, Draft evidence is valid only before publish
+and only when paired with a valid `goal-convergence-receipt.json`; otherwise the
+shared Result Ready Gate must keep the Work Unit `In Progress`, avoid writing or
+mirroring `Result Ready`, and return structured repair hints until the missing
+source artifact, convergence receipt, evidence, or proof is fixed. In the
+Project dashboard, keep the coarse `Status` as `In Progress`; put
 `result preflight repair needed` in `Progress` and the concrete repair reason in
 `Blocker`.
 

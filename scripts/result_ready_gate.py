@@ -11,6 +11,7 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROOF_LOG_NAME = "visibility-proof.jsonl"
+GOAL_CONVERGENCE_RECEIPT_NAME = "goal-convergence-receipt.json"
 FIELD_RE = re.compile(r"^- ([^:]+):\s*(.*)$")
 STATUS_RE = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 RESULT_READY_PROOF_REQUIRED_ROUTES = {"discord-bound"}
@@ -49,6 +50,327 @@ def parse_markdown_source(path: Path) -> dict[str, Any]:
         "fields": fields,
         "text": text,
     }
+
+
+def read_json_source(path: Path) -> tuple[dict[str, Any] | None, str]:
+    if not path.exists():
+        return None, "missing"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, f"invalid JSON: {exc}"
+    if not isinstance(value, dict):
+        return None, "JSON root is not an object"
+    return value, ""
+
+
+def assignment_is_goal_mode(assignment: dict[str, Any]) -> bool:
+    text = str(assignment.get("text") or "")
+    return bool(re.search(r"(?im)^\s*mode:\s*`?goal`?\s*$", text))
+
+
+def strict_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def section_lines(text: str, heading: str) -> list[str]:
+    lines = text.splitlines()
+    collecting = False
+    collected: list[str] = []
+    heading_re = re.compile(rf"^##\s+{re.escape(heading)}\s*$", re.IGNORECASE)
+    for line in lines:
+        if heading_re.match(line.strip()):
+            collecting = True
+            continue
+        if collecting and re.match(r"^##\s+", line):
+            break
+        if collecting:
+            collected.append(line)
+    return collected
+
+
+def extract_assignment_criteria(text: str) -> list[dict[str, str]]:
+    criteria: list[dict[str, str]] = []
+    for prefix, heading in (("done", "Done Criteria"), ("verification", "Verification Criteria")):
+        index = 0
+        for line in section_lines(text, heading):
+            match = re.match(r"^\s*[-*]\s+(.+?)\s*$", line)
+            if not match:
+                continue
+            value = clean_markdown_value(match.group(1)).strip()
+            if not value or value in {"-", "<criteria>"}:
+                continue
+            index += 1
+            criteria.append({"id": f"{prefix}-{index}", "text": value})
+    return criteria
+
+
+def path_is_under(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def local_receipt_ref_exists(source_ref: str, artifact_dir: Path) -> bool:
+    cleaned = source_ref.strip()
+    if not cleaned or "://" in cleaned or cleaned.startswith("#"):
+        return False
+    without_fragment = cleaned.split("#", 1)[0].strip()
+    if not without_fragment:
+        return False
+    repo_root = SCRIPT_DIR.parent
+    candidates: list[Path]
+    path = Path(without_fragment).expanduser()
+    if path.is_absolute():
+        candidates = [path]
+    else:
+        candidates = [repo_root / path, artifact_dir / path]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        if path_is_under(candidate, repo_root) or path_is_under(candidate, artifact_dir):
+            return True
+    return False
+
+
+def validate_goal_convergence_receipt(
+    receipt_path: Path,
+    artifact_dir: Path,
+    work_unit_id: str,
+    assignment_criteria: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    assignment_criteria_count = len(assignment_criteria)
+    receipt, error = read_json_source(receipt_path)
+    if error:
+        return [
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "goal_convergence_receipt",
+                f"goal convergence receipt is {error}",
+                "Write goal-convergence-receipt.json before declaring result-ready.",
+            )
+        ]
+
+    failures: list[dict[str, str]] = []
+    receipt_work_unit_id = str(receipt.get("work_unit_id") or "").strip()
+    if receipt_work_unit_id != work_unit_id:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "work_unit_id",
+                f"goal convergence receipt work_unit_id is {receipt_work_unit_id or 'missing'}",
+                "Write a convergence receipt for this exact Work Unit before result-ready.",
+            )
+        )
+    status = normalized_state(str(receipt.get("status") or ""))
+    if status not in {"ready_for_result_ready", "finalized"}:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "status",
+                f"goal convergence receipt status is {receipt.get('status') or 'missing'}",
+                "Set status to ready_for_result_ready only after verification debt is closed.",
+            )
+        )
+    unresolved_debt_count = strict_int(receipt.get("unresolved_debt_count"))
+    if unresolved_debt_count != 0:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "unresolved_debt_count",
+                f"unresolved debt count is {receipt.get('unresolved_debt_count')!r}",
+                "Repair fail/unknown criteria and rerun verification until unresolved_debt_count is 0.",
+            )
+        )
+    receipt_assignment_criteria_count = strict_int(receipt.get("assignment_criteria_count"))
+    if assignment_criteria_count <= 0:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(artifact_dir / "assignment.md"),
+                "assignment.criteria",
+                "goal Assignment Packet has no concrete done/verification criteria",
+                "Record concrete Done Criteria and Verification Criteria before result-ready.",
+            )
+        )
+    elif receipt_assignment_criteria_count != assignment_criteria_count:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "assignment_criteria_count",
+                (
+                    "goal convergence receipt assignment_criteria_count is "
+                    f"{receipt.get('assignment_criteria_count')!r}; expected {assignment_criteria_count}"
+                ),
+                "Map every Assignment Packet done/verification criterion into the receipt.",
+            )
+        )
+
+    criteria = receipt.get("criteria")
+    if not isinstance(criteria, list) or not criteria:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "criteria",
+                "goal convergence receipt has no criteria list",
+                "Record each done/verification criterion with verdict and evidence refs.",
+            )
+        )
+        return failures
+    if assignment_criteria_count > 0 and len(criteria) != assignment_criteria_count:
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "criteria",
+                f"goal convergence receipt maps {len(criteria)} criteria; expected {assignment_criteria_count}",
+                "Include exactly one receipt entry for every Assignment Packet done/verification criterion.",
+            )
+        )
+
+    seen_criterion_ids: set[str] = set()
+    for index, criterion in enumerate(criteria, start=1):
+        if not isinstance(criterion, dict):
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}]",
+                    "criterion entry is not an object",
+                    "Replace each criterion entry with an object.",
+                )
+            )
+            continue
+        criterion_id = str(criterion.get("criterion_id") or "").strip()
+        if not criterion_id:
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}].criterion_id",
+                    "criterion is missing criterion_id",
+                    "Give each mapped criterion a stable criterion_id.",
+                )
+            )
+        elif criterion_id in seen_criterion_ids:
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}].criterion_id",
+                    f"duplicate criterion_id: {criterion_id}",
+                    "Use each criterion_id only once in the convergence receipt.",
+                )
+            )
+        else:
+            seen_criterion_ids.add(criterion_id)
+        verdict = normalized_state(str(criterion.get("final_verdict") or criterion.get("verdict") or ""))
+        if verdict != "pass":
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}].final_verdict",
+                    f"criterion final verdict is {criterion.get('final_verdict') or criterion.get('verdict') or 'missing'}",
+                    "Do not declare result-ready until every criterion final_verdict is pass.",
+                )
+            )
+        evidence_ref = str(criterion.get("evidence_ref") or "").strip()
+        if not evidence_ref:
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}].evidence_ref",
+                    "criterion is missing evidence_ref",
+                    "Point evidence_ref at the source artifact proving this criterion.",
+                )
+            )
+        elif not local_source_ref_exists(evidence_ref, artifact_dir):
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}].evidence_ref",
+                    f"missing evidence_ref: {evidence_ref}",
+                    "Point evidence_ref at an existing local source artifact.",
+                )
+            )
+        elif not local_receipt_ref_exists(evidence_ref, artifact_dir):
+            failures.append(
+                structured_failure(
+                    "repairable",
+                    str(receipt_path),
+                    f"criteria[{index}].evidence_ref",
+                    f"evidence_ref is outside allowed receipt sources: {evidence_ref}",
+                    "Point evidence_ref inside the repository or this Work Unit artifact directory.",
+                )
+            )
+        initial_verdict = normalized_state(str(criterion.get("verdict") or ""))
+        if initial_verdict in {"fail", "unknown"}:
+            for field in ("repair_action_ref", "reverify_ref"):
+                value = str(criterion.get(field) or "").strip()
+                if not value:
+                    failures.append(
+                        structured_failure(
+                            "repairable",
+                            str(receipt_path),
+                            f"criteria[{index}].{field}",
+                            f"criterion started as {initial_verdict} but is missing {field}",
+                            "Record the repair and later reverify source refs before result-ready.",
+                        )
+                    )
+                elif not local_source_ref_exists(value, artifact_dir):
+                    failures.append(
+                        structured_failure(
+                            "repairable",
+                            str(receipt_path),
+                            f"criteria[{index}].{field}",
+                            f"missing {field}: {value}",
+                            "Point repair/reverify refs at existing local source artifacts.",
+                        )
+                    )
+                elif not local_receipt_ref_exists(value, artifact_dir):
+                    failures.append(
+                        structured_failure(
+                            "repairable",
+                            str(receipt_path),
+                            f"criteria[{index}].{field}",
+                            f"{field} is outside allowed receipt sources: {value}",
+                            "Point repair/reverify refs inside the repository or this Work Unit artifact directory.",
+                        )
+                    )
+    expected_criterion_ids = {str(item.get("id") or "").strip() for item in assignment_criteria}
+    expected_criterion_ids.discard("")
+    if expected_criterion_ids and seen_criterion_ids != expected_criterion_ids:
+        missing_ids = sorted(expected_criterion_ids - seen_criterion_ids)
+        extra_ids = sorted(seen_criterion_ids - expected_criterion_ids)
+        details: list[str] = []
+        if missing_ids:
+            details.append(f"missing {', '.join(missing_ids)}")
+        if extra_ids:
+            details.append(f"unexpected {', '.join(extra_ids)}")
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(receipt_path),
+                "criteria.criterion_id",
+                "goal convergence receipt criterion_id set does not match Assignment Packet criteria"
+                + (f": {'; '.join(details)}" if details else ""),
+                "Use exactly the Assignment Packet criterion ids generated from Done Criteria and Verification Criteria.",
+            )
+        )
+    return failures
 
 
 def local_source_ref_exists(source_ref: str, artifact_dir: Path) -> bool:
@@ -173,6 +495,8 @@ def result_ready_gate(
     projected_progress_rows: list[dict[str, Any]] | None = None,
     require_live_visibility: bool | None = None,
     require_started_visibility: bool | None = None,
+    allow_draft_evidence_with_convergence_receipt: bool = False,
+    allow_draft_evidence_with_existing_result_ready: bool = False,
 ) -> dict[str, Any]:
     artifact_root = artifact_root.expanduser()
     artifact_dir = artifact_root / work_unit_id
@@ -186,7 +510,8 @@ def result_ready_gate(
         progress_rows.extend(projected_progress_rows)
 
     claim_state = claim_state_override or claim["fields"].get("expected state", "")
-    evidence_status = evidence_status_override or str(evidence.get("status") or "")
+    raw_evidence_status = str(evidence.get("status") or "")
+    evidence_status = evidence_status_override or raw_evidence_status
     requested = result_ready_requested(claim_state, evidence_status, progress_rows)
 
     if not requested:
@@ -200,6 +525,8 @@ def result_ready_gate(
             "source": "local-source-artifacts",
         }
 
+    goal_mode = False
+    receipt_failures: list[dict[str, str]] = []
     if not assignment.get("exists"):
         failures.append(
             structured_failure(
@@ -210,6 +537,17 @@ def result_ready_gate(
                 "Restore or create the Assignment Packet before declaring result_ready.",
             )
         )
+    else:
+        goal_mode = assignment_is_goal_mode(assignment)
+        if goal_mode:
+            assignment_criteria = extract_assignment_criteria(str(assignment.get("text") or ""))
+            receipt_failures = validate_goal_convergence_receipt(
+                artifact_dir / GOAL_CONVERGENCE_RECEIPT_NAME,
+                artifact_dir,
+                work_unit_id,
+                assignment_criteria,
+            )
+            failures.extend(receipt_failures)
     if not has_started_source(progress_rows, proof_path, work_unit_id):
         failures.append(
             structured_failure(
@@ -220,25 +558,43 @@ def result_ready_gate(
                 "Run the canonical start transition before declaring result_ready.",
             )
         )
-    if normalized_state(claim_state) == "result_ready":
-        if not evidence.get("exists"):
-            failures.append(
-                structured_failure(
-                    "repairable",
-                    str(artifact_dir / "evidence.md"),
-                    "evidence.status",
-                    "claim result_ready but evidence.md is missing",
-                    "Create an Evidence & Result Record with source-backed proof, then rerun the gate.",
-                )
+    draft_allowed = bool(
+        allow_draft_evidence_with_convergence_receipt
+        and goal_mode
+        and not receipt_failures
+    ) or allow_draft_evidence_with_existing_result_ready
+    if not evidence.get("exists"):
+        failures.append(
+            structured_failure(
+                "repairable",
+                str(artifact_dir / "evidence.md"),
+                "evidence.status",
+                "result_ready requested but evidence.md is missing",
+                "Create an Evidence & Result Record with source-backed proof, then rerun the gate.",
             )
-        elif normalized_state(evidence_status) in {"", "draft", "pending"}:
+        )
+    else:
+        raw_status = normalized_state(raw_evidence_status)
+        raw_status_can_be_projected = raw_status == "result_ready" or (draft_allowed and raw_status == "draft")
+        effective_evidence_status = evidence_status_override or raw_evidence_status
+        evidence_status = normalized_state(effective_evidence_status)
+        evidence_status_ok = (
+            raw_status_can_be_projected
+            and (evidence_status == "result_ready" or (draft_allowed and evidence_status == "draft"))
+        )
+        if not evidence_status_ok:
+            expected_status = (
+                "Status: Draft before official publish, then Status: Result Ready after publish"
+                if draft_allowed
+                else "Status: Result Ready from the official result-ready publish path"
+            )
             failures.append(
                 structured_failure(
                     "repairable",
                     str(evidence["path"]),
                     "evidence.status",
-                    f"claim result_ready but evidence status is {evidence_status or 'missing'}",
-                    "Update evidence only after real verification/source proof exists.",
+                    f"result_ready requested but evidence status is {effective_evidence_status or 'missing'}",
+                    expected_status,
                 )
             )
 

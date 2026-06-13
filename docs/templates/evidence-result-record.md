@@ -1,6 +1,6 @@
 # Evidence & Result Record
 
-Status: Manual Day-0
+Status: Draft
 
 The Evidence & Result Record is the proof bundle the Operations Lead uses to
 review a Work Unit.
@@ -45,6 +45,18 @@ Lead can decide without another broad summarization pass.
 ## Verification Performed
 
 -
+
+## Goal Convergence Receipt
+
+For goal-mode Work Units, link the machine-checkable receipt that closes every
+verification debt before result-ready:
+
+- Receipt: `goal-convergence-receipt.json`
+- Work Unit id:
+- Assignment criteria count:
+- Unresolved debt count:
+- Criterion ids: use the exact generated Assignment Packet ids (`done-1`,
+  `verification-1`, etc.) with no missing or extra ids.
 
 ## Done Criteria Mapping
 
